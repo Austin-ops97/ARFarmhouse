@@ -33,6 +33,9 @@ const atmosphereLayers: Record<HomeAtmosphere, string> = {
   storm: "from-slate-400/[0.12] via-sky-900/[0.08] to-transparent",
 };
 
+const heroMin =
+  "min-h-[clamp(22rem,46vh,34rem)] sm:min-h-[clamp(24rem,48vh,36rem)] lg:min-h-[clamp(26rem,44vh,38rem)]";
+
 export function HomeImmersiveHero() {
   const reduceMotion = useReducedMotion();
   const minute = useMinuteTicker();
@@ -51,7 +54,8 @@ export function HomeImmersiveHero() {
   return (
     <section
       className={cn(
-        "ar-hero-shell relative isolate min-h-[min(78vh,720px)] w-full overflow-hidden rounded-[clamp(1.25rem,3vw,2rem)]",
+        "ar-hero-shell relative isolate w-full overflow-hidden rounded-[clamp(1.25rem,3vw,2rem)]",
+        heroMin,
         "shadow-[0_60px_120px_-50px_rgba(0,0,0,0.85)] ring-1 ring-white/[0.06]"
       )}
       data-atmosphere={narrative.atmosphere}
@@ -62,13 +66,13 @@ export function HomeImmersiveHero() {
           alt=""
           fill
           priority
-          className="scale-[1.02] object-cover"
+          className="object-cover"
           sizes="(min-width: 1280px) 1200px, 100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[oklch(0.12_0.02_155)] via-[oklch(0.14_0.015_155)]/55 to-[oklch(0.16_0.012_155)]/35" />
-        <div className={cn("absolute inset-0 bg-gradient-to-br opacity-90", atmosphereLayers[narrative.atmosphere])} />
-        <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.11_0.02_155)] via-[oklch(0.11_0.02_155)]/88 to-transparent" />
-        <div className="ar-grain pointer-events-none absolute inset-0 opacity-[0.22]" aria-hidden />
+        <div className="absolute inset-0 bg-gradient-to-t from-[oklch(0.12_0.02_155)] via-[oklch(0.14_0.015_155)]/45 to-[oklch(0.18_0.012_155)]/25" />
+        <div className={cn("absolute inset-0 bg-gradient-to-br opacity-80", atmosphereLayers[narrative.atmosphere])} />
+        <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.11_0.02_155)]/78 via-[oklch(0.12_0.02_155)]/35 to-transparent" />
+        <div className="ar-grain pointer-events-none absolute inset-0 opacity-[0.18]" aria-hidden />
         {!reduceMotion && (
           <>
             <motion.div
@@ -87,7 +91,7 @@ export function HomeImmersiveHero() {
         )}
       </div>
 
-      <div className="relative z-10 flex min-h-[min(78vh,720px)] flex-col justify-end gap-10 p-6 pb-8 sm:p-8 sm:pb-10 lg:p-12 lg:pb-12">
+      <div className={cn("relative z-10 flex flex-col justify-center gap-8 p-6 py-10 sm:gap-9 sm:p-8 sm:py-12 lg:gap-10 lg:p-12", heroMin)}>
         <div className="max-w-3xl space-y-6">
           <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-white/55">
             {narrative.eyebrow}
