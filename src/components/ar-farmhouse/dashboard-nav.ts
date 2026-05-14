@@ -4,10 +4,10 @@ import {
   CheckSquare,
   Compass,
   Home,
+  Images,
   Map,
   MessageSquare,
   Settings,
-  Users,
 } from "lucide-react";
 
 export type NavId =
@@ -17,7 +17,7 @@ export type NavId =
   | "guide"
   | "map"
   | "tasks"
-  | "family"
+  | "album"
   | "property"
   | "settings";
 
@@ -28,7 +28,7 @@ export const sidebarNav = [
   { id: "guide" as const, label: "Guide", icon: Compass },
   { id: "map" as const, label: "Map", icon: Map },
   { id: "tasks" as const, label: "Tasks", icon: CheckSquare },
-  { id: "family" as const, label: "Family", icon: Users },
+  { id: "album" as const, label: "Photo Album", icon: Images },
   { id: "property" as const, label: "Property", icon: Building2 },
   { id: "settings" as const, label: "Settings", icon: Settings },
 ] satisfies ReadonlyArray<{ id: NavId; label: string; icon: typeof Home }>;
@@ -41,7 +41,7 @@ export const mobileDrawerLabel: Record<NavId, string> = {
   guide: "Local Guide",
   map: "Map",
   tasks: "Tasks",
-  family: "Family",
+  album: "Photo Album",
   property: "Property",
   settings: "Settings",
 };

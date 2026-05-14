@@ -11,6 +11,7 @@ import { FeedRail } from "@/components/ar-farmhouse/feed-rail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
+import { usePhotoAlbum } from "@/contexts/photo-album-context";
 import { demoFeedSurfaceInserts, type FeedSurfaceInsert } from "@/lib/ecosystem-demo";
 import { FEED_LAYOUT_CLASS, FEED_RAIL_CLASS, FEED_STREAM_CLASS } from "@/lib/feed-layout";
 import { demoFamilyMembers, demoFeedPosts, type DemoPostCategory } from "@/lib/social-demo";
@@ -102,6 +103,12 @@ export function FeedView() {
   const meName = configured ? displayName : demoFamilyMembers[3].name;
 
   const posts = configured ? livePosts : demoPosts;
+  const { setFeedPosts } = usePhotoAlbum();
+
+  useEffect(() => {
+    setFeedPosts(posts);
+  }, [posts, setFeedPosts]);
+
   const feedStream = useMemo(() => interleaveFeedWithEcosystem(posts), [posts]);
   const bootLoadingActive = configured ? liveLoading : bootLoading;
 

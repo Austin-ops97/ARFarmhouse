@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { WeekendHubAlbumStrip } from "@/components/ar-farmhouse/weekend-hub-album-strip";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -249,6 +250,8 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   </ul>
                 </div>
               </div>
+
+              <WeekendHubAlbumStrip eventTitle={bundle.title} />
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
                 <div className={cn(surface, "p-4")}>

@@ -16,14 +16,14 @@ export function HomeQuickActions() {
   const { goTo } = useEcosystem();
 
   return (
-    <section className="relative">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <section className="relative" aria-label="Quick paths">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground/80">
           <Rss className="size-4 text-primary/80" aria-hidden />
           Quick paths
         </div>
       </div>
-      <div className="mt-5 flex flex-wrap gap-2 sm:gap-3">
+      <div className="mt-3.5 flex flex-wrap gap-2 sm:mt-4 sm:gap-3">
         {actions.map((a) => {
           const Icon = a.icon;
           return (

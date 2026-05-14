@@ -17,9 +17,9 @@ const sectionSubtitle: Record<NavId, string> = {
   guide: "Mena · trusted stops for the house",
   map: "Trails, pins, and quiet orientation",
   tasks: "Household rhythm · shared work",
-  family: "People & roles · preview",
+  album: "Visual memory archive · feed-connected",
   property: "Status, binder, supplies",
-  settings: "Preferences · preview",
+  settings: "Preferences · calm control room",
 };
 
 type DashboardAppHeaderProps = {
@@ -53,15 +53,15 @@ export function DashboardAppHeader({
         "pt-[var(--ar-header-safe-top)] pb-[var(--ar-header-pad-bottom)]",
         "transition-[background-color,box-shadow,backdrop-filter,border-color] duration-300 ease-out",
         elevated
-          ? "border-white/[0.1] bg-background/88 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/72"
-          : "border-white/[0.06] bg-background/72 backdrop-blur-xl supports-[backdrop-filter]:bg-background/52"
+          ? "border-border/55 bg-background/88 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.22)] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/72 dark:border-white/[0.1] dark:bg-background/88 dark:shadow-[0_8px_32px_-12px_rgba(0,0,0,0.55)]"
+          : "border-border/40 bg-background/72 backdrop-blur-xl supports-[backdrop-filter]:bg-background/52 dark:border-white/[0.06] dark:bg-background/72"
       )}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         <div className="shrink-0 lg:hidden">
           <DashboardMobileDrawerTrigger open={mobileMenuOpen} onOpenChange={onMobileMenuOpenChange} />
         </div>
-        <div className="hidden size-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-inner shadow-white/5 sm:flex sm:size-10">
+        <div className="hidden size-9 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-card/50 shadow-inner dark:border-white/10 dark:bg-white/[0.05] dark:shadow-inner dark:shadow-white/5 sm:flex sm:size-10">
           <Sparkles className="size-[18px] text-primary sm:size-5" aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
@@ -77,11 +77,11 @@ export function DashboardAppHeader({
             <button
               type="button"
               onClick={() => setAccountOpen((o) => !o)}
-              className="flex max-w-[min(11rem,42vw)] items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] py-1 pl-1 pr-2 text-left transition-colors hover:border-white/16 hover:bg-white/[0.08] sm:max-w-[220px] sm:gap-2 sm:pr-2.5"
+              className="flex max-w-[min(11rem,42vw)] items-center gap-1.5 rounded-full border border-border/60 bg-card/50 py-1 pl-1 pr-2 text-left transition-colors hover:border-border hover:bg-muted/50 sm:max-w-[220px] sm:gap-2 sm:pr-2.5 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/16 dark:hover:bg-white/[0.08]"
               aria-expanded={accountOpen}
               aria-haspopup="menu"
             >
-              <Avatar size="default" className="size-8 ring-1 ring-white/10 sm:size-9">
+              <Avatar size="default" className="size-8 ring-1 ring-border/60 sm:size-9 dark:ring-white/10">
                 <AvatarImage src={avatarUrl ?? undefined} alt="" />
                 <AvatarFallback className="text-[10px] sm:text-xs">{displayName.slice(0, 2)}</AvatarFallback>
               </Avatar>
@@ -100,14 +100,14 @@ export function DashboardAppHeader({
                 <motion.div
                   initial={reduceMotion ? false : { opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="absolute right-0 z-50 mt-2 w-52 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-white/12 bg-background/95 py-1 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)] backdrop-blur-2xl"
+                  className="absolute right-0 z-50 mt-2 w-52 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-border/60 bg-popover/95 py-1 shadow-lg backdrop-blur-2xl dark:border-white/12 dark:bg-background/95 dark:shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)]"
                   role="menu"
                 >
                   <p className="truncate px-3 py-2 text-[11px] text-muted-foreground">{user.email}</p>
                   <button
                     type="button"
                     role="menuitem"
-                    className="flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-white/[0.06]"
+                    className="flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
                     onClick={() => {
                       setAccountOpen(false);
                       void signOut();
@@ -121,7 +121,7 @@ export function DashboardAppHeader({
             )}
           </>
         ) : (
-          <div className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-medium text-muted-foreground sm:px-2.5">
+          <div className="rounded-full border border-border/60 bg-muted/30 px-2 py-1 text-[10px] font-medium text-muted-foreground sm:px-2.5 dark:border-white/10 dark:bg-white/[0.04]">
             Demo
           </div>
         )}
