@@ -2,26 +2,25 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { MapPin, MessageCircle, Play, Sparkles } from "lucide-react";
-import { useCallback, useState } from "react";
+import {
+  Bookmark,
+  Heart,
+  MapPin,
+  MessageCircle,
+  MoreHorizontal,
+  Play,
+  Send,
+  Sparkles,
+} from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import type { DemoFeedPost } from "@/lib/social-demo";
 import { cn } from "@/lib/utils";
 
-const categoryLabel: Record<DemoFeedPost["category"], string> = {
-  memory: "Memory",
-  update: "Update",
-  event: "Event",
-  wildlife: "Wildlife",
-  project: "Project",
-  weekend_recap: "Weekend recap",
-};
-
 const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
+  "relative overflow-hidden rounded-2xl border border-white/10",
+  "bg-white/[0.035] shadow-[0_20px_50px_-28px_rgba(0,0,0,0.75)] backdrop-blur-xl sm:rounded-[1.15rem]"
 );
 
 function initials(name: string) {
@@ -32,11 +31,21 @@ function initials(name: string) {
     .slice(0, 2);
 }
 
+function useAlbumIndex(length: number) {
+  const [i, setI] = useState(0);
+  const next = useCallback(() => setI((v) => (v + 1) % length), [length]);
+  const prev = useCallback(() => setI((v) => (v - 1 + length) % length), [length]);
+  return { i, next, prev, setI };
+}
+
 export function FeedPostCard({ post }: { post: DemoFeedPost }) {
   const reduceMotion = useReducedMotion();
   const [reactionState, setReactionState] = useState(() =>
     Object.fromEntries(post.reactions.map((r) => [r.emoji, { count: r.count, on: !!r.active }]))
   );
+
+  const album = post.album ?? [];
+  const albumNav = useAlbumIndex(Math.max(album.length, 1));
 
   const toggleReaction = useCallback((emoji: string) => {
     setReactionState((prev) => {
@@ -46,196 +55,270 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
     });
   }, []);
 
-  const mediaHeight =
-    post.layout === "hero" ? "min-h-[220px] sm:min-h-[280px]" : post.layout === "tall" ? "min-h-[260px]" : "min-h-[200px]";
+  const totalEngagement = useMemo(
+    () => Object.values(reactionState).reduce((acc, r) => acc + r.count, 0),
+    [reactionState]
+  );
+
+  const primaryKey = post.reactions[0]?.emoji ?? "❤️";
+  const heartActive = reactionState[primaryKey]?.on ?? false;
+  const hasMedia =
+    (post.kind === "image" && post.cover) ||
+    (post.kind === "album" && album.length > 0) ||
+    (post.kind === "video" && post.video) ||
+    (post.kind === "event_recap" && post.cover);
+
+  const mediaAspect = post.layout === "hero" ? "aspect-[4/5] sm:aspect-[1/1] sm:max-h-[min(72vh,560px)]" : "aspect-[4/5]";
 
   return (
     <motion.article
       layout={false}
-      initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-8% 0px" }}
-      transition={{ duration: reduceMotion ? 0.2 : 0.5, ease: [0.22, 1, 0.36, 1] }}
-      whileHover={reduceMotion ? undefined : { y: -3 }}
+      viewport={{ once: true, margin: "-5% 0px" }}
+      transition={{ duration: reduceMotion ? 0.2 : 0.45, ease: [0.22, 1, 0.36, 1] }}
       className="touch-manipulation"
     >
       <div
         className={cn(
           surface,
-          "transition-[box-shadow,border-color,transform] duration-300 will-change-transform",
-          "hover:border-white/16 hover:shadow-[0_34px_90px_-40px_rgba(0,0,0,0.82)]"
+          "transition-[box-shadow,border-color] duration-300",
+          "hover:border-white/14 hover:shadow-[0_28px_70px_-36px_rgba(0,0,0,0.78)]"
         )}
       >
-        <div className="flex items-start justify-between gap-3 p-4 sm:p-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar size="lg" className="ring-2 ring-background/80">
-              <AvatarImage src={post.author.avatar} alt="" />
-              <AvatarFallback>{initials(post.author.name)}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="truncate font-medium text-foreground">{post.author.name}</p>
-              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                <span>{post.timeLabel}</span>
-                <span className="opacity-40">·</span>
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 font-medium text-muted-foreground">
-                  {categoryLabel[post.category]}
-                </span>
-              </div>
-            </div>
+        {/* Header — IG / FB style */}
+        <div className="flex items-center gap-3 px-3 py-2.5 sm:px-3.5">
+          <Avatar size="default" className="ring-2 ring-background/80">
+            <AvatarImage src={post.author.avatar} alt="" />
+            <AvatarFallback>{initials(post.author.name)}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-foreground">{post.author.name}</p>
+            {post.location && (
+              <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                <MapPin className="size-3 shrink-0 opacity-70" aria-hidden />
+                <span>{post.location}</span>
+              </p>
+            )}
           </div>
-          <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-muted-foreground sm:inline-flex">
-            Private
-          </span>
+          <button
+            type="button"
+            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            aria-label="Post options"
+          >
+            <MoreHorizontal className="size-5" />
+          </button>
         </div>
 
-        {post.title && (
-          <div className="px-4 sm:px-5">
-            <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground sm:text-xl">{post.title}</h3>
-          </div>
-        )}
-
-        {post.location && (
-          <div className="mt-2 flex items-center gap-1.5 px-4 text-xs text-muted-foreground sm:px-5">
-            <MapPin className="size-3.5 shrink-0 text-primary/80" aria-hidden />
-            <span className="truncate">{post.location}</span>
-          </div>
-        )}
-
-        <div className={cn("mt-4 px-4 sm:px-5", post.kind === "text" ? "pb-2" : "")}>
-          <p className="text-sm leading-relaxed text-muted-foreground sm:text-[15px]">{post.body}</p>
-        </div>
-
-        {post.linkedEvent && (
-          <div className="mx-4 mt-3 flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs text-primary-foreground/90 sm:mx-5">
-            <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
-            <span className="font-medium">{post.linkedEvent}</span>
-          </div>
-        )}
-
+        {/* Media first — full bleed inside card */}
         {post.kind === "image" && post.cover && (
-          <div className={cn("relative mt-4 overflow-hidden border-y border-white/10", mediaHeight)}>
+          <div className={cn("relative w-full bg-black/25", mediaAspect)}>
             <Image
               src={post.cover}
               alt=""
               fill
-              sizes="(min-width: 1280px) 560px, (min-width: 768px) 50vw, 100vw"
+              sizes="470px"
               className="object-cover"
               loading="lazy"
             />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/55 via-transparent to-transparent" />
           </div>
         )}
 
-        {post.kind === "album" && post.album && post.album.length > 0 && (
-          <div className="mt-4 space-y-2 px-4 sm:px-5">
-            <div
-              className={cn(
-                "grid gap-2",
-                post.album.length >= 3 ? "grid-cols-3" : post.album.length === 2 ? "grid-cols-2" : "grid-cols-1"
-              )}
-            >
-              {post.album.map((src, i) => (
-                <div
-                  key={src}
-                  className={cn(
-                    "relative overflow-hidden rounded-2xl border border-white/10",
-                    post.layout === "tall" && i === 0 ? "aspect-[16/11] sm:aspect-[5/3]" : "aspect-[4/3]"
-                  )}
-                >
-                  <Image src={src} alt="" fill className="object-cover" sizes="200px" loading="lazy" />
-                </div>
-              ))}
+        {post.kind === "album" && album.length > 0 && (
+          <div className="relative w-full bg-black/25">
+            <div className={cn("relative w-full", mediaAspect)}>
+              <Image
+                src={album[albumNav.i] ?? album[0]}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="470px"
+                loading="lazy"
+              />
             </div>
+            {album.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Previous photo"
+                  onClick={albumNav.prev}
+                  className="absolute top-1/2 left-1.5 z-10 -translate-y-1/2 rounded-full bg-background/55 p-1.5 text-foreground backdrop-blur-md"
+                >
+                  <span className="sr-only">Previous</span>
+                  <span className="text-xs font-bold">‹</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next photo"
+                  onClick={albumNav.next}
+                  className="absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-full bg-background/55 p-1.5 text-foreground backdrop-blur-md"
+                >
+                  <span className="sr-only">Next</span>
+                  <span className="text-xs font-bold">›</span>
+                </button>
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                  {album.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      aria-label={`Photo ${idx + 1}`}
+                      onClick={() => albumNav.setI(idx)}
+                      className={cn(
+                        "h-1.5 rounded-full transition-all",
+                        idx === albumNav.i ? "w-5 bg-primary" : "w-1.5 bg-white/35"
+                      )}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {post.kind === "video" && post.video && (
-          <div className={cn("relative mt-4 overflow-hidden border-y border-white/10", mediaHeight)}>
+          <div className={cn("relative w-full bg-black/30", mediaAspect)}>
             <Image
               src={post.video.poster}
               alt=""
               fill
               className="object-cover"
-              sizes="(min-width: 1280px) 560px, 100vw"
+              sizes="470px"
               loading="lazy"
             />
-            <div className="absolute inset-0 bg-background/25 backdrop-blur-[2px]" />
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
               <motion.span
-                className="flex size-14 items-center justify-center rounded-full border border-white/20 bg-background/55 text-foreground shadow-lg backdrop-blur-md"
-                whileHover={reduceMotion ? undefined : { scale: 1.06 }}
-                whileTap={reduceMotion ? undefined : { scale: 0.96 }}
+                className="flex size-16 items-center justify-center rounded-full border border-white/25 bg-background/45 text-foreground shadow-lg backdrop-blur-md"
+                whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+                whileTap={reduceMotion ? undefined : { scale: 0.95 }}
               >
-                <Play className="size-6 translate-x-0.5" aria-hidden />
+                <Play className="size-7 translate-x-0.5" aria-hidden />
               </motion.span>
             </div>
-            <span className="absolute bottom-3 right-3 rounded-full border border-white/15 bg-background/60 px-2 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md">
+            <span className="absolute bottom-2.5 right-2.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-medium text-white">
               {post.video.duration}
             </span>
           </div>
         )}
 
         {post.kind === "event_recap" && post.cover && (
-          <div className={cn("relative mt-4 overflow-hidden border-y border-white/10", mediaHeight)}>
-            <Image src={post.cover} alt="" fill className="object-cover" sizes="(min-width: 1280px) 560px, 100vw" loading="lazy" />
-            <div className="absolute inset-0 bg-gradient-to-tr from-background/70 via-transparent to-primary/10" />
-            <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-background/55 px-2.5 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md">
+          <div className={cn("relative w-full bg-black/25", mediaAspect)}>
+            <Image src={post.cover} alt="" fill className="object-cover" sizes="470px" loading="lazy" />
+            <div className="absolute bottom-2 left-2 rounded-md bg-black/55 px-2 py-1 text-[11px] font-medium text-white">
               Event recap
             </div>
           </div>
         )}
 
-        <div className="space-y-3 p-4 sm:p-5">
-          <div className="flex flex-wrap gap-2">
-            {post.reactions.map((r) => {
-              const state = reactionState[r.emoji] ?? { count: r.count, on: false };
-              return (
-                <motion.button
-                  key={r.emoji}
-                  type="button"
-                  onClick={() => toggleReaction(r.emoji)}
-                  whileTap={reduceMotion ? undefined : { scale: 0.92 }}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                    state.on
-                      ? "border-primary/40 bg-primary/15 text-foreground"
-                      : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-white/18 hover:text-foreground"
-                  )}
-                >
-                  <motion.span
-                    key={`${r.emoji}-${state.on}`}
-                    initial={reduceMotion ? false : { scale: 0.6, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: "spring", stiffness: 420, damping: 22 }}
-                    className="text-[15px]"
-                  >
-                    {r.emoji}
-                  </motion.span>
-                  <span className="tabular-nums text-[11px]">{Math.max(0, state.count)}</span>
-                </motion.button>
-              );
-            })}
+        {post.kind === "text" && !hasMedia && (
+          <div className="border-y border-white/[0.06] bg-white/[0.02] px-3 py-4 sm:px-3.5">
+            <p className="text-[15px] leading-relaxed text-foreground">{post.body}</p>
           </div>
+        )}
 
-          <Separator className="bg-white/10" />
-
-          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <MessageCircle className="size-3.5" aria-hidden />
-              <span>{post.commentCount} comments</span>
-            </span>
-            <span className="hidden sm:inline">Tap reactions · long-press not needed</span>
-          </div>
-
-          <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-            {post.commentsPreview.map((c) => (
-              <p key={`${c.author}-${c.text}`} className="text-[13px] leading-relaxed text-muted-foreground">
-                <span className="font-medium text-foreground">{c.author}</span>{" "}
-                <span>{c.text}</span>
-              </p>
-            ))}
-          </div>
+        {/* Action bar */}
+        <div className="flex items-center gap-1 px-1.5 pt-2 sm:px-2">
+          <motion.button
+            type="button"
+            aria-label={heartActive ? "Unlike" : "Like"}
+            onClick={() => toggleReaction(primaryKey)}
+            whileTap={reduceMotion ? undefined : { scale: 0.88 }}
+            className={cn(
+              "rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]",
+              heartActive && "text-red-400"
+            )}
+          >
+            <Heart className={cn("size-6", heartActive && "fill-current")} strokeWidth={1.75} />
+          </motion.button>
+          <button
+            type="button"
+            className="rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]"
+            aria-label="Comment"
+          >
+            <MessageCircle className="size-6" strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            className="rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]"
+            aria-label="Share"
+          >
+            <Send className="size-6" strokeWidth={1.75} />
+          </button>
+          <span className="flex-1" />
+          <button
+            type="button"
+            className="rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]"
+            aria-label="Save"
+          >
+            <Bookmark className="size-6" strokeWidth={1.75} />
+          </button>
         </div>
+
+        {/* Reactions row (IG-adjacent: emoji + counts) */}
+        <div className="flex flex-wrap gap-1.5 px-3 pb-1 pt-0.5 sm:px-3.5">
+          {post.reactions.map((r) => {
+            const state = reactionState[r.emoji] ?? { count: r.count, on: false };
+            return (
+              <motion.button
+                key={r.emoji}
+                type="button"
+                onClick={() => toggleReaction(r.emoji)}
+                whileTap={reduceMotion ? undefined : { scale: 0.9 }}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] transition-colors",
+                  state.on ? "bg-white/[0.1]" : "hover:bg-white/[0.06]"
+                )}
+              >
+                <span>{r.emoji}</span>
+                <span className="text-[11px] font-medium tabular-nums text-muted-foreground">{state.count}</span>
+              </motion.button>
+            );
+          })}
+        </div>
+
+        {/* Likes / engagement summary */}
+        {totalEngagement > 0 && (
+          <p className="px-3 pb-1 text-sm font-semibold text-foreground sm:px-3.5">
+            {totalEngagement.toLocaleString()} {totalEngagement === 1 ? "reaction" : "reactions"}
+          </p>
+        )}
+
+        {/* Caption — username + copy (FB/IG) */}
+        {post.kind !== "text" && (
+          <div className="space-y-1.5 px-3 pb-2 sm:px-3.5">
+            {post.title && <p className="text-sm font-semibold text-foreground">{post.title}</p>}
+            <p className="text-sm leading-relaxed text-foreground">
+              <span className="font-semibold">{post.author.name.split(" ")[0]} </span>
+              <span className="font-normal text-foreground/90">{post.body}</span>
+            </p>
+          </div>
+        )}
+
+        {post.linkedEvent && (
+          <div className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs text-primary-foreground/95 sm:mx-3.5">
+            <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
+            <span className="font-medium">{post.linkedEvent}</span>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="px-3 pb-1 text-left text-sm font-medium text-muted-foreground hover:text-foreground sm:px-3.5"
+        >
+          View all {post.commentCount} comments
+        </button>
+
+        <div className="space-y-1.5 px-3 pb-2 sm:px-3.5">
+          {post.commentsPreview.map((c) => (
+            <p key={`${c.author}-${c.text}`} className="text-sm leading-snug">
+              <span className="font-semibold text-foreground">{c.author}</span>{" "}
+              <span className="text-foreground/85">{c.text}</span>
+            </p>
+          ))}
+        </div>
+
+        <p className="px-3 pb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:px-3.5">
+          {post.timeLabel}
+        </p>
       </div>
     </motion.article>
   );
