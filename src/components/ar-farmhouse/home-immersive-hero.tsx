@@ -8,7 +8,7 @@ import { useSyncExternalStore } from "react";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { mockWeather, mockWeekendGuests } from "@/lib/mock-data";
+import { dashboardHeroImage, mockWeather, mockWeekendGuests } from "@/lib/mock-data";
 import { resolveHomeHeroNarrative, type HomeAtmosphere } from "@/lib/home-context";
 import { cn } from "@/lib/utils";
 
