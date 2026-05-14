@@ -5,7 +5,7 @@ import { Menu, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { demoFamilyMembers } from "@/lib/social-demo";
+import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 
 import { mobileDrawerLabel, sidebarNav, type NavId } from "./dashboard-nav";
@@ -55,6 +55,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
   const reduceMotion = useReducedMotion();
   const titleId = useId();
   const panelRef = useRef<HTMLElement>(null);
+  const { displayName, avatarUrl, user } = useAuth();
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
@@ -92,8 +93,6 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
     }, 60);
     return () => window.clearTimeout(t);
   }, [open, activeId]);
-
-  const profile = demoFamilyMembers[3];
 
   return (
     <AnimatePresence>
@@ -158,12 +157,12 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
             <div className="ar-surface-float mt-4 rounded-2xl p-3">
               <div className="flex items-center gap-3">
                 <Avatar size="lg" className="ring-2 ring-background/80">
-                  <AvatarImage src={profile.avatar} alt="" />
-                  <AvatarFallback>{initials(profile.name)}</AvatarFallback>
+                  <AvatarImage src={avatarUrl ?? undefined} alt="" />
+                  <AvatarFallback>{initials(displayName)}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{profile.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">Demo household · signed in</p>
+                  <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user?.email ?? "Signed in"}</p>
                 </div>
               </div>
             </div>
@@ -214,7 +213,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
             </nav>
 
             <p className="ar-surface-inset mt-4 rounded-2xl p-3 text-[11px] leading-relaxed text-muted-foreground">
-              Demo data — motion and spacing tuned for calm, app-like navigation.
+              Private family network · navigation stays in sync with your session.
             </p>
           </motion.aside>
         </motion.div>

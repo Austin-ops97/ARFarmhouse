@@ -13,7 +13,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
-import { tryGetFirestoreDb } from "@/lib/firebase/client";
+import { tryGetFirestoreDb } from "@/lib/firebase";
 
 const DEFAULT_EMOJIS = ["❤️", "👏", "🔥"] as const;
 

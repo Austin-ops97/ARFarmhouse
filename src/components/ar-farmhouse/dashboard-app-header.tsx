@@ -3,6 +3,7 @@
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
 import { LogOut, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { DashboardMobileDrawerTrigger } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { sidebarNav, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
@@ -34,7 +35,8 @@ export function DashboardAppHeader({
   onMobileMenuOpenChange,
 }: DashboardAppHeaderProps) {
   const reduceMotion = useReducedMotion();
-  const { configured, user, signOut, displayName, avatarUrl } = useAuth();
+  const router = useRouter();
+  const { user, signOut, displayName, avatarUrl } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
   const [elevated, setElevated] = useState(false);
   const { scrollY } = useScroll();
@@ -72,7 +74,7 @@ export function DashboardAppHeader({
         </div>
       </div>
       <div className="relative shrink-0">
-        {configured && user ? (
+        {user ? (
           <>
             <button
               type="button"
@@ -110,7 +112,10 @@ export function DashboardAppHeader({
                     className="flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
                     onClick={() => {
                       setAccountOpen(false);
-                      void signOut();
+                      void (async () => {
+                        await signOut();
+                        router.replace("/login");
+                      })();
                     }}
                   >
                     <LogOut className="size-4 shrink-0 opacity-80" aria-hidden />
@@ -120,11 +125,7 @@ export function DashboardAppHeader({
               </>
             )}
           </>
-        ) : (
-          <div className="rounded-full border border-border/60 bg-muted/30 px-2 py-1 text-[10px] font-medium text-muted-foreground sm:px-2.5 dark:border-white/10 dark:bg-white/[0.04]">
-            Demo
-          </div>
-        )}
+        ) : null}
       </div>
     </header>
   );

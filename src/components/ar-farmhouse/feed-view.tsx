@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { ImagePlus, PenLine } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CreatePostDialog } from "@/components/ar-farmhouse/create-post-dialog";
 import { FeedEcosystemCard } from "@/components/ar-farmhouse/feed-ecosystem-card";
@@ -14,22 +14,10 @@ import { useAuth } from "@/contexts/auth-context";
 import { usePhotoAlbum } from "@/contexts/photo-album-context";
 import { demoFeedSurfaceInserts, type FeedSurfaceInsert } from "@/lib/ecosystem-demo";
 import { FEED_LAYOUT_CLASS, FEED_RAIL_CLASS, FEED_STREAM_CLASS } from "@/lib/feed-layout";
-import { demoFamilyMembers, demoFeedPosts, type DemoPostCategory } from "@/lib/social-demo";
+import type { DemoPostCategory } from "@/lib/social-demo";
 import type { UiFeedPost } from "@/models/feed-post";
 import { createFeedPostWithMedia, subscribeFeedPosts } from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
-
-const BATCH = 4;
-const MAX_VISIBLE = 36;
-
-function sliceFeed(start: number, take: number): UiFeedPost[] {
-  const out: UiFeedPost[] = [];
-  for (let i = 0; i < take; i++) {
-    const base = demoFeedPosts[(start + i) % demoFeedPosts.length] as unknown as UiFeedPost;
-    out.push({ ...base, id: `${base.id}~${start + i}` });
-  }
-  return out;
-}
 
 function interleaveFeedWithEcosystem(posts: UiFeedPost[]) {
   const inserts = [...demoFeedSurfaceInserts].sort((a, b) => a.afterPostIndex - b.afterPostIndex);
@@ -85,23 +73,18 @@ const composerBar = cn(
 
 export function FeedView() {
   const reduceMotion = useReducedMotion();
-  const { configured, user, displayName, avatarUrl } = useAuth();
+  const { user, displayName, avatarUrl } = useAuth();
   const [composeOpen, setComposeOpen] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
 
-  const [bootLoading, setBootLoading] = useState(!configured);
-  const [demoPosts, setDemoPosts] = useState<UiFeedPost[]>(() => sliceFeed(0, BATCH));
-  const [loadingMore, setLoadingMore] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-
   const [livePosts, setLivePosts] = useState<UiFeedPost[]>([]);
-  const [liveLoading, setLiveLoading] = useState(configured);
+  const [liveLoading, setLiveLoading] = useState(true);
   const [liveError, setLiveError] = useState<string | null>(null);
 
-  const meAvatar = configured ? avatarUrl ?? undefined : demoFamilyMembers[3].avatar;
-  const meName = configured ? displayName : demoFamilyMembers[3].name;
+  const meAvatar = avatarUrl ?? undefined;
+  const meName = displayName;
 
-  const posts = configured ? livePosts : demoPosts;
+  const posts = livePosts;
   const { setFeedPosts } = usePhotoAlbum();
 
   useEffect(() => {
@@ -109,16 +92,8 @@ export function FeedView() {
   }, [posts, setFeedPosts]);
 
   const feedStream = useMemo(() => interleaveFeedWithEcosystem(posts), [posts]);
-  const bootLoadingActive = configured ? liveLoading : bootLoading;
 
   useEffect(() => {
-    if (configured) return;
-    const t = window.setTimeout(() => setBootLoading(false), reduceMotion ? 120 : 680);
-    return () => window.clearTimeout(t);
-  }, [configured, reduceMotion]);
-
-  useEffect(() => {
-    if (!configured) return;
     const unsub = subscribeFeedPosts(
       (p) => {
         setLivePosts(p);
@@ -131,31 +106,7 @@ export function FeedView() {
       }
     );
     return unsub;
-  }, [configured]);
-
-  useEffect(() => {
-    if (configured || bootLoading) return;
-    const el = loadMoreRef.current;
-    if (!el || demoPosts.length >= MAX_VISIBLE) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting || loadingMore) return;
-        setLoadingMore(true);
-        window.setTimeout(() => {
-          setDemoPosts((prev) => {
-            if (prev.length >= MAX_VISIBLE) return prev;
-            const nextLen = Math.min(prev.length + BATCH, MAX_VISIBLE);
-            const add = nextLen - prev.length;
-            return [...prev, ...sliceFeed(prev.length, add)];
-          });
-          setLoadingMore(false);
-        }, reduceMotion ? 100 : 420);
-      },
-      { rootMargin: "320px 0px" }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [bootLoading, configured, loadingMore, demoPosts.length, reduceMotion]);
+  }, []);
 
   const handlePublishLive = useCallback(
     async (payload: {
@@ -203,9 +154,7 @@ export function FeedView() {
           <div className="min-w-0 space-y-1">
             <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Feed</h1>
             <p className="max-w-md text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
-              {configured
-                ? "Live family feed — synchronized moments, reactions, and comments."
-                : "Moments from AR Farmhouse — private, warm, and built to scroll."}
+              Live family feed — synchronized moments, reactions, and comments.
             </p>
           </div>
           <button
@@ -252,11 +201,11 @@ export function FeedView() {
           </p>
         )}
 
-        {bootLoadingActive ? (
+        {liveLoading ? (
           <FeedSkeleton />
         ) : (
           <>
-            {configured && posts.length === 0 && (
+            {posts.length === 0 && (
               <div className="rounded-2xl border border-border/55 bg-card/80 px-5 py-10 text-center shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.03]">
                 <p className="font-heading text-lg font-semibold text-foreground">The feed is quiet</p>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -275,31 +224,6 @@ export function FeedView() {
                 )
               )}
             </div>
-
-            {!configured && (
-              <>
-                <div ref={loadMoreRef} className="h-px w-full shrink-0" aria-hidden />
-
-                {loadingMore && demoPosts.length < MAX_VISIBLE && (
-                  <div className="flex justify-center py-8">
-                    <div className="flex gap-1.5">
-                      {[0, 1, 2].map((d) => (
-                        <motion.span
-                          key={d}
-                          className="size-2 rounded-full bg-primary/60"
-                          animate={reduceMotion ? {} : { opacity: [0.35, 1, 0.35], y: [0, -3, 0] }}
-                          transition={{ duration: 0.9, repeat: Infinity, delay: d * 0.12, ease: "easeInOut" }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {demoPosts.length >= MAX_VISIBLE && (
-                  <p className="pb-8 pt-4 text-center text-sm text-muted-foreground">You&apos;re caught up for now.</p>
-                )}
-              </>
-            )}
           </>
         )}
 
@@ -321,9 +245,9 @@ export function FeedView() {
         <CreatePostDialog
           open={composeOpen}
           onOpenChange={setComposeOpen}
-          variant={configured ? "live" : "demo"}
+          variant="live"
           publishBusy={publishBusy}
-          onPublishLive={configured && user ? handlePublishLive : undefined}
+          onPublishLive={user ? handlePublishLive : undefined}
         />
       </div>
 

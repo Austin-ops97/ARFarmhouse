@@ -11,12 +11,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { loginBackdrop } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
-type LoginScreenProps = {
-  mode: "demo" | "live";
-  onDemoEnter?: () => void;
-};
-
-export function LoginScreen({ mode, onDemoEnter }: LoginScreenProps) {
+export function LoginScreen() {
   const reduceMotion = useReducedMotion();
   const { signInWithEmail, signUpWithEmail } = useAuth();
   const [submitting, setSubmitting] = useState(false);
@@ -31,12 +26,6 @@ export function LoginScreen({ mode, onDemoEnter }: LoginScreenProps) {
     const fd = new FormData(e.currentTarget);
     const email = String(fd.get("email") ?? "");
     const password = String(fd.get("password") ?? "");
-
-    if (mode === "demo") {
-      setSubmitting(true);
-      window.requestAnimationFrame(() => onDemoEnter?.());
-      return;
-    }
 
     if (!email.trim() || !password) {
       setFormError("Email and password are required.");
@@ -116,15 +105,12 @@ export function LoginScreen({ mode, onDemoEnter }: LoginScreenProps) {
             </p>
           </div>
 
-          {mode === "live" && (
-            <p className="mb-4 rounded-2xl border border-primary/20 bg-primary/[0.08] px-3 py-2 text-center text-xs leading-relaxed text-muted-foreground">
-              Secure sign-in · sessions persist across visits. Add Firebase keys in{" "}
-              <code className="text-foreground/90">.env.local</code> if you have not already.
-            </p>
-          )}
+          <p className="mb-4 rounded-2xl border border-primary/20 bg-primary/[0.08] px-3 py-2 text-center text-xs leading-relaxed text-muted-foreground">
+            Secure sign-in · your session stays signed in on this device until you sign out.
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "live" && wantRegister && (
+            {wantRegister && (
               <div className="space-y-2">
                 <label className="sr-only" htmlFor="displayName">
                   Display name
@@ -156,7 +142,6 @@ export function LoginScreen({ mode, onDemoEnter }: LoginScreenProps) {
                   type="email"
                   autoComplete="email"
                   placeholder="Email"
-                  defaultValue={mode === "demo" ? "family@arfarmhouse.co" : ""}
                   className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
                 />
               </div>
@@ -171,9 +156,8 @@ export function LoginScreen({ mode, onDemoEnter }: LoginScreenProps) {
                   id="password"
                   name="password"
                   type="password"
-                  autoComplete={mode === "live" && wantRegister ? "new-password" : "current-password"}
+                  autoComplete={wantRegister ? "new-password" : "current-password"}
                   placeholder="Password"
-                  defaultValue={mode === "demo" ? "demo-only" : ""}
                   className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
                 />
               </div>
@@ -191,26 +175,22 @@ export function LoginScreen({ mode, onDemoEnter }: LoginScreenProps) {
               className="mt-2 h-11 w-full rounded-2xl text-[15px] font-medium shadow-[0_12px_40px_-16px_oklch(0.55_0.08_158_/_0.65)]"
               size="lg"
             >
-              {mode === "demo" ? "Enter property" : wantRegister ? "Create account" : "Sign in"}
+              {wantRegister ? "Create account" : "Sign in"}
             </Button>
 
-            {mode === "live" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFormError(null);
-                  setWantRegister((v) => !v);
-                }}
-                className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline"
-              >
-                {wantRegister ? "Already have access? Sign in" : "New to the property? Create an account"}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                setFormError(null);
+                setWantRegister((v) => !v);
+              }}
+              className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline"
+            >
+              {wantRegister ? "Already have access? Sign in" : "New to the property? Create an account"}
+            </button>
 
             <p className="pt-2 text-center text-xs text-muted-foreground/90">
-              {mode === "demo"
-                ? "Prototype mode · configure Firebase for live sessions"
-                : "Encrypted session · family-only feed and storage"}
+              Encrypted session · family-only feed and storage
             </p>
           </form>
         </div>

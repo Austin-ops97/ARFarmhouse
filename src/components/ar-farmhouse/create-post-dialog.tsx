@@ -39,7 +39,7 @@ type CreatePostDialogProps = {
 export function CreatePostDialog({
   open,
   onOpenChange,
-  variant = "demo",
+  variant = "live",
   publishBusy = false,
   onPublishLive,
 }: CreatePostDialogProps) {

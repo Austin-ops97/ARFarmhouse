@@ -16,8 +16,21 @@ export type PublicFirebaseConfig = {
   appId: string;
 };
 
+/** Normalize values from .env / deployment (BOM, quotes, stray whitespace). */
+function normalizeEnvValue(raw: string | undefined): string {
+  if (raw == null) return "";
+  let v = raw.replace(/^\uFEFF/, "").trim();
+  if (
+    (v.startsWith('"') && v.endsWith('"') && v.length >= 2) ||
+    (v.startsWith("'") && v.endsWith("'") && v.length >= 2)
+  ) {
+    v = v.slice(1, -1).trim();
+  }
+  return v;
+}
+
 export function readPublicFirebaseConfig(): PublicFirebaseConfig | null {
-  const values = keys.map((k) => process.env[k]?.trim() ?? "");
+  const values = keys.map((k) => normalizeEnvValue(process.env[k]));
   if (values.some((v) => !v)) return null;
   return {
     apiKey: values[0],

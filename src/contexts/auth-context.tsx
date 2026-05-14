@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  browserLocalPersistence,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  setPersistence,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
@@ -19,7 +21,7 @@ import {
 } from "react";
 
 import { isFirebaseConfigured } from "@/lib/firebase/env";
-import { tryGetFirebaseAuth } from "@/lib/firebase/client";
+import { tryGetFirebaseAuth } from "@/lib/firebase";
 import type { AppUser } from "@/models/user";
 import { ensureUserProfile, loadUserProfile } from "@/services/user-profile";
 
@@ -73,24 +75,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queueMicrotask(() => setLoading(false));
       return;
     }
-    const unsub = onAuthStateChanged(auth, async (next) => {
-      setUser(next);
-      if (!next) {
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
+
+    let unsub: (() => void) | undefined;
+    let cancelled = false;
+
+    void (async () => {
       try {
-        await ensureUserProfile(next);
-        const p = await loadUserProfile(next.uid);
-        setProfile(p);
+        await setPersistence(auth, browserLocalPersistence);
       } catch {
-        setProfile(null);
-      } finally {
-        setLoading(false);
+        // Private mode / blocked storage — session may not survive refresh; auth still works.
       }
-    });
-    return unsub;
+      if (cancelled) return;
+      unsub = onAuthStateChanged(auth, async (next) => {
+        setUser(next);
+        if (!next) {
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+        try {
+          await ensureUserProfile(next);
+          const p = await loadUserProfile(next.uid);
+          setProfile(p);
+        } catch {
+          setProfile(null);
+        } finally {
+          setLoading(false);
+        }
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
   }, [configured]);
 
   const clearError = useCallback(() => setError(null), []);

@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 
 import { formatFeedTimeLabel, handleFromDisplayName } from "@/lib/datetime/relative";
-import { tryGetFirestoreDb } from "@/lib/firebase/client";
+import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { DemoPostCategory } from "@/lib/social-demo";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
 import { uploadPostImages } from "@/services/storage-upload";

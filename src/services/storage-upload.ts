@@ -1,6 +1,6 @@
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
-import { tryGetFirebaseStorage } from "@/lib/firebase/client";
+import { tryGetFirebaseStorage } from "@/lib/firebase";
 
 function extFromMime(mime: string) {
   if (mime === "image/jpeg") return "jpg";
