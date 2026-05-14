@@ -205,6 +205,23 @@ export const demoFeedPosts: DemoFeedPost[] = [
     commentsPreview: [{ author: "Jordan", text: "On it — thanks Alex." }],
     commentCount: 2,
   },
+  {
+    id: "post-9",
+    category: "event",
+    layout: "standard",
+    author: { name: "Alex T.", handle: "alex", avatar: demoFamilyMembers[3].avatar },
+    timeLabel: "3h ago",
+    title: "Memorial weekend is on the books",
+    body: "Guest suite + loft are soft-held for May 23–26. If you need overlap, ping me before Friday.",
+    kind: "text",
+    linkedEvent: "Memorial Day Weekend",
+    reactions: [
+      { emoji: "🙌", count: 7 },
+      { emoji: "❤️", count: 4 },
+    ],
+    commentsPreview: [{ author: "Morgan", text: "Perfect — bringing the usual brunch spread." }],
+    commentCount: 5,
+  },
 ];
 
 export type DemoWeekendEvent = {

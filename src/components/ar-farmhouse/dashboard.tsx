@@ -19,7 +19,7 @@ import { TasksView } from "@/components/ar-farmhouse/tasks-view";
 const sectionSubtitle: Record<NavId, string> = {
   home: "AR Farmhouse · this weekend",
   feed: "Private · emotionally warm",
-  calendar: "Stays, RSVPs, and soft holds",
+  calendar: "Stays, bookings, and shared weekends",
   map: "Trails, pins, and quiet orientation",
   tasks: "Household rhythm · shared work",
   family: "People & roles · preview",
