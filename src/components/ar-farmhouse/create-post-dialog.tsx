@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarPlus, ImagePlus, MapPin, Users, X } from "lucide-react";
+import { CalendarPlus, ImagePlus, Loader2, MapPin, Users, X } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useId, useState } from "react";
 
@@ -20,21 +20,40 @@ const postTypes: { id: DemoPostCategory; label: string }[] = [
   { id: "weekend_recap", label: "Weekend recap" },
 ];
 
+export type LivePostPayload = {
+  files: File[];
+  caption: string;
+  location: string;
+  postType: DemoPostCategory;
+  attachedEvent: string | null;
+};
+
 type CreatePostDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  variant?: "demo" | "live";
+  publishBusy?: boolean;
+  onPublishLive?: (payload: LivePostPayload) => Promise<void>;
 };
 
-export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) {
+export function CreatePostDialog({
+  open,
+  onOpenChange,
+  variant = "demo",
+  publishBusy = false,
+  onPublishLive,
+}: CreatePostDialogProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
   const [dragOver, setDragOver] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState("");
   const [postType, setPostType] = useState<DemoPostCategory>("memory");
   const [tagged, setTagged] = useState<string[]>([]);
   const [attachedEvent, setAttachedEvent] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const revokeUrls = useCallback((urls: string[]) => {
     urls.forEach((u) => {
@@ -43,12 +62,12 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
   }, []);
 
   const addFiles = useCallback(
-    (files: FileList | File[]) => {
-      const list = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, 6);
-      const urls = list.map((f) => URL.createObjectURL(f));
+    (incoming: FileList | File[]) => {
+      const list = Array.from(incoming).filter((f) => f.type.startsWith("image/")).slice(0, 6);
+      setFiles(list);
       setPreviews((prev) => {
         revokeUrls(prev);
-        return urls;
+        return list.map((f) => URL.createObjectURL(f));
       });
     },
     [revokeUrls]
@@ -74,14 +93,40 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
       });
       return [];
     });
+    setFiles([]);
     setCaption("");
     setLocation("");
     setTagged([]);
     setAttachedEvent(null);
     setPostType("memory");
     setDragOver(false);
+    setPublishError(null);
     onOpenChange(false);
   }, [onOpenChange]);
+
+  const handlePublish = useCallback(async () => {
+    setPublishError(null);
+    if (variant === "demo") {
+      closeDialog();
+      return;
+    }
+    if (!onPublishLive) return;
+    if (!caption.trim() && files.length === 0) {
+      setPublishError("Add a caption or at least one image.");
+      return;
+    }
+    try {
+      await onPublishLive({
+        files,
+        caption: caption.trim(),
+        location: location.trim(),
+        postType,
+        attachedEvent,
+      });
+    } catch (e) {
+      setPublishError(e instanceof Error ? e.message : "Could not publish.");
+    }
+  }, [attachedEvent, caption, closeDialog, files, location, onPublishLive, postType, variant]);
 
   useEffect(() => {
     if (!open) return;
@@ -91,6 +136,8 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, closeDialog]);
+
+  const isLive = variant === "live";
 
   return (
     <AnimatePresence>
@@ -126,7 +173,11 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
                 <p id={titleId} className="font-heading text-lg font-semibold tracking-tight text-foreground">
                   New post
                 </p>
-                <p className="text-xs text-muted-foreground">Private to family · demo preview only</p>
+                <p className="text-xs text-muted-foreground">
+                  {isLive
+                    ? "Uploads go to private storage · everyone signed in sees updates live"
+                    : "Private to family · demo preview only"}
+                </p>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={closeDialog} aria-label="Close">
                 <X className="size-4" />
@@ -185,7 +236,9 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
                     <ImagePlus className="size-5 text-primary" aria-hidden />
                   </span>
                   <span className="text-sm font-medium text-foreground">Drop images here</span>
-                  <span className="text-xs text-muted-foreground">or tap to browse · mock upload, stays on device</span>
+                  <span className="text-xs text-muted-foreground">
+                    {isLive ? "or tap to browse · JPEG / PNG / WebP" : "or tap to browse · mock upload, stays on device"}
+                  </span>
                 </label>
               </div>
 
@@ -290,14 +343,34 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
                   })}
                 </div>
               </div>
+
+              {publishError && (
+                <p className="mt-4 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-center text-xs text-red-100/95">
+                  {publishError}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-white/10 bg-background/80 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:pb-4">
-              <Button type="button" variant="outline" className="rounded-xl" onClick={closeDialog}>
+              <Button type="button" variant="outline" className="rounded-xl" onClick={closeDialog} disabled={publishBusy}>
                 Cancel
               </Button>
-              <Button type="button" className="rounded-xl" onClick={closeDialog}>
-                Post preview
+              <Button
+                type="button"
+                className="rounded-xl"
+                onClick={() => void handlePublish()}
+                disabled={publishBusy}
+              >
+                {publishBusy ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                    Publishing
+                  </>
+                ) : isLive ? (
+                  "Publish"
+                ) : (
+                  "Post preview"
+                )}
               </Button>
             </div>
           </motion.div>

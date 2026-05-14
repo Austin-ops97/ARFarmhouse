@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Settings, Sparkles, Users } from "lucide-react";
+import { LogOut, Settings, Sparkles, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { CalendarWeekendsView } from "@/components/ar-farmhouse/calendar-weekends-view";
@@ -17,6 +17,8 @@ import { PropertyHubView } from "@/components/ar-farmhouse/property-hub-view";
 import { PropertyMapView } from "@/components/ar-farmhouse/property-map-view";
 import { TasksView } from "@/components/ar-farmhouse/tasks-view";
 import { WeekendHubPortal } from "@/components/ar-farmhouse/weekend-hub-portal";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/contexts/auth-context";
 
 const sectionSubtitle: Record<NavId, string> = {
   home: "Living view of the property",
@@ -31,8 +33,10 @@ const sectionSubtitle: Record<NavId, string> = {
 };
 
 export function Dashboard() {
+  const { configured, user, signOut, displayName, avatarUrl } = useAuth();
   const [activeId, setActiveId] = useState<NavId>("home");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const reduceMotion = useReducedMotion();
 
   const activeMeta = useMemo(() => sidebarNav.find((n) => n.id === activeId) ?? sidebarNav[0], [activeId]);
@@ -77,7 +81,7 @@ export function Dashboard() {
   return (
     <EcosystemProvider goTo={setActiveId}>
     <div className="ar-app-shell relative min-h-dvh overflow-x-hidden bg-background [--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.75rem)] supports-[padding:max(0px)]:[--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.875rem)]">
-      <DashboardSidebar activeId={activeId} onSelect={setActiveId} />
+      <DashboardSidebar activeId={activeId} onSelect={setActiveId} liveData={configured} />
 
       <div className="ar-app-shell-main min-w-0 lg:pl-[248px]">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/[0.06] bg-background/72 px-3 py-3 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/52 sm:px-4 sm:py-3.5 lg:hidden">
@@ -93,8 +97,60 @@ export function Dashboard() {
               <p className="truncate text-[11px] text-muted-foreground sm:text-xs">{sectionSubtitle[activeId]}</p>
             </div>
           </div>
-          <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-muted-foreground sm:px-3">
-            Demo
+          <div className="relative shrink-0">
+            {configured && user ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setAccountOpen((o) => !o)}
+                  className="flex max-w-[180px] items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] py-1 pl-1 pr-2.5 text-left transition-colors hover:border-white/16 hover:bg-white/[0.08] sm:max-w-[220px] sm:pr-3"
+                  aria-expanded={accountOpen}
+                  aria-haspopup="menu"
+                >
+                  <Avatar size="default" className="size-8 ring-1 ring-white/10">
+                    <AvatarImage src={avatarUrl ?? undefined} alt="" />
+                    <AvatarFallback className="text-xs">{displayName.slice(0, 2)}</AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground sm:text-xs">
+                    {displayName}
+                  </span>
+                </button>
+                {accountOpen && (
+                  <>
+                    <button
+                      type="button"
+                      className="fixed inset-0 z-40 cursor-default bg-transparent"
+                      aria-label="Close menu"
+                      onClick={() => setAccountOpen(false)}
+                    />
+                    <motion.div
+                      initial={reduceMotion ? false : { opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-white/12 bg-background/95 py-1 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)] backdrop-blur-2xl"
+                      role="menu"
+                    >
+                      <p className="truncate px-3 py-2 text-[11px] text-muted-foreground">{user.email}</p>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-white/[0.06]"
+                        onClick={() => {
+                          setAccountOpen(false);
+                          void signOut();
+                        }}
+                      >
+                        <LogOut className="size-4 shrink-0 opacity-80" aria-hidden />
+                        Sign out
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-muted-foreground sm:px-3">
+                Demo
+              </div>
+            )}
           </div>
         </header>
 

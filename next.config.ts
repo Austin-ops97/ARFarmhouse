@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
         hostname: "wfx6wquumukehkm6.public.blob.vercel-storage.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "firebasestorage.googleapis.com",
+        pathname: "/**",
+      },
     ],
   },
 };

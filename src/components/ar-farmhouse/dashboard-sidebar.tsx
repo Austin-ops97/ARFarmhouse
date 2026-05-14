@@ -10,9 +10,10 @@ import { type NavId, sidebarNav } from "./dashboard-nav";
 type DashboardSidebarProps = {
   activeId: NavId;
   onSelect: (id: NavId) => void;
+  liveData?: boolean;
 };
 
-export function DashboardSidebar({ activeId, onSelect }: DashboardSidebarProps) {
+export function DashboardSidebar({ activeId, onSelect, liveData = false }: DashboardSidebarProps) {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -63,7 +64,9 @@ export function DashboardSidebar({ activeId, onSelect }: DashboardSidebarProps) 
       </nav>
 
       <div className="mt-6 rounded-2xl bg-white/[0.025] px-4 py-3.5 text-[11px] leading-relaxed text-muted-foreground/90 ring-1 ring-white/[0.05]">
-        Demo data — tuned for calm hierarchy and motion.
+        {liveData
+          ? "Authenticated · feed and profile sync to Firebase when keys are present."
+          : "Demo data — tuned for calm hierarchy and motion."}
       </div>
     </aside>
   );

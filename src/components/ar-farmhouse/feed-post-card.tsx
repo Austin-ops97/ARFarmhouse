@@ -19,12 +19,17 @@ import { createPortal } from "react-dom";
 
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { DemoFeedPost } from "@/lib/social-demo";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/auth-context";
+import { usePostSocial } from "@/hooks/use-post-social";
 import { FEED_IMAGE_SIZES, FEED_MEDIA_BLEED } from "@/lib/feed-layout";
+import { isFirebaseConfigured } from "@/lib/firebase/env";
+import type { UiFeedPost } from "@/models/feed-post";
 import { hubSlugFromLinkedEventLabel } from "@/lib/ecosystem-demo";
 import { cn } from "@/lib/utils";
 
-const categoryLabel: Record<DemoFeedPost["category"], string> = {
+const categoryLabel: Record<UiFeedPost["category"], string> = {
   memory: "Memory",
   update: "Update",
   event: "Event",
@@ -155,13 +160,40 @@ function FeedLightbox({
   );
 }
 
-export function FeedPostCard({ post }: { post: DemoFeedPost }) {
+export function FeedPostCard({ post }: { post: UiFeedPost }) {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
+  const remoteSocial = isFirebaseConfigured();
+  const { user, displayName, avatarUrl } = useAuth();
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentBusy, setCommentBusy] = useState(false);
+
+  const social = usePostSocial({
+    postId: post.id,
+    uid: user?.uid,
+    displayName,
+    avatarUrl,
+    commentsOpen,
+  });
+
   const [reactionState, setReactionState] = useState(() =>
     Object.fromEntries(post.reactions.map((r) => [r.emoji, { count: r.count, on: !!r.active }]))
   );
-  const [commentsOpen, setCommentsOpen] = useState(false);
+
+  const displayReactions = useMemo(() => {
+    if (remoteSocial) {
+      return social.reactionChips.map((c) => ({ emoji: c.emoji, count: c.count, active: c.active }));
+    }
+    return post.reactions;
+  }, [post.reactions, remoteSocial, social.reactionChips]);
+
+  const mergedReactionState = useMemo(() => {
+    if (remoteSocial) {
+      return Object.fromEntries(social.reactionChips.map((c) => [c.emoji, { count: c.count, on: c.active }]));
+    }
+    return reactionState;
+  }, [reactionState, remoteSocial, social.reactionChips]);
   const [lightbox, setLightbox] = useState<LightboxState>(null);
   const touchStart = useRef({ x: 0, y: 0 });
 
@@ -197,21 +229,31 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
       return { ...s, index: n };
     });
 
-  const toggleReaction = useCallback((emoji: string) => {
-    setReactionState((prev) => {
-      const cur = prev[emoji] ?? { count: 0, on: false };
-      const on = !cur.on;
-      return { ...prev, [emoji]: { count: cur.count + (on ? 1 : -1), on } };
-    });
-  }, []);
+  const { toggleReaction: commitRemoteReaction, submitComment } = social;
 
-  const totalEngagement = useMemo(
-    () => Object.values(reactionState).reduce((acc, r) => acc + r.count, 0),
-    [reactionState]
+  const toggleReaction = useCallback(
+    async (emoji: string) => {
+      if (remoteSocial && user?.uid) {
+        await commitRemoteReaction(emoji);
+        return;
+      }
+      setReactionState((prev) => {
+        const cur = prev[emoji] ?? { count: 0, on: false };
+        const on = !cur.on;
+        return { ...prev, [emoji]: { count: cur.count + (on ? 1 : -1), on } };
+      });
+    },
+    [commitRemoteReaction, remoteSocial, user?.uid]
   );
 
-  const primaryKey = post.reactions.find((r) => r.emoji === "❤️")?.emoji ?? post.reactions[0]?.emoji ?? "❤️";
-  const heartActive = reactionState[primaryKey]?.on ?? false;
+  const totalEngagement = useMemo(
+    () => Object.values(mergedReactionState).reduce((acc, r) => acc + r.count, 0),
+    [mergedReactionState]
+  );
+
+  const primaryKey =
+    displayReactions.find((r) => r.emoji === "❤️")?.emoji ?? displayReactions[0]?.emoji ?? "❤️";
+  const heartActive = mergedReactionState[primaryKey]?.on ?? false;
   const hasMedia =
     (post.kind === "image" && post.cover) ||
     (post.kind === "album" && album.length > 0) ||
@@ -225,6 +267,11 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
     "ring-1 ring-inset ring-white/[0.06]",
     "shadow-[0_24px_80px_-40px_rgba(0,0,0,0.85)]"
   );
+
+  const commentLines = useMemo(() => {
+    if (remoteSocial && commentsOpen) return social.commentsPreview;
+    return post.commentsPreview;
+  }, [commentsOpen, post.commentsPreview, remoteSocial, social.commentsPreview]);
 
   const onAlbumTouchEnd = (e: React.TouchEvent) => {
     const t = e.changedTouches[0];
@@ -422,13 +469,18 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
           <motion.button
             type="button"
             aria-label={heartActive ? "Unlike" : "Like"}
-            onClick={() => toggleReaction(primaryKey)}
+            onClick={() => void toggleReaction(primaryKey)}
             whileTap={reduceMotion ? undefined : { scale: 0.86 }}
             className={cn("rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]", heartActive && "text-red-400")}
           >
             <Heart className={cn("size-7", heartActive && "fill-current")} strokeWidth={1.6} />
           </motion.button>
-          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]" aria-label="Comment">
+          <button
+            type="button"
+            onClick={() => setCommentsOpen(true)}
+            className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]"
+            aria-label="Comment"
+          >
             <MessageCircle className="size-7" strokeWidth={1.6} />
           </button>
           <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]" aria-label="Share">
@@ -441,13 +493,13 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
         </div>
 
         <div className="flex flex-wrap gap-1.5 px-1 pt-1 sm:px-0">
-          {post.reactions.map((r) => {
-            const state = reactionState[r.emoji] ?? { count: r.count, on: false };
+          {displayReactions.map((r) => {
+            const state = mergedReactionState[r.emoji] ?? { count: r.count, on: !!r.active };
             return (
               <motion.button
                 key={r.emoji}
                 type="button"
-                onClick={() => toggleReaction(r.emoji)}
+                onClick={() => void toggleReaction(r.emoji)}
                 whileTap={reduceMotion ? undefined : { scale: 0.88 }}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[14px] transition-colors",
@@ -522,11 +574,43 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
               className="overflow-hidden"
             >
               <div className="space-y-2 border-l border-primary/25 py-2 pl-3 sm:pl-4">
-                {post.commentsPreview.map((c) => (
-                  <p key={`${c.author}-${c.text}`} className="text-[14px] leading-relaxed text-foreground/90">
+                {commentLines.length === 0 && (
+                  <p className="text-[13px] text-muted-foreground">No comments yet — say hello.</p>
+                )}
+                {commentLines.map((c, idx) => (
+                  <p key={`${idx}-${c.author}-${c.text.slice(0, 24)}`} className="text-[14px] leading-relaxed text-foreground/90">
                     <span className="font-semibold text-foreground">{c.author}</span> {c.text}
                   </p>
                 ))}
+                {remoteSocial && user && (
+                  <form
+                    className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!commentDraft.trim() || commentBusy) return;
+                      setCommentBusy(true);
+                      void (async () => {
+                        try {
+                          await submitComment(commentDraft);
+                          setCommentDraft("");
+                        } finally {
+                          setCommentBusy(false);
+                        }
+                      })();
+                    }}
+                  >
+                    <Input
+                      value={commentDraft}
+                      onChange={(e) => setCommentDraft(e.target.value)}
+                      placeholder="Write a comment…"
+                      className="rounded-xl border-white/10 bg-white/[0.04] text-[14px]"
+                      disabled={commentBusy}
+                    />
+                    <Button type="submit" size="sm" className="shrink-0 rounded-xl" disabled={commentBusy}>
+                      Send
+                    </Button>
+                  </form>
+                )}
               </div>
             </motion.div>
           )}

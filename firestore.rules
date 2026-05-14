@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /posts/{postId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.authorId == request.auth.uid;
+
+      allow update: if request.auth != null && (
+        resource.data.authorId == request.auth.uid
+        || (
+          request.resource.data.diff(resource.data).changedKeys()
+            .hasOnly(["commentCount", "updatedAt"])
+          && request.resource.data.commentCount == resource.data.commentCount + 1
+        )
+      );
+
+      allow delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+
+      match /reactions/{uid} {
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(["emoji", "updatedAt"]);
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+
+      match /comments/{commentId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+      }
+    }
+  }
+}
