@@ -48,9 +48,9 @@ export function DashboardAppHeader({
   return (
     <header
       className={cn(
-        "fixed top-0 z-[45] flex w-full items-center justify-between gap-2 border-b px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3",
+        "fixed top-0 z-[45] box-border flex min-h-[var(--ar-header-height)] w-full items-center justify-between gap-2 border-b px-3 sm:gap-3 sm:px-4",
         "left-0 lg:left-[248px] lg:right-0",
-        "pt-[max(0.5rem,env(safe-area-inset-top))] pb-2.5 sm:pb-3",
+        "pt-[var(--ar-header-safe-top)] pb-[var(--ar-header-pad-bottom)]",
         "transition-[background-color,box-shadow,backdrop-filter,border-color] duration-300 ease-out",
         elevated
           ? "border-white/[0.1] bg-background/88 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/72"

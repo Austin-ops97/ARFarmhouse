@@ -19,7 +19,7 @@ import { PropertyMapView } from "@/components/ar-farmhouse/property-map-view";
 import { TasksView } from "@/components/ar-farmhouse/tasks-view";
 import { WeekendHubPortal } from "@/components/ar-farmhouse/weekend-hub-portal";
 import { useAuth } from "@/contexts/auth-context";
-import { cn } from "@/lib/utils";
+import { cnDashboardMain, cnDashboardPageBody } from "@/lib/dashboard-layout";
 
 export function Dashboard() {
   const { configured } = useAuth();
@@ -76,14 +76,7 @@ export function Dashboard() {
             onMobileMenuOpenChange={setMobileMenuOpen}
           />
 
-          <main
-            className={cn(
-              "min-w-0 flex-1 overflow-x-hidden pt-[var(--ar-header-height)]",
-              activeId === "home"
-                ? "mx-auto w-full max-w-[1180px] px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-10 sm:pt-5 lg:px-12 lg:pb-12 lg:pt-4"
-                : "mx-auto w-full max-w-[1400px] px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-8 sm:pt-4 lg:px-10 lg:pb-10 lg:pt-4"
-            )}
-          >
+          <main className={cnDashboardMain(activeId === "home")}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeId}
@@ -91,7 +84,7 @@ export function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
                 transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 1, 0.36, 1] }}
-                className={activeId === "home" ? "min-w-0" : "min-w-0 space-y-6"}
+                className={cnDashboardPageBody(activeId === "home")}
               >
                 {main}
               </motion.div>

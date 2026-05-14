@@ -322,9 +322,7 @@ export function FeedView() {
       </div>
 
       <aside className={FEED_RAIL_CLASS}>
-        <div className="sticky top-8 space-y-4">
-          <FeedRail />
-        </div>
+        <FeedRail />
       </aside>
     </div>
   );

@@ -89,8 +89,18 @@
   --sidebar-accent-foreground: oklch(0.22 0.04 155);
   --sidebar-border: oklch(0.88 0.01 95);
   --sidebar-ring: oklch(0.5 0.06 158);
-  --ar-header-height: calc(3.75rem + env(safe-area-inset-top, 0px));
+  --ar-header-safe-top: max(0.5rem, env(safe-area-inset-top, 0px));
+  --ar-header-row-min: 3.5rem;
+  --ar-header-pad-bottom: 0.625rem;
+  --ar-header-height: calc(var(--ar-header-safe-top) + var(--ar-header-row-min) + var(--ar-header-pad-bottom));
   --ar-mobile-sticky-top: calc(var(--ar-header-height) + 0.125rem);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --ar-header-row-min: 3.875rem;
+    --ar-header-pad-bottom: 0.75rem;
+  }
 }
 
 .dark {
@@ -131,8 +141,6 @@
   --sidebar-accent-foreground: oklch(0.92 0.011 95);
   --sidebar-border: oklch(0.94 0.01 95 / 0.065);
   --sidebar-ring: oklch(0.5 0.055 155);
-  --ar-header-height: calc(3.75rem + env(safe-area-inset-top, 0px));
-  --ar-mobile-sticky-top: calc(var(--ar-header-height) + 0.125rem);
 }
 
 @layer base {
@@ -148,6 +156,7 @@
     @apply font-sans;
     scroll-behavior: smooth;
     overflow-x: hidden;
+    scroll-padding-top: calc(var(--ar-header-height) + 0.35rem);
   }
 }
 

@@ -28,7 +28,11 @@ export function FeedRail() {
   const { openWeekendHub } = useEcosystem();
 
   return (
-    <aside className="sticky top-6 space-y-4" aria-label="At the property">
+    <div
+      className="sticky top-[calc(var(--ar-header-height)+0.75rem)] space-y-4"
+      role="complementary"
+      aria-label="At the property"
+    >
       <motion.div
         initial={reduceMotion ? false : { opacity: 0, x: 12 }}
         animate={{ opacity: 1, x: 0 }}
@@ -155,6 +159,6 @@ export function FeedRail() {
           From this week&apos;s feed
         </p>
       </motion.div>
-    </aside>
+    </div>
   );
 }
