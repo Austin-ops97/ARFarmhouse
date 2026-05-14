@@ -12,6 +12,7 @@ import { DashboardSectionPlaceholder } from "@/components/ar-farmhouse/dashboard
 import { DashboardSidebar } from "@/components/ar-farmhouse/dashboard-sidebar";
 import { sidebarNav, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
 import { FeedView } from "@/components/ar-farmhouse/feed-view";
+import { LocalGuideView } from "@/components/ar-farmhouse/local-guide-view";
 import { PropertyHubView } from "@/components/ar-farmhouse/property-hub-view";
 import { PropertyMapView } from "@/components/ar-farmhouse/property-map-view";
 import { TasksView } from "@/components/ar-farmhouse/tasks-view";
@@ -20,6 +21,7 @@ const sectionSubtitle: Record<NavId, string> = {
   home: "AR Farmhouse · this weekend",
   feed: "Private · emotionally warm",
   calendar: "Stays, bookings, and shared weekends",
+  guide: "Mena · trusted stops for the house",
   map: "Trails, pins, and quiet orientation",
   tasks: "Household rhythm · shared work",
   family: "People & roles · preview",
@@ -46,6 +48,8 @@ export function Dashboard() {
         return <FeedView />;
       case "calendar":
         return <CalendarWeekendsView />;
+      case "guide":
+        return <LocalGuideView />;
       case "map":
         return <PropertyMapView />;
       case "tasks":
