@@ -162,7 +162,10 @@
   background: radial-gradient(900px 480px at 50% 0%, oklch(0.32 0.04 155 / 0.12), transparent 62%);
 }
 
-.ar-app-shell > * {
+/* Never use `.ar-app-shell > * { position: relative }` — it overrides `fixed` on the
+   sidebar (same specificity / later cascade) and shoves the main column below a
+   full-height block, creating a huge empty band at the top on every route. */
+.ar-app-shell-main {
   position: relative;
   z-index: 1;
 }

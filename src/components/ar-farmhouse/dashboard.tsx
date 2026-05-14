@@ -79,7 +79,7 @@ export function Dashboard() {
     <div className="ar-app-shell relative min-h-dvh overflow-x-hidden bg-background [--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.75rem)] supports-[padding:max(0px)]:[--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.875rem)]">
       <DashboardSidebar activeId={activeId} onSelect={setActiveId} />
 
-      <div className="min-w-0 lg:pl-[248px]">
+      <div className="ar-app-shell-main min-w-0 lg:pl-[248px]">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/[0.06] bg-background/72 px-3 py-3 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/52 sm:px-4 sm:py-3.5 lg:hidden">
           <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
             <DashboardMobileDrawerTrigger open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
@@ -101,8 +101,8 @@ export function Dashboard() {
         <main
           className={
             activeId === "home"
-              ? "mx-auto max-w-[1180px] min-w-0 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-10 sm:pt-6 lg:px-12 lg:pb-12 lg:pt-10"
-              : "mx-auto max-w-[1400px] min-w-0 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-8 sm:pt-5 lg:px-10 lg:pb-10 lg:pt-8"
+              ? "mx-auto max-w-[1180px] min-w-0 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-10 sm:pt-5 lg:px-12 lg:pb-12 lg:pt-4"
+              : "mx-auto max-w-[1400px] min-w-0 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-8 sm:pt-4 lg:px-10 lg:pb-10 lg:pt-4"
           }
         >
           <AnimatePresence mode="wait">
