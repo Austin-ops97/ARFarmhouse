@@ -16,7 +16,7 @@ export function DashboardSidebar({ activeId, onSelect }: DashboardSidebarProps) 
   const reduceMotion = useReducedMotion();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-border/70 bg-sidebar/85 px-3 py-6 backdrop-blur-2xl lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-white/[0.06] bg-sidebar/90 px-3 py-6 backdrop-blur-2xl lg:flex">
       <div className="mb-8 flex items-center gap-3 px-2">
         <div className="flex size-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-inner shadow-white/5">
           <Sparkles className="size-5 text-primary" aria-hidden />
@@ -62,8 +62,8 @@ export function DashboardSidebar({ activeId, onSelect }: DashboardSidebarProps) 
         })}
       </nav>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs leading-relaxed text-muted-foreground">
-        Everything here is demo data — crafted for motion, spacing, and calm hierarchy.
+      <div className="mt-6 rounded-2xl bg-white/[0.025] px-4 py-3.5 text-[11px] leading-relaxed text-muted-foreground/90 ring-1 ring-white/[0.05]">
+        Demo data — tuned for calm hierarchy and motion.
       </div>
     </aside>
   );

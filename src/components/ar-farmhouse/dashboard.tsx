@@ -5,9 +5,7 @@ import { Settings, Sparkles, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { CalendarWeekendsView } from "@/components/ar-farmhouse/calendar-weekends-view";
-import { DashboardBento } from "@/components/ar-farmhouse/dashboard-bento";
-import { DashboardEcosystemStrip } from "@/components/ar-farmhouse/dashboard-ecosystem-strip";
-import { DashboardHero } from "@/components/ar-farmhouse/dashboard-hero";
+import { DashboardHomeView } from "@/components/ar-farmhouse/dashboard-home-view";
 import { EcosystemProvider } from "@/components/ar-farmhouse/ecosystem-context";
 import { DashboardMobileDrawer, DashboardMobileDrawerTrigger } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { DashboardSectionPlaceholder } from "@/components/ar-farmhouse/dashboard-section-placeholder";
@@ -21,7 +19,7 @@ import { TasksView } from "@/components/ar-farmhouse/tasks-view";
 import { WeekendHubPortal } from "@/components/ar-farmhouse/weekend-hub-portal";
 
 const sectionSubtitle: Record<NavId, string> = {
-  home: "AR Farmhouse · this weekend",
+  home: "Living view of the property",
   feed: "Private · emotionally warm",
   calendar: "Stays, bookings, and shared weekends",
   guide: "Mena · trusted stops for the house",
@@ -42,13 +40,7 @@ export function Dashboard() {
   const main = useMemo(() => {
     switch (activeId) {
       case "home":
-        return (
-          <>
-            <DashboardHero />
-            <DashboardEcosystemStrip />
-            <DashboardBento />
-          </>
-        );
+        return <DashboardHomeView />;
       case "feed":
         return <FeedView />;
       case "calendar":
@@ -84,11 +76,11 @@ export function Dashboard() {
 
   return (
     <EcosystemProvider goTo={setActiveId}>
-    <div className="min-h-dvh overflow-x-hidden bg-background [--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.75rem)] supports-[padding:max(0px)]:[--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.875rem)]">
+    <div className="ar-app-shell relative min-h-dvh overflow-x-hidden bg-background [--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.75rem)] supports-[padding:max(0px)]:[--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.875rem)]">
       <DashboardSidebar activeId={activeId} onSelect={setActiveId} />
 
       <div className="min-w-0 lg:pl-[248px]">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/60 bg-background/80 px-3 py-3 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/58 sm:px-4 sm:py-3.5 lg:hidden">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/[0.06] bg-background/72 px-3 py-3 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/52 sm:px-4 sm:py-3.5 lg:hidden">
           <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
             <DashboardMobileDrawerTrigger open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
             <div className="hidden size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-inner shadow-white/5 sm:flex">
@@ -106,15 +98,21 @@ export function Dashboard() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1400px] min-w-0 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-8 sm:pt-5 lg:px-10 lg:pb-10 lg:pt-8">
+        <main
+          className={
+            activeId === "home"
+              ? "mx-auto max-w-[1180px] min-w-0 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-10 sm:pt-6 lg:px-12 lg:pb-12 lg:pt-10"
+              : "mx-auto max-w-[1400px] min-w-0 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-8 sm:pt-5 lg:px-10 lg:pb-10 lg:pt-8"
+          }
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={activeId}
               initial={reduceMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
-              transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="space-y-6"
+              transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 1, 0.36, 1] }}
+              className={activeId === "home" ? "" : "space-y-6"}
             >
               {main}
             </motion.div>

@@ -4,6 +4,8 @@ export const mockWeather = {
   condition: "Clear · light breeze",
   highLow: "62° / 41°",
   icon: "clear-night" as const,
+  /** When `"storm"`, home atmosphere shifts subtly — demo only */
+  severity: "clear" as "clear" | "storm",
 };
 
 export const mockBooking = {
@@ -29,6 +31,19 @@ export const mockWeekendGuests = [
 export const mockFeed = [
   { id: "1", author: "Jordan", snippet: "Trail cameras look clear — elk near the north fence line.", time: "2h ago" },
   { id: "2", author: "Morgan", snippet: "Pantry restock arriving Thursday. I left the list in Tasks.", time: "5h ago" },
+  {
+    id: "3",
+    author: "Sam",
+    snippet: "Chef dinner Sat 7:30pm — allergies are in the weekend hub note. Kids’ table by the window.",
+    time: "Yesterday",
+  },
+  {
+    id: "4",
+    author: "Alex",
+    snippet: "Boat keys are in the mudroom drawer. Fuel topped for Saturday morning.",
+    time: "Yesterday",
+  },
+  { id: "5", author: "Riley", snippet: "Memorial week poll closes Sunday — results post automatically to Feed.", time: "3d ago" },
 ];
 
 export const mockEvents = [
