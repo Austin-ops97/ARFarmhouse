@@ -32,8 +32,8 @@ export function HomeQuickActions() {
               type="button"
               onClick={() => goTo(a.nav)}
               className={cn(
-                "inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.03] px-4 py-2 text-sm font-medium text-foreground",
-                "shadow-[0_18px_50px_-38px_rgba(0,0,0,0.85)] transition hover:border-white/[0.12] hover:bg-white/[0.06]"
+                "inline-flex items-center gap-2 rounded-full border border-border/55 bg-card/80 px-4 py-2 text-sm font-medium text-foreground shadow-[var(--ar-float-elevate)]",
+                "transition hover:border-border hover:bg-muted/70 dark:border-white/[0.07] dark:bg-white/[0.03] dark:shadow-[0_18px_50px_-38px_rgba(0,0,0,0.85)] dark:hover:border-white/[0.12] dark:hover:bg-white/[0.06]"
               )}
             >
               <Icon className="size-4 text-primary/85" aria-hidden />

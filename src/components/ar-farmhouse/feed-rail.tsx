@@ -10,10 +10,7 @@ import { demoFamilyMembers } from "@/lib/social-demo";
 import { mockBooking, mockPhotos, mockPropertyStatus, mockWeather } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
-const railCard = cn(
-  "rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 backdrop-blur-xl",
-  "shadow-[0_12px_40px_-28px_rgba(0,0,0,0.65)]"
-);
+const railCard = cn("ar-surface-raised rounded-2xl p-4");
 
 function initials(name: string) {
   return name
@@ -144,7 +141,7 @@ export function FeedRail() {
         </div>
         <div className="mt-3 grid grid-cols-3 gap-1.5">
           {mockPhotos.slice(0, 3).map((src, i) => (
-            <div key={src} className="relative aspect-square overflow-hidden rounded-xl border border-white/10">
+            <div key={src} className="relative aspect-square overflow-hidden rounded-xl border border-border/55 dark:border-white/10">
               <Image src={src} alt="" fill className="object-cover" sizes="96px" />
               {i === 0 && (
                 <span className="absolute bottom-1 left-1 rounded bg-background/60 px-1 py-0.5 text-[9px] text-muted-foreground backdrop-blur-sm">

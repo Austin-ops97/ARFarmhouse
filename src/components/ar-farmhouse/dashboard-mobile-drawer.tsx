@@ -41,8 +41,8 @@ export function DashboardMobileDrawerTrigger({
       aria-controls="ar-mobile-nav-drawer"
       whileTap={reduceMotion ? undefined : { scale: 0.94 }}
       className={cn(
-        "flex size-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-foreground shadow-inner shadow-white/5",
-        "touch-manipulation transition-colors hover:bg-white/[0.08]"
+        "flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-card/85 text-foreground shadow-[var(--ar-float-elevate)]",
+        "touch-manipulation transition-colors hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.05] dark:shadow-inner dark:shadow-white/5 dark:hover:bg-white/[0.08]"
       )}
       aria-label={open ? "Close menu" : "Open menu"}
     >
@@ -109,7 +109,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
             type="button"
             aria-hidden
             tabIndex={-1}
-            className="absolute inset-0 bg-background/55 backdrop-blur-xl"
+            className="ar-scrim absolute inset-0"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -128,13 +128,13 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
             exit={reduceMotion ? undefined : { x: "-104%" }}
             transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.65 }}
             className={cn(
-              "absolute inset-y-0 left-0 flex w-[min(20.5rem,calc(100vw-1.25rem))] max-w-[100vw] flex-col",
-              "border-r border-white/10 bg-sidebar/92 pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pt-[max(0.75rem,env(safe-area-inset-top))] pr-3 shadow-[24px_0_80px_-40px_rgba(0,0,0,0.85)] backdrop-blur-2xl"
+              "ar-header-blur absolute inset-y-0 left-0 flex w-[min(20.5rem,calc(100vw-1.25rem))] max-w-[100vw] flex-col",
+              "border-r border-border/60 bg-sidebar/94 pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pt-[max(0.75rem,env(safe-area-inset-top))] pr-3 shadow-[var(--ar-modal-elevate)] dark:border-white/10 dark:bg-sidebar/92"
             )}
           >
-            <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-4">
+            <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-4 dark:border-white/10">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-inner shadow-white/5">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-card/90 shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.05] dark:shadow-inner dark:shadow-white/5">
                   <Sparkles className="size-5 text-primary" aria-hidden />
                 </div>
                 <div className="min-w-0">
@@ -148,14 +148,14 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
                 type="button"
                 onClick={close}
                 whileTap={reduceMotion ? undefined : { scale: 0.94 }}
-                className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-muted-foreground transition-colors hover:bg-white/[0.08] hover:text-foreground"
+                className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-muted/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.08]"
                 aria-label="Close menu"
               >
                 <X className="size-[18px]" aria-hidden />
               </motion.button>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="ar-surface-float mt-4 rounded-2xl p-3">
               <div className="flex items-center gap-3">
                 <Avatar size="lg" className="ring-2 ring-background/80">
                   <AvatarImage src={profile.avatar} alt="" />
@@ -187,7 +187,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
                       "group relative flex min-h-[3.25rem] items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[15px] transition-colors touch-manipulation",
                       active
                         ? "text-foreground"
-                        : "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground"
+                        : "text-muted-foreground hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/[0.05]"
                     )}
                   >
                     {active && (
@@ -202,7 +202,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
                         "relative z-10 flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors",
                         active
                           ? "border-primary/30 bg-primary/12 text-primary"
-                          : "border-transparent bg-white/[0.03] text-muted-foreground group-hover:text-foreground"
+                          : "border-transparent bg-muted/45 text-muted-foreground group-hover:text-foreground dark:bg-white/[0.03]"
                       )}
                     >
                       <Icon className="size-[18px]" aria-hidden />
@@ -213,7 +213,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
               })}
             </nav>
 
-            <p className="mt-4 rounded-2xl border border-white/8 bg-white/[0.02] p-3 text-[11px] leading-relaxed text-muted-foreground">
+            <p className="ar-surface-inset mt-4 rounded-2xl p-3 text-[11px] leading-relaxed text-muted-foreground">
               Demo data — motion and spacing tuned for calm, app-like navigation.
             </p>
           </motion.aside>

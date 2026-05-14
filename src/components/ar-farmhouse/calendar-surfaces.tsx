@@ -8,10 +8,7 @@ import type { DemoCoordEvent } from "@/lib/calendar-demo";
 import { demoCalendarMonth, type DemoCalendarDay } from "@/lib/social-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised rounded-[1.35rem]");
 
 const weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"] as const;
 
@@ -69,7 +66,7 @@ export function CalendarViewModeTabs({
     { id: "agenda", label: "Agenda", icon: List },
   ];
   return (
-    <div className="flex min-h-11 w-full min-w-0 max-w-full rounded-2xl border border-white/10 bg-white/[0.04] p-1">
+    <div className="ar-surface-float flex min-h-11 w-full min-w-0 max-w-full rounded-2xl p-1">
       {tabs.map((t) => {
         const active = mode === t.id;
         const Icon = t.icon;
@@ -211,7 +208,7 @@ export function CalendarWeekStrip({
         <div className="flex shrink-0 gap-1">
           <button
             type="button"
-            className="flex size-11 min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-muted-foreground touch-manipulation hover:text-foreground disabled:opacity-30 sm:size-10 sm:min-h-0 sm:min-w-0"
+            className="flex size-11 min-h-11 min-w-11 items-center justify-center rounded-xl border border-border/65 bg-secondary/85 text-muted-foreground touch-manipulation hover:text-foreground disabled:opacity-30 sm:size-10 sm:min-h-0 sm:min-w-0 dark:border-white/10 dark:bg-white/[0.04]"
             disabled={safeIdx <= 0}
             onClick={() => onWeekChange(safeIdx - 1)}
             aria-label="Previous week"
@@ -220,7 +217,7 @@ export function CalendarWeekStrip({
           </button>
           <button
             type="button"
-            className="flex size-11 min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-muted-foreground touch-manipulation hover:text-foreground disabled:opacity-30 sm:size-10 sm:min-h-0 sm:min-w-0"
+            className="flex size-11 min-h-11 min-w-11 items-center justify-center rounded-xl border border-border/65 bg-secondary/85 text-muted-foreground touch-manipulation hover:text-foreground disabled:opacity-30 sm:size-10 sm:min-h-0 sm:min-w-0 dark:border-white/10 dark:bg-white/[0.04]"
             disabled={safeIdx >= rows.length - 1}
             onClick={() => onWeekChange(safeIdx + 1)}
             aria-label="Next week"
@@ -247,7 +244,7 @@ export function CalendarWeekStrip({
               return (
                 <div
                   key={i}
-                  className="min-h-10 rounded-2xl border border-dashed border-white/8 bg-white/[0.02]"
+                  className="min-h-10 rounded-2xl border border-dashed border-border/50 bg-muted/35 dark:border-white/8 dark:bg-white/[0.02]"
                 />
               );
             }
@@ -258,7 +255,7 @@ export function CalendarWeekStrip({
                 initial={reduceMotion ? false : { opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
-                className="flex min-h-[4.5rem] flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+                className="ar-surface-inset flex min-h-[4.5rem] flex-col rounded-2xl p-3"
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
@@ -268,7 +265,7 @@ export function CalendarWeekStrip({
                   {dayEv.map((ev) => (
                     <div
                       key={ev.id}
-                      className="truncate rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1.5 text-[11px] text-muted-foreground"
+                      className="truncate rounded-lg border border-border/55 bg-card/85 px-2 py-1.5 text-[11px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]"
                       title={ev.title}
                     >
                       <span className={cn("mr-1 inline-block size-1.5 rounded-full align-middle", accentDot[ev.accent])} />
@@ -288,7 +285,7 @@ export function CalendarWeekStrip({
             const label = weekdayLabels[i];
             if (day === null) {
               return (
-                <div key={i} className="min-h-[5.5rem] rounded-2xl border border-dashed border-white/8 bg-white/[0.02] sm:min-h-[7.5rem]" />
+                <div key={i} className="min-h-[5.5rem] rounded-2xl border border-dashed border-border/50 bg-muted/30 sm:min-h-[7.5rem] dark:border-white/8 dark:bg-white/[0.02]" />
               );
             }
             const dayEv = eventsForDay(day, events);
@@ -298,7 +295,7 @@ export function CalendarWeekStrip({
                 initial={reduceMotion ? false : { opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
-                className="flex min-h-[5.5rem] min-w-0 flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-2 sm:min-h-[7.5rem] sm:p-2.5"
+                className="ar-surface-inset flex min-h-[5.5rem] min-w-0 flex-col rounded-2xl p-2 sm:min-h-[7.5rem] sm:p-2.5"
               >
                 <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
                 <p className="font-heading text-base font-semibold tabular-nums text-foreground sm:text-lg">{day}</p>
@@ -306,7 +303,7 @@ export function CalendarWeekStrip({
                   {dayEv.map((ev) => (
                     <div
                       key={ev.id}
-                      className="truncate rounded-lg border border-white/10 bg-white/[0.05] px-1.5 py-1 text-[9px] text-muted-foreground sm:text-[9px]"
+                      className="truncate rounded-lg border border-border/55 bg-card/85 px-1.5 py-1 text-[9px] text-muted-foreground sm:text-[9px] dark:border-white/10 dark:bg-white/[0.05]"
                       title={ev.title}
                     >
                       <span className={cn("mr-1 inline-block size-1.5 rounded-full align-middle", accentDot[ev.accent])} />
@@ -329,7 +326,7 @@ export function CalendarAgendaList({ events }: { events: DemoCoordEvent[] }) {
   const reduceMotion = useReducedMotion();
   const rows = agendaRows(events);
   return (
-    <div className={cn(surface, "min-w-0 max-w-full divide-y divide-white/10")}>
+    <div className={cn(surface, "min-w-0 max-w-full divide-y divide-border/45 dark:divide-white/10")}>
       <div className="min-w-0 px-4 py-3 sm:px-5">
         <p className="text-sm font-semibold text-foreground">May agenda</p>
         <p className="text-[11px] text-muted-foreground">Scrollable list · same data as month dots</p>

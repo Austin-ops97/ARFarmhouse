@@ -17,9 +17,9 @@ export function DashboardSidebar({ activeId, onSelect, liveData = false }: Dashb
   const reduceMotion = useReducedMotion();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-white/[0.06] bg-sidebar/90 px-3 py-6 backdrop-blur-2xl lg:flex">
+    <aside className="ar-header-blur fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-border/60 bg-sidebar/92 px-3 py-6 backdrop-blur-2xl lg:flex dark:border-white/[0.06] dark:bg-sidebar/90">
       <div className="mb-8 flex items-center gap-3 px-2">
-        <div className="flex size-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-inner shadow-white/5">
+        <div className="flex size-11 items-center justify-center rounded-2xl border border-border/65 bg-card/90 shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.05] dark:shadow-inner dark:shadow-white/5">
           <Sparkles className="size-5 text-primary" aria-hidden />
         </div>
         <div className="min-w-0">
@@ -45,8 +45,8 @@ export function DashboardSidebar({ activeId, onSelect, liveData = false }: Dashb
               className={cn(
                 "group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm transition-colors",
                 active
-                  ? "bg-white/[0.07] text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                  : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+                  ? "bg-card/90 text-foreground shadow-[var(--ar-float-elevate)] ring-1 ring-border/50 dark:bg-white/[0.07] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:ring-0"
+                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/[0.04]"
               )}
             >
               {active && (
@@ -63,7 +63,7 @@ export function DashboardSidebar({ activeId, onSelect, liveData = false }: Dashb
         })}
       </nav>
 
-      <div className="mt-6 rounded-2xl bg-white/[0.025] px-4 py-3.5 text-[11px] leading-relaxed text-muted-foreground/90 ring-1 ring-white/[0.05]">
+      <div className="mt-6 rounded-2xl border border-border/50 bg-muted/45 px-4 py-3.5 text-[11px] leading-relaxed text-muted-foreground/95 shadow-[var(--ar-inset-press)] ring-1 ring-border/35 dark:bg-white/[0.025] dark:ring-white/[0.05]">
         {liveData
           ? "Authenticated · feed and profile sync to Firebase when keys are present."
           : "Demo data — tuned for calm hierarchy and motion."}

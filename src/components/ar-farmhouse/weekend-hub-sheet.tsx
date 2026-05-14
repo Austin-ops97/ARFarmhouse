@@ -28,10 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { getWeekendHubBundle, type WeekendHubSlug } from "@/lib/ecosystem-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-2xl border border-white/10",
-  "bg-white/[0.035] shadow-[0_20px_60px_-32px_rgba(0,0,0,0.78)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised rounded-2xl");
 
 function countdownParts(targetMs: number, now: number) {
   const diff = targetMs - now;
@@ -95,7 +92,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
         >
           <button
             type="button"
-            className="absolute inset-0 bg-background/72 backdrop-blur-xl"
+            className="ar-scrim absolute inset-0"
             aria-label="Close"
             onClick={onClose}
           />
@@ -108,16 +105,15 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
             exit={reduceMotion ? undefined : { y: 20, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 34 }}
             className={cn(
-              "relative z-10 flex max-h-[min(90dvh,100dvh)] w-full max-w-[100vw] flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12",
-              "bg-background/94 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.92)] backdrop-blur-2xl sm:max-h-[min(94dvh,920px)] sm:max-w-2xl sm:rounded-[1.75rem]",
-              "touch-manipulation"
+              "ar-modal-shell relative z-10 flex max-h-[min(90dvh,100dvh)] w-full max-w-[100vw] flex-col overflow-hidden rounded-t-[1.75rem]",
+              "touch-manipulation sm:max-h-[min(94dvh,920px)] sm:max-w-2xl sm:rounded-[1.75rem]"
             )}
           >
             <div className="relative h-40 shrink-0 sm:h-48">
               <Image src={bundle.hero} alt="" fill className="object-cover" sizes="(max-width:768px) 100vw, 672px" />
               <div className="absolute inset-0 bg-gradient-to-t from-background via-background/55 to-transparent" />
               <div className="absolute left-4 right-4 top-[max(0.75rem,env(safe-area-inset-top))] flex items-start justify-between gap-2">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-background/55 px-2.5 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md">
+                <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/75 px-2.5 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md dark:border-white/15 dark:bg-background/55">
                   <Sparkles className="size-3 text-primary" aria-hidden />
                   Weekend hub
                 </div>
@@ -133,7 +129,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">{bundle.dateLabel}</p>
                 </div>
-                <div className="rounded-2xl border border-white/15 bg-background/60 px-3 py-2 text-right backdrop-blur-md">
+                <div className="rounded-2xl border border-border/55 bg-card/80 px-3 py-2 text-right backdrop-blur-md dark:border-white/15 dark:bg-background/60">
                   <p className="flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
                     <CloudSun className="size-3.5 text-mist" aria-hidden />
                     {bundle.weather.label}
@@ -184,7 +180,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   <p className="text-xs font-medium text-muted-foreground">Arrivals</p>
                   <ul className="mt-2 space-y-2">
                     {bundle.arrivals.map((a) => (
-                      <li key={a.name} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2">
+                      <li key={a.name} className="ar-surface-inset flex items-center gap-2 rounded-xl px-2.5 py-2">
                         <Avatar size="sm" className="ring-2 ring-background/80">
                           <AvatarImage src={a.avatar} alt="" />
                           <AvatarFallback>{initials(a.name)}</AvatarFallback>
@@ -203,7 +199,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   <p className="text-xs font-medium text-muted-foreground">Departures</p>
                   <ul className="mt-2 space-y-2">
                     {bundle.departures.map((d) => (
-                      <li key={d.name} className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2">
+                      <li key={d.name} className="ar-surface-inset flex items-start gap-2 rounded-xl px-2.5 py-2">
                         <Clock className="mt-0.5 size-3.5 shrink-0 text-primary/80" aria-hidden />
                         <div>
                           <p className="text-sm font-medium text-foreground">{d.name}</p>
@@ -224,7 +220,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   </div>
                   <ul className="mt-2 space-y-2">
                     {bundle.mealPlan.map((m) => (
-                      <li key={m.meal} className="rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2">
+                      <li key={m.meal} className="ar-surface-inset rounded-xl px-2.5 py-2">
                         <p className="text-sm font-medium text-foreground">{m.meal}</p>
                         <p className="text-[11px] text-muted-foreground">
                           {m.chef} · {m.dish}
@@ -240,7 +236,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   </div>
                   <ul className="mt-2 space-y-2">
                     {bundle.activities.map((a) => (
-                      <li key={a.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2">
+                      <li key={a.title} className="ar-surface-inset rounded-xl px-2.5 py-2">
                         <p className="text-sm font-medium text-foreground">{a.title}</p>
                         <p className="text-[11px] text-muted-foreground">
                           {a.when} · {a.people.join(", ")}
@@ -261,11 +257,11 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   </div>
                   <ul className="mt-2 space-y-2">
                     {bundle.grocery.slice(0, 5).map((g) => (
-                      <li key={g.item} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 text-sm text-foreground/90">
+                      <li key={g.item} className="ar-surface-inset flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm text-foreground/90">
                         <span
                           className={cn(
                             "flex size-6 shrink-0 items-center justify-center rounded-full border",
-                            g.done ? "border-primary/35 bg-primary/15 text-primary" : "border-white/12 bg-white/[0.04]"
+                            g.done ? "border-primary/35 bg-primary/15 text-primary" : "border-border/55 bg-muted/70 dark:border-white/12 dark:bg-white/[0.04]"
                           )}
                         >
                           {g.done ? <Check className="size-3" aria-hidden /> : null}
@@ -282,7 +278,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   </div>
                   <ul className="mt-2 space-y-2">
                     {bundle.guidePicks.map((g) => (
-                      <li key={g.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2">
+                      <li key={g.title} className="ar-surface-inset rounded-xl px-2.5 py-2">
                         <p className="text-sm font-medium text-foreground">{g.title}</p>
                         <p className="text-[11px] text-primary/85">{g.category}</p>
                         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{g.reason}</p>
@@ -297,7 +293,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   <p className="text-xs font-medium text-muted-foreground">Tasks before arrival</p>
                   <ul className="mt-2 space-y-2">
                     {bundle.tasksBeforeArrival.map((t) => (
-                      <li key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2">
+                      <li key={t.id} className="ar-surface-inset flex items-center justify-between gap-2 rounded-xl px-2.5 py-2">
                         <span className="text-sm text-foreground/90">{t.title}</span>
                         <span className="shrink-0 text-[11px] text-muted-foreground">{t.dueLabel}</span>
                       </li>
@@ -321,7 +317,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   <p className="text-xs font-medium text-muted-foreground">Recent related posts</p>
                   <ul className="mt-2 space-y-2">
                     {bundle.relatedFeedLines.map((r, i) => (
-                      <li key={`${r.author}-${i}`} className="rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 text-[13px] text-muted-foreground">
+                      <li key={`${r.author}-${i}`} className="ar-surface-inset rounded-xl px-2.5 py-2 text-[13px] text-muted-foreground">
                         <span className="font-medium text-foreground">{r.author}</span> {r.text}
                         <span className="mt-1 block text-[10px] text-muted-foreground/80">{r.timeLabel}</span>
                       </li>
@@ -355,7 +351,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                     </li>
                   ))}
                 </ul>
-                <Separator className="my-3 bg-white/10" />
+                <Separator className="my-3 bg-border/50 dark:bg-white/10" />
                 <ul className="space-y-1 text-[12px] text-muted-foreground">
                   {bundle.equipment.map((e) => (
                     <li key={e.item}>
@@ -366,14 +362,14 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                 <p className="mt-3 text-[11px] text-muted-foreground">Packing nudges</p>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {bundle.packing.map((p) => (
-                    <span key={p} className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] text-muted-foreground">
+                    <span key={p} className="rounded-full border border-border/55 bg-secondary/80 px-2.5 py-1 text-[10px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]">
                       {p}
                     </span>
                   ))}
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-4">
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-border/50 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-4 dark:border-white/10">
                 <Button
                   type="button"
                   variant="outline"

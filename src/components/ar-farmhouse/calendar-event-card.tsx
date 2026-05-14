@@ -11,10 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import type { DemoWeekendEvent } from "@/lib/social-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised rounded-[1.35rem]");
 
 function countdownParts(targetMs: number, now: number) {
   const diff = targetMs - now;
@@ -72,7 +69,7 @@ export function CalendarEventCard({
         <Image src={event.hero} alt="" fill className="object-cover" sizes="(min-width: 1024px) 480px, 100vw" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/35 to-transparent" />
         <div className="absolute left-4 top-4 flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-white/15 bg-background/55 px-2.5 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md">
+          <span className="rounded-full border border-border/60 bg-card/75 px-2.5 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md dark:border-white/15 dark:bg-background/55">
             {event.dateLabel}
           </span>
           <span className="rounded-full border border-primary/25 bg-primary/15 px-2.5 py-1 text-[10px] font-medium text-primary-foreground backdrop-blur-md">
@@ -106,7 +103,7 @@ export function CalendarEventCard({
                 </Avatar>
               ))}
               {event.attendeeExtra > 0 && (
-                <div className="flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-medium text-muted-foreground ring-2 ring-background/90">
+                <div className="flex size-10 items-center justify-center rounded-full border border-border/60 bg-muted/80 text-[11px] font-medium text-muted-foreground ring-2 ring-background/90 dark:border-white/10 dark:bg-white/[0.06]">
                   +{event.attendeeExtra}
                 </div>
               )}
@@ -149,7 +146,7 @@ export function CalendarEventCard({
                 "rounded-full border px-3 py-1.5 text-sm transition-colors",
                 rx[emoji]
                   ? "border-primary/35 bg-primary/15 text-foreground"
-                  : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-white/18"
+                  : "border-border/60 bg-muted/60 text-muted-foreground hover:border-border dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/18"
               )}
             >
               {emoji}
@@ -157,18 +154,18 @@ export function CalendarEventCard({
           ))}
         </div>
 
-        <Separator className="bg-white/10" />
+        <Separator className="bg-border/55 dark:bg-white/10" />
 
         <ul className="space-y-2 text-sm text-muted-foreground">
           {event.quickDetails.map((d) => (
-            <li key={d} className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+            <li key={d} className="ar-surface-inset flex gap-2 rounded-2xl px-3 py-2">
               <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary/70" />
               <span>{d}</span>
             </li>
           ))}
         </ul>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+        <div className="ar-surface-inset rounded-2xl p-3">
           <p className="text-[11px] font-medium text-muted-foreground">Recent thread</p>
           <div className="mt-2 space-y-2">
             {event.commentsPreview.map((c) => (

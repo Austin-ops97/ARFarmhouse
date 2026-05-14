@@ -105,7 +105,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
         >
           <button
             type="button"
-            className="absolute inset-0 bg-background/75 backdrop-blur-xl"
+            className="ar-scrim absolute inset-0"
             aria-label="Dismiss"
             onClick={() => {
               files.forEach((f) => URL.revokeObjectURL(f.preview));
@@ -122,8 +122,8 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
             exit={reduceMotion ? undefined : { y: 16, opacity: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 34 }}
             className={cn(
-              "relative z-10 flex max-h-[min(92dvh,880px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border/60",
-              "bg-card/95 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:rounded-[1.75rem]"
+              "ar-modal-shell relative z-10 flex max-h-[min(92dvh,880px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem]",
+              "sm:rounded-[1.75rem]"
             )}
           >
             <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">

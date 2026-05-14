@@ -261,11 +261,11 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
     (post.kind === "event_recap" && post.cover);
 
   const mediaShell = cn(
-    "relative overflow-hidden bg-zinc-950/40",
+    "relative overflow-hidden bg-muted/30 dark:bg-zinc-950/40",
     FEED_MEDIA_BLEED,
     "rounded-none sm:rounded-[1.35rem]",
-    "ring-1 ring-inset ring-white/[0.06]",
-    "shadow-[0_24px_80px_-40px_rgba(0,0,0,0.85)]"
+    "ring-1 ring-inset ring-border/55 dark:ring-white/[0.06]",
+    "shadow-[var(--ar-panel-elevate)] dark:shadow-[0_24px_80px_-40px_rgba(0,0,0,0.85)]"
   );
 
   const commentLines = useMemo(() => {
@@ -293,7 +293,7 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
         className="touch-manipulation pb-10 sm:pb-12"
       >
         <header className="flex items-start gap-3 px-1 pb-3 sm:px-0">
-          <Avatar size="lg" className="ring-2 ring-white/10">
+          <Avatar size="lg" className="ring-2 ring-border/60 dark:ring-white/10">
             <AvatarImage src={post.author.avatar} alt="" />
             <AvatarFallback>{initials(post.author.name)}</AvatarFallback>
           </Avatar>
@@ -312,7 +312,7 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
           </div>
           <button
             type="button"
-            className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/[0.06]"
             aria-label="Post options"
           >
             <MoreHorizontal className="size-5" />
@@ -375,7 +375,7 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
                       onClick={() => albumNav.setI(idx)}
                       className={cn(
                         "h-1.5 rounded-full transition-all",
-                        idx === albumNav.i ? "w-6 bg-primary" : "w-1.5 bg-white/40"
+                        idx === albumNav.i ? "w-6 bg-primary" : "w-1.5 bg-muted-foreground/35 dark:bg-white/40"
                       )}
                     />
                   ))}
@@ -451,7 +451,7 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
               <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.02 }} transition={{ duration: 0.45 }}>
                 <Image src={post.cover} alt="" fill className="object-cover" sizes={FEED_IMAGE_SIZES} loading="lazy" />
               </motion.div>
-              <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-background/55 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-md">
+              <div className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-card/80 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-md dark:border-white/15 dark:bg-background/55">
                 Event recap
               </div>
             </div>
@@ -459,7 +459,7 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
         )}
 
         {post.kind === "text" && !hasMedia && (
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] px-4 py-5 sm:px-5 sm:py-6">
+          <div className="ar-surface-inset rounded-2xl px-4 py-5 sm:px-5 sm:py-6">
             <p className="text-[15px] leading-relaxed text-foreground/95 sm:text-base">{post.body}</p>
           </div>
         )}
@@ -471,23 +471,23 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
             aria-label={heartActive ? "Unlike" : "Like"}
             onClick={() => void toggleReaction(primaryKey)}
             whileTap={reduceMotion ? undefined : { scale: 0.86 }}
-            className={cn("rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]", heartActive && "text-red-400")}
+            className={cn("rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]", heartActive && "text-red-400")}
           >
             <Heart className={cn("size-7", heartActive && "fill-current")} strokeWidth={1.6} />
           </motion.button>
           <button
             type="button"
             onClick={() => setCommentsOpen(true)}
-            className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]"
+            className="rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
             aria-label="Comment"
           >
             <MessageCircle className="size-7" strokeWidth={1.6} />
           </button>
-          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]" aria-label="Share">
+          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]" aria-label="Share">
             <Send className="size-7" strokeWidth={1.6} />
           </button>
           <span className="flex-1" />
-          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]" aria-label="Save">
+          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]" aria-label="Save">
             <Bookmark className="size-7" strokeWidth={1.6} />
           </button>
         </div>
@@ -503,7 +503,7 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
                 whileTap={reduceMotion ? undefined : { scale: 0.88 }}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[14px] transition-colors",
-                  state.on ? "bg-primary/15 text-foreground" : "hover:bg-white/[0.06]"
+                  state.on ? "bg-primary/15 text-foreground" : "hover:bg-muted/70 dark:hover:bg-white/[0.06]"
                 )}
               >
                 <motion.span
@@ -603,7 +603,7 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
                       value={commentDraft}
                       onChange={(e) => setCommentDraft(e.target.value)}
                       placeholder="Write a comment…"
-                      className="rounded-xl border-white/10 bg-white/[0.04] text-[14px]"
+                      className="rounded-xl border-border/60 bg-muted/50 text-[14px] dark:border-white/10 dark:bg-white/[0.04]"
                       disabled={commentBusy}
                     />
                     <Button type="submit" size="sm" className="shrink-0 rounded-xl" disabled={commentBusy}>
