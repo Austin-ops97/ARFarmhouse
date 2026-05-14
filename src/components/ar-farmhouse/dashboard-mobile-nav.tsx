@@ -19,7 +19,7 @@ export function DashboardMobileNav({ activeId, onSelect }: MobileBottomNavProps)
       className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/70 bg-background/75 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl lg:hidden"
       aria-label="Mobile primary"
     >
-      <div className="mx-auto flex max-w-lg items-stretch justify-between gap-1">
+      <div className="mx-auto flex max-w-full items-stretch justify-between gap-0.5 overflow-x-auto px-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {mobileNav.map((item) => {
           const active = activeId === item.id;
           const Icon = item.icon;
@@ -30,7 +30,7 @@ export function DashboardMobileNav({ activeId, onSelect }: MobileBottomNavProps)
               onClick={() => onSelect(item.id)}
               whileTap={reduceMotion ? undefined : { scale: 0.94 }}
               className={cn(
-                "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-[10px] font-medium transition-colors touch-manipulation",
+                "flex min-w-[4.25rem] max-w-[5.5rem] flex-1 flex-col items-center gap-1 rounded-2xl px-0.5 py-2 text-[9px] font-medium transition-colors touch-manipulation sm:min-w-[4.5rem] sm:text-[10px]",
                 active ? "text-foreground" : "text-muted-foreground"
               )}
             >

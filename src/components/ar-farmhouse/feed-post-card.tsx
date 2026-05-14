@@ -16,6 +16,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { DemoFeedPost } from "@/lib/social-demo";
+import { FEED_IMAGE_SIZES } from "@/lib/feed-layout";
 import { cn } from "@/lib/utils";
 
 const surface = cn(
@@ -68,7 +69,10 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
     (post.kind === "video" && post.video) ||
     (post.kind === "event_recap" && post.cover);
 
-  const mediaAspect = post.layout === "hero" ? "aspect-[4/5] sm:aspect-[1/1] sm:max-h-[min(72vh,560px)]" : "aspect-[4/5]";
+  const mediaAspect =
+    post.layout === "hero"
+      ? "aspect-[4/5] sm:aspect-[1/1] sm:max-h-[min(72vh,560px)] md:max-h-[min(74vh,620px)] lg:max-h-[min(76vh,700px)] xl:max-h-[min(78vh,780px)]"
+      : "aspect-[4/5]";
 
   return (
     <motion.article
@@ -87,13 +91,13 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
         )}
       >
         {/* Header — IG / FB style */}
-        <div className="flex items-center gap-3 px-3 py-2.5 sm:px-3.5">
+        <div className="flex items-center gap-3 px-3 py-2.5 sm:px-3.5 lg:px-5 lg:py-3">
           <Avatar size="default" className="ring-2 ring-background/80">
             <AvatarImage src={post.author.avatar} alt="" />
             <AvatarFallback>{initials(post.author.name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-foreground">{post.author.name}</p>
+            <p className="truncate text-sm font-semibold text-foreground lg:text-base">{post.author.name}</p>
             {post.location && (
               <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
                 <MapPin className="size-3 shrink-0 opacity-70" aria-hidden />
@@ -117,7 +121,7 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
               src={post.cover}
               alt=""
               fill
-              sizes="470px"
+              sizes={FEED_IMAGE_SIZES}
               className="object-cover"
               loading="lazy"
             />
@@ -132,7 +136,7 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
                 alt=""
                 fill
                 className="object-cover"
-                sizes="470px"
+                sizes={FEED_IMAGE_SIZES}
                 loading="lazy"
               />
             </div>
@@ -182,7 +186,7 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
               alt=""
               fill
               className="object-cover"
-              sizes="470px"
+              sizes={FEED_IMAGE_SIZES}
               loading="lazy"
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
@@ -202,7 +206,7 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
 
         {post.kind === "event_recap" && post.cover && (
           <div className={cn("relative w-full bg-black/25", mediaAspect)}>
-            <Image src={post.cover} alt="" fill className="object-cover" sizes="470px" loading="lazy" />
+            <Image src={post.cover} alt="" fill className="object-cover" sizes={FEED_IMAGE_SIZES} loading="lazy" />
             <div className="absolute bottom-2 left-2 rounded-md bg-black/55 px-2 py-1 text-[11px] font-medium text-white">
               Event recap
             </div>
@@ -210,13 +214,13 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
         )}
 
         {post.kind === "text" && !hasMedia && (
-          <div className="border-y border-white/[0.06] bg-white/[0.02] px-3 py-4 sm:px-3.5">
-            <p className="text-[15px] leading-relaxed text-foreground">{post.body}</p>
+          <div className="border-y border-white/[0.06] bg-white/[0.02] px-3 py-4 sm:px-3.5 lg:px-5 lg:py-5">
+            <p className="text-[15px] leading-relaxed text-foreground lg:text-base">{post.body}</p>
           </div>
         )}
 
         {/* Action bar */}
-        <div className="flex items-center gap-1 px-1.5 pt-2 sm:px-2">
+        <div className="flex items-center gap-1 px-1.5 pt-2 sm:px-2 lg:px-4 lg:pt-2.5">
           <motion.button
             type="button"
             aria-label={heartActive ? "Unlike" : "Like"}
@@ -227,21 +231,21 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
               heartActive && "text-red-400"
             )}
           >
-            <Heart className={cn("size-6", heartActive && "fill-current")} strokeWidth={1.75} />
+            <Heart className={cn("size-6 lg:size-7", heartActive && "fill-current")} strokeWidth={1.75} />
           </motion.button>
           <button
             type="button"
             className="rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]"
             aria-label="Comment"
           >
-            <MessageCircle className="size-6" strokeWidth={1.75} />
+            <MessageCircle className="size-6 lg:size-7" strokeWidth={1.75} />
           </button>
           <button
             type="button"
             className="rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]"
             aria-label="Share"
           >
-            <Send className="size-6" strokeWidth={1.75} />
+            <Send className="size-6 lg:size-7" strokeWidth={1.75} />
           </button>
           <span className="flex-1" />
           <button
@@ -249,12 +253,12 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
             className="rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]"
             aria-label="Save"
           >
-            <Bookmark className="size-6" strokeWidth={1.75} />
+            <Bookmark className="size-6 lg:size-7" strokeWidth={1.75} />
           </button>
         </div>
 
         {/* Reactions row (IG-adjacent: emoji + counts) */}
-        <div className="flex flex-wrap gap-1.5 px-3 pb-1 pt-0.5 sm:px-3.5">
+        <div className="flex flex-wrap gap-1.5 px-3 pb-1 pt-0.5 sm:px-3.5 lg:px-5">
           {post.reactions.map((r) => {
             const state = reactionState[r.emoji] ?? { count: r.count, on: false };
             return (
@@ -277,16 +281,16 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
 
         {/* Likes / engagement summary */}
         {totalEngagement > 0 && (
-          <p className="px-3 pb-1 text-sm font-semibold text-foreground sm:px-3.5">
+          <p className="px-3 pb-1 text-sm font-semibold text-foreground sm:px-3.5 lg:px-5 lg:text-base">
             {totalEngagement.toLocaleString()} {totalEngagement === 1 ? "reaction" : "reactions"}
           </p>
         )}
 
         {/* Caption — username + copy (FB/IG) */}
         {post.kind !== "text" && (
-          <div className="space-y-1.5 px-3 pb-2 sm:px-3.5">
-            {post.title && <p className="text-sm font-semibold text-foreground">{post.title}</p>}
-            <p className="text-sm leading-relaxed text-foreground">
+          <div className="space-y-1.5 px-3 pb-2 sm:px-3.5 lg:px-5">
+            {post.title && <p className="text-sm font-semibold text-foreground lg:text-base">{post.title}</p>}
+            <p className="text-sm leading-relaxed text-foreground lg:text-[15px]">
               <span className="font-semibold">{post.author.name.split(" ")[0]} </span>
               <span className="font-normal text-foreground/90">{post.body}</span>
             </p>
@@ -294,7 +298,7 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
         )}
 
         {post.linkedEvent && (
-          <div className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs text-primary-foreground/95 sm:mx-3.5">
+          <div className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs text-primary-foreground/95 sm:mx-3.5 lg:mx-5">
             <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
             <span className="font-medium">{post.linkedEvent}</span>
           </div>
@@ -302,21 +306,21 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
 
         <button
           type="button"
-          className="px-3 pb-1 text-left text-sm font-medium text-muted-foreground hover:text-foreground sm:px-3.5"
+          className="px-3 pb-1 text-left text-sm font-medium text-muted-foreground hover:text-foreground sm:px-3.5 lg:px-5 lg:text-[15px]"
         >
           View all {post.commentCount} comments
         </button>
 
-        <div className="space-y-1.5 px-3 pb-2 sm:px-3.5">
+        <div className="space-y-1.5 px-3 pb-2 sm:px-3.5 lg:px-5">
           {post.commentsPreview.map((c) => (
-            <p key={`${c.author}-${c.text}`} className="text-sm leading-snug">
+            <p key={`${c.author}-${c.text}`} className="text-sm leading-snug lg:text-[15px]">
               <span className="font-semibold text-foreground">{c.author}</span>{" "}
               <span className="text-foreground/85">{c.text}</span>
             </p>
           ))}
         </div>
 
-        <p className="px-3 pb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:px-3.5">
+        <p className="px-3 pb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:px-3.5 lg:px-5">
           {post.timeLabel}
         </p>
       </div>

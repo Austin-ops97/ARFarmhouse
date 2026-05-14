@@ -1,7 +1,8 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Settings, Sparkles, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Building2, CheckSquare, Map, Settings, Sparkles, Users } from "lucide-react";
 
 import { CalendarWeekendsView } from "@/components/ar-farmhouse/calendar-weekends-view";
 import { DashboardBento } from "@/components/ar-farmhouse/dashboard-bento";
@@ -11,20 +12,24 @@ import { DashboardSectionPlaceholder } from "@/components/ar-farmhouse/dashboard
 import { DashboardSidebar } from "@/components/ar-farmhouse/dashboard-sidebar";
 import { sidebarNav, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
 import { FeedView } from "@/components/ar-farmhouse/feed-view";
+import { PropertyHubView } from "@/components/ar-farmhouse/property-hub-view";
+import { PropertyMapView } from "@/components/ar-farmhouse/property-map-view";
+import { TasksView } from "@/components/ar-farmhouse/tasks-view";
 
 const sectionSubtitle: Record<NavId, string> = {
   home: "Aspen Ridge · this weekend",
   feed: "Private · emotionally warm",
   calendar: "Stays, RSVPs, and soft holds",
-  map: "Terrain & cameras · preview",
-  tasks: "Shared rhythm · preview",
+  map: "Trails, pins, and quiet orientation",
+  tasks: "Household rhythm · shared work",
   family: "People & roles · preview",
-  property: "Systems at a glance · preview",
+  property: "Status, binder, supplies",
   settings: "Preferences · preview",
 };
 
 export function Dashboard() {
   const [activeId, setActiveId] = useState<NavId>("home");
+  const reduceMotion = useReducedMotion();
 
   const activeMeta = useMemo(() => sidebarNav.find((n) => n.id === activeId) ?? sidebarNav[0], [activeId]);
 
@@ -42,21 +47,9 @@ export function Dashboard() {
       case "calendar":
         return <CalendarWeekendsView />;
       case "map":
-        return (
-          <DashboardSectionPlaceholder
-            title="Property map"
-            description="Live layers, trailheads, and camera previews will live here — calm cartography, not clutter."
-            icon={Map}
-          />
-        );
+        return <PropertyMapView />;
       case "tasks":
-        return (
-          <DashboardSectionPlaceholder
-            title="Shared tasks"
-            description="Household rhythm with gentle accountability — assignments, due windows, and quiet nudges."
-            icon={CheckSquare}
-          />
-        );
+        return <TasksView />;
       case "family":
         return (
           <DashboardSectionPlaceholder
@@ -66,13 +59,7 @@ export function Dashboard() {
           />
         );
       case "property":
-        return (
-          <DashboardSectionPlaceholder
-            title="Property"
-            description="Gates, climate, power, and maintenance stories — always legible, never alarming."
-            icon={Building2}
-          />
-        );
+        return <PropertyHubView />;
       case "settings":
         return (
           <DashboardSectionPlaceholder
@@ -108,7 +95,20 @@ export function Dashboard() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1400px] space-y-6 px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">{main}</main>
+        <main className="mx-auto max-w-[1400px] px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeId}
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
+              transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="space-y-6"
+            >
+              {main}
+            </motion.div>
+          </AnimatePresence>
+        </main>
       </div>
 
       <DashboardMobileNav activeId={activeId} onSelect={setActiveId} />

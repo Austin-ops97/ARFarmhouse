@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CreatePostDialog } from "@/components/ar-farmhouse/create-post-dialog";
 import { FeedPostCard } from "@/components/ar-farmhouse/feed-post-card";
+import { FEED_COLUMN_CLASS } from "@/lib/feed-layout";
 import { demoFamilyMembers, demoFeedPosts } from "@/lib/social-demo";
 import { cn } from "@/lib/utils";
 
@@ -17,11 +18,9 @@ const surface = cn(
   "bg-white/[0.035] shadow-[0_20px_50px_-28px_rgba(0,0,0,0.75)] backdrop-blur-xl sm:rounded-[1.15rem]"
 );
 
-const feedColumn = "mx-auto w-full max-w-[min(100%,430px)] sm:max-w-[470px]";
-
 function FeedSkeleton() {
   return (
-    <div className={cn(feedColumn, "space-y-4")}>
+    <div className={cn(FEED_COLUMN_CLASS, "space-y-4")}>
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className={cn(surface, "ar-skeleton-shimmer overflow-hidden")}>
           <div className="flex items-center gap-3 px-3 py-2.5">
@@ -62,20 +61,20 @@ export function FeedView() {
 
   return (
     <div className="space-y-5">
-      <div className={feedColumn}>
+      <div className={FEED_COLUMN_CLASS}>
         <motion.section
           initial={reduceMotion ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: reduceMotion ? 0.2 : 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className={cn(surface, "flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5")}
+          className={cn(surface, "flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 lg:p-6 xl:p-7")}
         >
           <div className="flex min-w-0 items-start gap-3 sm:items-center">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
               <Rss className="size-[18px] text-primary" aria-hidden />
             </span>
             <div className="min-w-0 space-y-0.5">
-              <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">Family feed</h2>
-              <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl lg:text-3xl">Family feed</h2>
+              <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm lg:text-[15px]">
                 Single column, like the apps you know — still private, still ours.
               </p>
             </div>
@@ -100,14 +99,14 @@ export function FeedView() {
           onClick={() => setComposeOpen(true)}
           className={cn(
             surface,
-            "mt-4 flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:border-white/16 sm:px-3.5"
+            "mt-4 flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:border-white/16 sm:px-3.5 lg:px-5 lg:py-3"
           )}
         >
           <Avatar size="default" className="ring-2 ring-background/80">
             <AvatarImage src={me.avatar} alt="" />
             <AvatarFallback>A</AvatarFallback>
           </Avatar>
-          <span className="min-w-0 flex-1 text-sm text-muted-foreground">What&apos;s happening at the ridge?</span>
+          <span className="min-w-0 flex-1 text-sm text-muted-foreground lg:text-base">What&apos;s happening at the ridge?</span>
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-primary">
             <ImagePlus className="size-[18px]" aria-hidden />
           </span>
@@ -121,7 +120,7 @@ export function FeedView() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: reduceMotion ? 0.15 : 0.35 }}
-          className={cn(feedColumn, "space-y-4 pb-2")}
+          className={cn(FEED_COLUMN_CLASS, "space-y-4 pb-2")}
         >
           {demoFeedPosts.map((post) => (
             <FeedPostCard key={post.id} post={post} />
