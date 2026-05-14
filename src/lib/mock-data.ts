@@ -86,9 +86,8 @@ export const mockPoll = {
   votes: 6,
 };
 
-/** Hero photo of AR Farmhouse — served from Vercel Blob (login screen). */
+/** Hero photo of AR Farmhouse — served from Vercel Blob (login + home banner). */
 export const loginBackdrop =
   "https://wfx6wquumukehkm6.public.blob.vercel-storage.com/Images/ARFarm%20house.png";
 
-export const dashboardHeroImage =
-  "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=2400&q=85";
+export const dashboardHeroImage = loginBackdrop;
