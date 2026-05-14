@@ -66,7 +66,7 @@ export function CalendarEventCard({
       viewport={{ once: true, margin: "-10% 0px" }}
       transition={{ duration: reduceMotion ? 0.2 : 0.5, ease: [0.22, 1, 0.36, 1] }}
       whileHover={reduceMotion ? undefined : { y: -3 }}
-      className={cn(surface, "touch-manipulation overflow-hidden")}
+      className={cn(surface, "min-w-0 max-w-full touch-manipulation overflow-hidden")}
     >
       <div className="relative h-44 sm:h-52">
         <Image src={event.hero} alt="" fill className="object-cover" sizes="(min-width: 1024px) 480px, 100vw" />
@@ -85,7 +85,7 @@ export function CalendarEventCard({
         </div>
       </div>
 
-      <div className="grid gap-4 p-5">
+      <div className="grid min-w-0 gap-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <CloudSun className="size-4 text-mist" aria-hidden />
@@ -96,8 +96,8 @@ export function CalendarEventCard({
           <span className="text-[10px] font-medium text-muted-foreground">{cd.sub}</span>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
             <div className="flex -space-x-2.5">
               {event.attendees.slice(0, 4).map((a) => (
                 <Avatar key={a.name} className="ring-2 ring-background/90" size="lg">
@@ -113,12 +113,12 @@ export function CalendarEventCard({
             </div>
             <span className="hidden text-[11px] text-muted-foreground sm:inline">Full house, soft edges.</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <Button
               type="button"
               size="sm"
               variant={joined ? "default" : "outline"}
-              className="rounded-xl"
+              className="min-h-11 w-full rounded-xl touch-manipulation sm:min-h-9 sm:w-auto"
               onClick={() => setJoined((j) => !j)}
             >
               <Users className="size-3.5" data-icon="inline-start" />
@@ -128,7 +128,7 @@ export function CalendarEventCard({
               type="button"
               size="sm"
               variant={rsvp === "going" ? "default" : "outline"}
-              className="rounded-xl"
+              className="min-h-11 w-full rounded-xl touch-manipulation sm:min-h-9 sm:w-auto"
               onClick={() =>
                 setRsvp((prev) => (prev === "going" ? "maybe" : prev === "maybe" ? "invite" : "going"))
               }
@@ -187,7 +187,7 @@ export function CalendarEventCard({
         </div>
 
         {onOpenWeekendHub && (
-          <Button type="button" variant="secondary" className="w-full rounded-xl" onClick={onOpenWeekendHub}>
+          <Button type="button" variant="secondary" className="min-h-12 w-full rounded-xl touch-manipulation sm:min-h-10" onClick={onOpenWeekendHub}>
             Weekend hub · full context
           </Button>
         )}

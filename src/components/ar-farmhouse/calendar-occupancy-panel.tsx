@@ -39,8 +39,8 @@ export function CalendarOccupancyPanel() {
   const windowDays = [14, 15, 16, 17, 18, 19, 20];
 
   return (
-    <div className="space-y-4">
-      <div className={cn(surface, "p-5")}>
+    <div className="min-w-0 space-y-4">
+      <div className={cn(surface, "min-w-0 max-w-full p-4 sm:p-5")}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
@@ -53,9 +53,9 @@ export function CalendarOccupancyPanel() {
           </div>
         </div>
 
-        <div className="mt-5">
+        <div className="mt-5 min-w-0">
           <p className="text-[11px] font-medium text-muted-foreground">May density</p>
-          <div className="mt-2 flex gap-0.5">
+          <div className="mt-2 grid w-full min-w-0 grid-cols-[repeat(31,minmax(0,1fr))] gap-px">
             {days.map((d) => {
               const level = demoOccupancyByDay[d] ?? 0;
               const isToday = d === 14;
@@ -67,7 +67,7 @@ export function CalendarOccupancyPanel() {
                   transition={{ delay: Math.min(d * 0.008, 0.2) }}
                   title={`May ${d}`}
                   className={cn(
-                    "h-10 flex-1 rounded-md border border-white/[0.06] sm:h-12",
+                    "h-9 min-w-0 rounded-sm border border-white/[0.06] sm:h-11 sm:rounded-md",
                     heatClass[level],
                     isToday && "ring-1 ring-primary/50"
                   )}
@@ -102,8 +102,8 @@ export function CalendarOccupancyPanel() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className={cn(surface, "p-5")}>
+      <div className="grid min-w-0 gap-4 md:grid-cols-2">
+        <div className={cn(surface, "min-w-0 p-4 sm:p-5")}>
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Users className="size-3.5 text-primary" aria-hidden />
             On property now
@@ -124,8 +124,7 @@ export function CalendarOccupancyPanel() {
           </ul>
         </div>
 
-        <div className={cn(surface, "p-5")}>
-          <p className="text-xs font-medium text-muted-foreground">Upcoming arrivals</p>
+        <div className={cn(surface, "min-w-0 p-4 sm:p-5")}>
           <ul className="mt-3 space-y-2">
             {demoUpcomingArrivals.map((g) => (
               <li key={g.name} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
@@ -145,7 +144,7 @@ export function CalendarOccupancyPanel() {
         </div>
       </div>
 
-      <div className={cn(surface, "p-5")}>
+      <div className={cn(surface, "min-w-0 p-4 sm:p-5")}>
         <p className="text-xs font-medium text-muted-foreground">Checkout & turnover</p>
         <div className="mt-3 space-y-2">
           {demoDepartureSchedule.map((d) => (

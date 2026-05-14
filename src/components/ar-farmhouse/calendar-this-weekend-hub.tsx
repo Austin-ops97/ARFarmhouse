@@ -39,7 +39,7 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
   const [checked, setChecked] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0 max-w-full overflow-x-hidden">
       <motion.div
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -48,19 +48,21 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
         <div className="relative h-48 sm:h-56">
           <Image src={demoThisWeekend.hero} alt="" fill className="object-cover" sizes="(max-width: 768px) 100vw, 900px" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/45 to-transparent" />
-          <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
+        <div className="absolute bottom-3 left-3 right-3 flex flex-col gap-3 sm:bottom-4 sm:left-4 sm:right-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
               <p className="text-[11px] font-medium uppercase tracking-wide text-primary/90">This weekend</p>
-              <h3 className="font-heading text-2xl font-semibold tracking-tight text-foreground">{demoThisWeekend.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{demoThisWeekend.dateLabel}</p>
+              <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground sm:text-2xl lg:text-3xl">
+                {demoThisWeekend.title}
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{demoThisWeekend.dateLabel}</p>
             </div>
-            <div className="flex flex-wrap items-end justify-end gap-2">
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
               {onOpenCommandCenter && (
                 <Button
                   type="button"
                   size="sm"
                   variant="secondary"
-                  className="rounded-xl border-white/20 bg-background/70 backdrop-blur-md"
+                  className="min-h-11 w-full rounded-xl border-white/20 bg-background/70 touch-manipulation backdrop-blur-md sm:min-h-9 sm:w-auto"
                   onClick={onOpenCommandCenter}
                 >
                   Full hub

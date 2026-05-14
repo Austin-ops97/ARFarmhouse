@@ -89,6 +89,8 @@
   --sidebar-accent-foreground: oklch(0.22 0.04 155);
   --sidebar-border: oklch(0.88 0.01 95);
   --sidebar-ring: oklch(0.5 0.06 158);
+  --ar-header-height: calc(3.75rem + env(safe-area-inset-top, 0px));
+  --ar-mobile-sticky-top: calc(var(--ar-header-height) + 0.125rem);
 }
 
 .dark {
@@ -129,6 +131,8 @@
   --sidebar-accent-foreground: oklch(0.92 0.011 95);
   --sidebar-border: oklch(0.94 0.01 95 / 0.065);
   --sidebar-ring: oklch(0.5 0.055 155);
+  --ar-header-height: calc(3.75rem + env(safe-area-inset-top, 0px));
+  --ar-mobile-sticky-top: calc(var(--ar-header-height) + 0.125rem);
 }
 
 @layer base {

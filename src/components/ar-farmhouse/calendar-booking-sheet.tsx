@@ -74,7 +74,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-6"
+          className="fixed inset-0 z-[70] flex items-end justify-center sm:items-end sm:justify-center sm:p-4 md:items-center md:p-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -90,11 +90,12 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
             exit={reduceMotion ? undefined : { y: 22, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className={cn(
-              "relative z-10 flex max-h-[min(94dvh,920px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12",
-              "bg-background/92 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:max-w-xl sm:rounded-[1.75rem]"
+              "relative z-10 flex max-h-[min(92dvh,100dvh)] w-full max-w-[100vw] flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12 sm:max-h-[min(94dvh,920px)] sm:max-w-lg",
+              "bg-background/92 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.9)] backdrop-blur-2xl md:max-w-xl md:rounded-[1.75rem]",
+              "touch-manipulation"
             )}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5 sm:pb-4">
               <div>
                 <p id={titleId} className="font-heading text-lg font-semibold tracking-tight text-foreground">
                   Book a stay
@@ -106,7 +107,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-5 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
               {submitted ? (
                 <motion.div
                   initial={reduceMotion ? false : { opacity: 0, y: 8 }}
@@ -128,7 +129,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                 <div className="space-y-6">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Trip type</p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
                       {demoBookingTripTypes.map((t) => {
                         const active = tripId === t.id;
                         return (
@@ -159,12 +160,12 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       Tap start, then end. Shading shows occupancy (lighter is calmer).
                     </p>
-                    <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted-foreground">
+                    <div className="mt-3 min-w-0 grid grid-cols-7 gap-px text-center text-[9px] font-medium text-muted-foreground sm:gap-1 sm:text-[10px]">
                       {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
                         <span key={`${w}-${i}`}>{w}</span>
                       ))}
                     </div>
-                    <div className="mt-1 grid grid-cols-7 gap-1">
+                    <div className="mt-1 grid min-w-0 grid-cols-7 gap-px sm:mt-1.5 sm:gap-1">
                       {cells.map((cell, idx) => {
                         if (cell.type === "blank") {
                           return <div key={`b-${idx}`} className="aspect-square rounded-lg bg-transparent" />;
@@ -179,7 +180,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                             whileTap={reduceMotion ? undefined : { scale: 0.94 }}
                             onClick={() => pickDay(d)}
                             className={cn(
-                              "relative flex aspect-square flex-col items-center justify-center rounded-lg border text-[11px] font-medium transition-colors",
+                              "relative flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center rounded-md border p-0.5 text-[10px] font-medium transition-colors sm:aspect-square sm:min-h-0 sm:rounded-lg sm:text-[11px]",
                               range
                                 ? "border-primary/40 bg-primary/20 text-foreground"
                                 : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-white/18",
@@ -203,12 +204,12 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  <div className="flex min-h-12 flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Users className="size-4 text-primary" aria-hidden />
                       Guests
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-end gap-2 sm:justify-start">
                       <Button
                         type="button"
                         size="icon"

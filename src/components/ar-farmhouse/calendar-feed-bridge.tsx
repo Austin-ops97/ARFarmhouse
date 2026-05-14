@@ -31,7 +31,7 @@ export function CalendarFeedBridge() {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
   return (
-    <div className={cn(surface, "p-5 sm:p-6")}>
+    <div className={cn(surface, "min-w-0 max-w-full p-4 sm:p-6")}>
       <p className="text-xs font-medium uppercase tracking-wide text-primary/90">Feed × calendar</p>
       <h3 className="mt-1 font-heading text-lg font-semibold tracking-tight text-foreground">What the house already knows</h3>
       <p className="mt-1 text-sm text-muted-foreground">

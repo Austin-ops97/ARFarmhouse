@@ -215,7 +215,7 @@ export function FeedView() {
         <div
           className={cn(
             "sticky z-20 -mx-3 mb-5 border-b border-white/[0.07] bg-background/82 px-3 py-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/65 sm:-mx-4 sm:px-4",
-            "top-[var(--ar-mobile-sticky-top,calc(env(safe-area-inset-top)+4rem))] sm:top-4 lg:top-6",
+            "top-[var(--ar-mobile-sticky-top)] sm:top-[calc(var(--ar-header-height)+0.5rem)] lg:top-[calc(var(--ar-header-height)+0.75rem)]",
             "sm:-mx-0 sm:mb-7 sm:rounded-[1.35rem] sm:border sm:border-white/[0.09] sm:bg-white/[0.035] sm:px-4 sm:py-3 sm:shadow-[0_20px_50px_-28px_rgba(0,0,0,0.72)]"
           )}
         >

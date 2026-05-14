@@ -86,7 +86,7 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[52] flex items-end justify-center sm:items-center sm:p-5 lg:p-8"
+          className="fixed inset-0 z-[52] flex items-end justify-center sm:items-end sm:justify-center sm:p-4 md:items-center md:p-6 lg:p-8"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -107,8 +107,9 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
             exit={reduceMotion ? undefined : { y: 20, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 34 }}
             className={cn(
-              "relative z-10 flex max-h-[min(94dvh,920px)] w-full max-w-2xl flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12",
-              "bg-background/94 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.92)] backdrop-blur-2xl sm:rounded-[1.75rem]"
+              "relative z-10 flex max-h-[min(90dvh,100dvh)] w-full max-w-[100vw] flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12",
+              "bg-background/94 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.92)] backdrop-blur-2xl sm:max-h-[min(94dvh,920px)] sm:max-w-2xl sm:rounded-[1.75rem]",
+              "touch-manipulation"
             )}
           >
             <div className="relative h-40 shrink-0 sm:h-48">
