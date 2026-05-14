@@ -60,7 +60,7 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
               "bg-background/94 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.92)] backdrop-blur-2xl sm:rounded-[1.75rem]"
             )}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
               <div className="min-w-0">
                 <p id={titleId} className="truncate font-heading text-lg font-semibold tracking-tight text-foreground">
                   {place.business}

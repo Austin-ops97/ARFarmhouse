@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { createElement } from "react";
 import {
   Bike,
   Building2,
@@ -61,7 +62,7 @@ export function LocalGuideListRow({
 }: LocalGuideListRowProps) {
   const verified = isVerifiedRow(place);
   const isRestaurant = place.section === "restaurants";
-  const StoreIcon = storeIcon(place);
+  const storeGlyph = storeIcon(place);
 
   return (
     <div
@@ -91,7 +92,10 @@ export function LocalGuideListRow({
             className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/12 bg-white/[0.06] sm:size-12"
             aria-hidden
           >
-            <StoreIcon className="size-5 text-primary/85" aria-hidden />
+            {createElement(storeGlyph, {
+              className: "size-5 text-primary/85",
+              "aria-hidden": true,
+            })}
           </div>
         )}
 

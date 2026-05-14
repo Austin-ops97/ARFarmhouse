@@ -14,7 +14,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -61,10 +61,11 @@ function FeedLightbox({
   onNext: () => void;
   reduceMotion: boolean | null;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   useEffect(() => {
     if (!state) return;
@@ -93,12 +94,12 @@ function FeedLightbox({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0.12 : 0.22 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/88 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/88 p-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-md sm:p-4"
           onClick={onClose}
         >
           <button
             type="button"
-            className="absolute right-4 top-4 z-10 rounded-full border border-white/15 bg-white/10 p-2.5 text-white hover:bg-white/20"
+            className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-10 rounded-full border border-white/15 bg-white/10 p-2.5 text-white hover:bg-white/20 sm:right-4 sm:top-4"
             onClick={(e) => {
               e.stopPropagation();
               onClose();
@@ -159,18 +160,20 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
   );
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [lightbox, setLightbox] = useState<LightboxState>(null);
-  const touchStart = useRef(0);
+  const touchStart = useRef({ x: 0, y: 0 });
 
-  const album = post.album ?? [];
-  const albumNav = useAlbumIndex(Math.max(album.length, 1));
+  const albumNav = useAlbumIndex(Math.max((post.album ?? []).length, 1));
 
   const albumUrls = useMemo(() => {
+    const album = post.album ?? [];
     if (post.kind === "image" && post.cover) return [post.cover];
     if (post.kind === "album" && album.length) return album;
     if (post.kind === "video" && post.video) return [post.video.poster];
     if (post.kind === "event_recap" && post.cover) return [post.cover];
     return [];
-  }, [post, album]);
+  }, [post]);
+
+  const album = post.album ?? [];
 
   const openLightboxAt = (index: number) => {
     if (!albumUrls.length) return;
@@ -221,9 +224,12 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
   );
 
   const onAlbumTouchEnd = (e: React.TouchEvent) => {
-    const dx = e.changedTouches[0].clientX - touchStart.current;
-    if (dx < -48) albumNav.next();
-    if (dx > 48) albumNav.prev();
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+    if (Math.abs(dx) < 52 || Math.abs(dx) <= Math.abs(dy)) return;
+    if (dx < 0) albumNav.next();
+    else albumNav.prev();
   };
 
   return (
@@ -285,7 +291,7 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
             <div
               className="relative sm:hidden"
               onTouchStart={(e) => {
-                touchStart.current = e.touches[0].clientX;
+                touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
               }}
               onTouchEnd={onAlbumTouchEnd}
             >

@@ -1,0 +1,224 @@
+"use client";
+
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Menu, Sparkles, X } from "lucide-react";
+import { useCallback, useEffect, useId, useRef } from "react";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { demoFamilyMembers } from "@/lib/social-demo";
+import { cn } from "@/lib/utils";
+
+import { mobileDrawerLabel, sidebarNav, type NavId } from "./dashboard-nav";
+
+type DashboardMobileDrawerProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  activeId: NavId;
+  onSelect: (id: NavId) => void;
+};
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2);
+}
+
+export function DashboardMobileDrawerTrigger({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const reduceMotion = useReducedMotion();
+  return (
+    <motion.button
+      type="button"
+      onClick={() => onOpenChange(!open)}
+      aria-expanded={open}
+      aria-controls="ar-mobile-nav-drawer"
+      whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+      className={cn(
+        "flex size-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-foreground shadow-inner shadow-white/5",
+        "touch-manipulation transition-colors hover:bg-white/[0.08]"
+      )}
+      aria-label={open ? "Close menu" : "Open menu"}
+    >
+      {open ? <X className="size-[22px]" strokeWidth={2} aria-hidden /> : <Menu className="size-[22px]" strokeWidth={2} aria-hidden />}
+    </motion.button>
+  );
+}
+
+export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }: DashboardMobileDrawerProps) {
+  const reduceMotion = useReducedMotion();
+  const titleId = useId();
+  const panelRef = useRef<HTMLElement>(null);
+
+  const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+
+  const pick = useCallback(
+    (id: NavId) => {
+      onSelect(id);
+      onOpenChange(false);
+    },
+    [onSelect, onOpenChange]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, close]);
+
+  useEffect(() => {
+    if (!open) return;
+    const t = window.setTimeout(() => {
+      const activeBtn = panelRef.current?.querySelector<HTMLElement>(`button[data-nav-active="true"]`);
+      (activeBtn ?? panelRef.current?.querySelector<HTMLElement>("button"))?.focus();
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, [open, activeId]);
+
+  const profile = demoFamilyMembers[3];
+
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          className="fixed inset-0 z-[48] lg:hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0.1 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <motion.button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            className="absolute inset-0 bg-background/55 backdrop-blur-xl"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0.1 : 0.2 }}
+            onClick={close}
+          />
+
+          <motion.aside
+            ref={panelRef}
+            id="ar-mobile-nav-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            initial={reduceMotion ? false : { x: "-104%" }}
+            animate={{ x: 0 }}
+            exit={reduceMotion ? undefined : { x: "-104%" }}
+            transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.65 }}
+            className={cn(
+              "absolute inset-y-0 left-0 flex w-[min(20.5rem,calc(100vw-1.25rem))] max-w-[100vw] flex-col",
+              "border-r border-white/10 bg-sidebar/92 pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pt-[max(0.75rem,env(safe-area-inset-top))] pr-3 shadow-[24px_0_80px_-40px_rgba(0,0,0,0.85)] backdrop-blur-2xl"
+            )}
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-inner shadow-white/5">
+                  <Sparkles className="size-5 text-primary" aria-hidden />
+                </div>
+                <div className="min-w-0">
+                  <p id={titleId} className="font-heading text-base font-semibold tracking-tight text-foreground">
+                    AR Farmhouse
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">Navigate</p>
+                </div>
+              </div>
+              <motion.button
+                type="button"
+                onClick={close}
+                whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-muted-foreground transition-colors hover:bg-white/[0.08] hover:text-foreground"
+                aria-label="Close menu"
+              >
+                <X className="size-[18px]" aria-hidden />
+              </motion.button>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="flex items-center gap-3">
+                <Avatar size="lg" className="ring-2 ring-background/80">
+                  <AvatarImage src={profile.avatar} alt="" />
+                  <AvatarFallback>{initials(profile.name)}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">{profile.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">Demo household · signed in</p>
+                </div>
+              </div>
+            </div>
+
+            <nav className="mt-5 flex flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain pr-1" aria-label="Primary">
+              {sidebarNav.map((item, index) => {
+                const active = activeId === item.id;
+                const Icon = item.icon;
+                const label = mobileDrawerLabel[item.id];
+                return (
+                  <motion.button
+                    key={item.id}
+                    type="button"
+                    data-nav-active={active ? "true" : undefined}
+                    onClick={() => pick(item.id)}
+                    initial={reduceMotion ? false : { opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: reduceMotion ? 0 : index * 0.03, duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                    whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+                    className={cn(
+                      "group relative flex min-h-[3.25rem] items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[15px] transition-colors touch-manipulation",
+                      active
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground"
+                    )}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="mobile-drawer-nav-pill"
+                        className="absolute inset-0 rounded-2xl border border-primary/25 bg-primary/10"
+                        transition={{ type: "spring", stiffness: 400, damping: 34 }}
+                      />
+                    )}
+                    <span
+                      className={cn(
+                        "relative z-10 flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                        active
+                          ? "border-primary/30 bg-primary/12 text-primary"
+                          : "border-transparent bg-white/[0.03] text-muted-foreground group-hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="size-[18px]" aria-hidden />
+                    </span>
+                    <span className="relative z-10 font-medium">{label}</span>
+                  </motion.button>
+                );
+              })}
+            </nav>
+
+            <p className="mt-4 rounded-2xl border border-white/8 bg-white/[0.02] p-3 text-[11px] leading-relaxed text-muted-foreground">
+              Demo data — motion and spacing tuned for calm, app-like navigation.
+            </p>
+          </motion.aside>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}

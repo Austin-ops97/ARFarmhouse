@@ -121,21 +121,21 @@ export function CalendarMonthBoard({
   );
 
   return (
-    <div className={cn(surface, "p-4 sm:p-5")}>
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <p className="font-heading text-lg font-semibold text-foreground">{demoCalendarMonth.label}</p>
-        <span className="text-[11px] text-muted-foreground">Swipe week row on mobile</span>
+      <div className={cn(surface, "p-3 sm:p-5")}>
+      <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
+        <p className="font-heading text-base font-semibold text-foreground sm:text-lg">{demoCalendarMonth.label}</p>
+        <span className="hidden text-[11px] text-muted-foreground sm:inline">Swipe week row on mobile</span>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-muted-foreground">
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-muted-foreground sm:gap-1 sm:text-[11px]">
         {weekdayLabels.map((w, i) => (
           <span key={`${w}-${i}`} className="py-1">
             {w}
           </span>
         ))}
       </div>
-      <div className="mt-2 space-y-1">
+      <div className="mt-1.5 space-y-0.5 sm:mt-2 sm:space-y-1">
         {rows.map((row, ri) => (
-          <div key={ri} className="grid grid-cols-7 gap-1">
+          <div key={ri} className="grid grid-cols-7 gap-0.5 sm:gap-1">
             {row.map((day, ci) => {
               if (day === null) {
                 return <div key={`e-${ri}-${ci}`} className="aspect-square rounded-xl bg-transparent" />;
@@ -153,13 +153,13 @@ export function CalendarMonthBoard({
                   onMouseLeave={() => onDayHover?.(null)}
                   whileHover={reduceMotion ? undefined : { scale: 1.04 }}
                   className={cn(
-                    "relative flex aspect-square flex-col items-center justify-center rounded-xl border text-[11px] font-medium transition-colors",
+                    "relative flex aspect-square flex-col items-center justify-center rounded-lg border text-[10px] font-medium transition-colors sm:rounded-xl sm:text-[11px]",
                     statusStyles[st] ?? statusStyles.open,
                     isToday && "ring-2 ring-primary/45",
                     preview && "ring-1 ring-sky-400/50"
                   )}
                 >
-                  <span className={cn("text-[12px]", isToday && "text-primary")}>{day}</span>
+                  <span className={cn("text-[11px] sm:text-[12px]", isToday && "text-primary")}>{day}</span>
                   <div className="mt-1 flex max-w-[92%] flex-wrap justify-center gap-0.5">
                     {dayEvents.slice(0, 3).map((ev) => (
                       <span key={ev.id} className={cn("size-1.5 rounded-full", accentDot[ev.accent])} title={ev.title} />

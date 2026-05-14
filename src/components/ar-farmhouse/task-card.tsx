@@ -66,7 +66,7 @@ export function TaskCard({
     >
       <span className={cn("absolute left-0 top-0 h-full w-1 rounded-l-2xl", priorityDot[task.priority])} aria-hidden />
 
-      <div className="flex gap-2 pl-3.5 pr-3 pt-3 sm:pl-4 sm:pr-3.5">
+      <div className="flex gap-2 pl-3 pr-2.5 pt-3 sm:pl-4 sm:pr-3.5">
         {dragHandle && (
           <button
             type="button"

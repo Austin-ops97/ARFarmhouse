@@ -135,10 +135,13 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    overflow-x: hidden;
+    overscroll-behavior-y: auto;
   }
   html {
     @apply font-sans;
     scroll-behavior: smooth;
+    overflow-x: hidden;
   }
 }
 

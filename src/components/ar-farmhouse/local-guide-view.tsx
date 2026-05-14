@@ -86,8 +86,8 @@ export function LocalGuideView() {
 
       <div
         className={cn(
-          "sticky z-30 -mx-4 border-b border-white/[0.08] bg-background/[0.92] px-4 py-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/78",
-          "top-[calc(env(safe-area-inset-top)+4.5rem)] sm:top-[calc(env(safe-area-inset-top)+5rem)]"
+          "sticky z-30 -mx-3 border-b border-white/[0.08] bg-background/[0.92] px-3 py-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/78 sm:-mx-4 sm:px-4",
+          "top-[var(--ar-mobile-sticky-top,calc(env(safe-area-inset-top)+4rem))] sm:top-[calc(env(safe-area-inset-top)+5rem)]"
         )}
       >
         <div className="relative">

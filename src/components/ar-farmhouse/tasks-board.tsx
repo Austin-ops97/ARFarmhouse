@@ -4,6 +4,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   closestCorners,
   defaultDropAnimationSideEffects,
   useDroppable,
@@ -106,7 +107,10 @@ export function TasksBoard({
   onToggleDone: (id: string) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 12 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } })
+  );
 
   const byColumn = useMemo(() => {
     const map: Record<TaskBoardColumn, DemoTask[]> = { todo: [], doing: [], done: [] };
@@ -181,7 +185,7 @@ export function TasksBoard({
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-3">
         {COLUMNS.map((col) => {
           const list = byColumn[col];
           const ids = list.map((t) => t.id);

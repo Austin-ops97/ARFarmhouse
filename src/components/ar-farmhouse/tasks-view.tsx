@@ -190,11 +190,9 @@ export function TasksView() {
               animate={{ opacity: 1, y: 0 }}
               exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
               transition={{ duration: 0.25 }}
-              className="overflow-x-auto pb-2"
+              className="min-w-0 pb-2"
             >
-              <div className="min-w-[720px] md:min-w-0">
-                <TasksBoard tasks={tasks} onTasksChange={setTasks} onToggleDone={toggleDone} />
-              </div>
+              <TasksBoard tasks={tasks} onTasksChange={setTasks} onToggleDone={toggleDone} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -204,7 +202,7 @@ export function TasksView() {
         type="button"
         whileTap={reduceMotion ? undefined : { scale: 0.94 }}
         className={cn(
-          "fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-full border border-white/12",
+          "fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-3 z-30 flex size-14 items-center justify-center rounded-full border border-white/12 sm:right-4",
           "bg-primary text-primary-foreground shadow-[0_18px_50px_-18px_rgba(0,0,0,0.75)] lg:hidden"
         )}
         aria-label="Quick add task"

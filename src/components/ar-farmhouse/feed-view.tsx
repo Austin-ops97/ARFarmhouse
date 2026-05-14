@@ -125,9 +125,9 @@ export function FeedView() {
         </motion.header>
 
         <div
-          className={cn(
-            "sticky z-20 -mx-4 mb-5 border-b border-white/[0.07] bg-background/82 px-4 py-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/65",
-            "top-[calc(env(safe-area-inset-top)+4.5rem)] sm:top-4 lg:top-6",
+            className={cn(
+            "sticky z-20 -mx-3 mb-5 border-b border-white/[0.07] bg-background/82 px-3 py-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/65 sm:-mx-4 sm:px-4",
+            "top-[var(--ar-mobile-sticky-top,calc(env(safe-area-inset-top)+4rem))] sm:top-4 lg:top-6",
             "sm:-mx-0 sm:mb-7 sm:rounded-[1.35rem] sm:border sm:border-white/[0.09] sm:bg-white/[0.035] sm:px-4 sm:py-3 sm:shadow-[0_20px_50px_-28px_rgba(0,0,0,0.72)]"
           )}
         >
@@ -191,7 +191,7 @@ export function FeedView() {
             onClick={() => setComposeOpen(true)}
             whileTap={reduceMotion ? undefined : { scale: 0.94 }}
             className={cn(
-              "fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-full border border-white/12",
+              "fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-3 z-30 flex size-14 items-center justify-center rounded-full border border-white/12 sm:right-4",
               "bg-primary text-primary-foreground shadow-[0_18px_50px_-18px_rgba(0,0,0,0.75)] lg:hidden"
             )}
             aria-label="Create post"

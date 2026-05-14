@@ -94,7 +94,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
               "bg-background/92 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:max-w-xl sm:rounded-[1.75rem]"
             )}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
               <div>
                 <p id={titleId} className="font-heading text-lg font-semibold tracking-tight text-foreground">
                   Book a stay
@@ -106,7 +106,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
               {submitted ? (
                 <motion.div
                   initial={reduceMotion ? false : { opacity: 0, y: 8 }}

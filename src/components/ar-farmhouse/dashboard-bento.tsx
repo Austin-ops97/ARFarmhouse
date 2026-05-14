@@ -17,6 +17,7 @@ import {
   Shield,
   Vote,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Separator } from "@/components/ui/separator";
 import {
@@ -38,6 +39,18 @@ const surface = cn(
   "transition-[transform,box-shadow,border-color] duration-300 will-change-transform"
 );
 
+function useFinePointer() {
+  const [fine, setFine] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const apply = () => setFine(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return fine;
+}
+
 function BentoMotion({
   className,
   children,
@@ -48,13 +61,14 @@ function BentoMotion({
   delay?: number;
 }) {
   const reduceMotion = useReducedMotion();
+  const finePointer = useFinePointer();
   return (
     <motion.div
       initial={reduceMotion ? false : { opacity: 0, y: 14 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-10% 0px" }}
       transition={{ duration: reduceMotion ? 0.2 : 0.55, delay: reduceMotion ? 0 : delay, ease: [0.22, 1, 0.36, 1] }}
-      whileHover={reduceMotion ? undefined : { y: -4, scale: 1.01 }}
+      whileHover={reduceMotion || !finePointer ? undefined : { y: -3, scale: 1.008 }}
       className={className}
     >
       {children}
@@ -66,7 +80,7 @@ export function DashboardBento() {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
       <BentoMotion className="xl:col-span-5" delay={0.02}>
-        <div className={cn(surface, "flex h-full min-h-[260px] flex-col p-5")}>
+        <div className={cn(surface, "flex h-full min-h-[220px] flex-col p-4 sm:p-5")}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">

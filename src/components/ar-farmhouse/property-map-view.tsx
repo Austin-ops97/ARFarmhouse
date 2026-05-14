@@ -64,7 +64,16 @@ export function PropertyMapView() {
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
   const [selected, setSelected] = useState<DemoMapPin | null>(null);
-  const dragRef = useRef({ x: 0, y: 0, px: 0, py: 0, active: false });
+  const dragRef = useRef({
+    x: 0,
+    y: 0,
+    px: 0,
+    py: 0,
+    originX: 0,
+    originY: 0,
+    active: false,
+    dragging: false,
+  });
 
   const clampScale = useCallback((s: number) => Math.min(2.2, Math.max(0.75, s)), []);
 
@@ -78,20 +87,36 @@ export function PropertyMapView() {
   );
 
   const onPointerDown = (e: React.PointerEvent) => {
-    dragRef.current = { x: tx, y: ty, px: e.clientX, py: e.clientY, active: true };
+    dragRef.current = {
+      x: tx,
+      y: ty,
+      px: e.clientX,
+      py: e.clientY,
+      originX: e.clientX,
+      originY: e.clientY,
+      active: true,
+      dragging: false,
+    };
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!dragRef.current.active) return;
-    const dx = e.clientX - dragRef.current.px;
-    const dy = e.clientY - dragRef.current.py;
-    setTx(dragRef.current.x + dx);
-    setTy(dragRef.current.y + dy);
+    const d = dragRef.current;
+    if (!d.dragging) {
+      const rdx = e.clientX - d.originX;
+      const rdy = e.clientY - d.originY;
+      if (rdx * rdx + rdy * rdy < 100) return;
+      dragRef.current = { ...d, dragging: true };
+    }
+    const d2 = dragRef.current;
+    setTx(d2.x + (e.clientX - d2.px));
+    setTy(d2.y + (e.clientY - d2.py));
   };
 
   const onPointerUp = () => {
     dragRef.current.active = false;
+    dragRef.current.dragging = false;
   };
 
   return (

@@ -47,7 +47,7 @@ export function DashboardHero() {
   );
 
   return (
-    <section className="relative overflow-hidden rounded-[1.75rem] border border-white/10 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.85)]">
+    <section className="relative min-w-0 overflow-hidden rounded-[1.35rem] border border-white/10 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.85)] sm:rounded-[1.75rem]">
       <div className="absolute inset-0">
         <Image
           src={dashboardHeroImage}
@@ -77,15 +77,15 @@ export function DashboardHero() {
         )}
       </div>
 
-      <div className="relative z-10 grid gap-8 p-6 sm:p-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end lg:gap-10 lg:p-10">
+      <div className="relative z-10 grid min-w-0 gap-6 p-5 sm:gap-8 sm:p-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end lg:gap-10 lg:p-10">
         <div className="space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-md">
             <Sparkles className="size-3.5 text-primary" aria-hidden />
             <span>Digital headquarters</span>
           </div>
 
-          <div className="space-y-3">
-            <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+          <div className="space-y-2 sm:space-y-3">
+            <h2 className="font-heading text-[clamp(1.5rem,5vw,2.25rem)] font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
               {greeting}, Alex
             </h2>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-[15px]">

@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { CalendarWeekendsView } from "@/components/ar-farmhouse/calendar-weekends-view";
 import { DashboardBento } from "@/components/ar-farmhouse/dashboard-bento";
 import { DashboardHero } from "@/components/ar-farmhouse/dashboard-hero";
-import { DashboardMobileNav } from "@/components/ar-farmhouse/dashboard-mobile-nav";
+import { DashboardMobileDrawer, DashboardMobileDrawerTrigger } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { DashboardSectionPlaceholder } from "@/components/ar-farmhouse/dashboard-section-placeholder";
 import { DashboardSidebar } from "@/components/ar-farmhouse/dashboard-sidebar";
 import { sidebarNav, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
@@ -31,6 +31,7 @@ const sectionSubtitle: Record<NavId, string> = {
 
 export function Dashboard() {
   const [activeId, setActiveId] = useState<NavId>("home");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const reduceMotion = useReducedMotion();
 
   const activeMeta = useMemo(() => sidebarNav.find((n) => n.id === activeId) ?? sidebarNav[0], [activeId]);
@@ -78,28 +79,29 @@ export function Dashboard() {
   }, [activeId]);
 
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="min-h-dvh overflow-x-hidden bg-background [--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.75rem)] supports-[padding:max(0px)]:[--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.875rem)]">
       <DashboardSidebar activeId={activeId} onSelect={setActiveId} />
 
-      <div className="lg:pl-[248px]">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border/60 bg-background/75 px-4 py-3.5 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/55 lg:hidden">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-inner shadow-white/5">
+      <div className="min-w-0 lg:pl-[248px]">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/60 bg-background/80 px-3 py-3 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/58 sm:px-4 sm:py-3.5 lg:hidden">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+            <DashboardMobileDrawerTrigger open={mobileMenuOpen} onOpenChange={setMobileMenuOpen} />
+            <div className="hidden size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-inner shadow-white/5 sm:flex">
               <Sparkles className="size-5 text-primary" aria-hidden />
             </div>
-            <div className="min-w-0">
-              <p className="truncate font-heading text-base font-semibold tracking-tight text-foreground">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-heading text-[15px] font-semibold leading-tight tracking-tight text-foreground sm:text-base">
                 {activeId === "home" ? "AR Farmhouse" : activeMeta.label}
               </p>
-              <p className="truncate text-xs text-muted-foreground">{sectionSubtitle[activeId]}</p>
+              <p className="truncate text-[11px] text-muted-foreground sm:text-xs">{sectionSubtitle[activeId]}</p>
             </div>
           </div>
-          <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-medium text-muted-foreground">
+          <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-muted-foreground sm:px-3">
             Demo
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1400px] px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
+        <main className="mx-auto max-w-[1400px] min-w-0 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-8 sm:pt-5 lg:px-10 lg:pb-10 lg:pt-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeId}
@@ -115,7 +117,12 @@ export function Dashboard() {
         </main>
       </div>
 
-      <DashboardMobileNav activeId={activeId} onSelect={setActiveId} />
+      <DashboardMobileDrawer
+        open={mobileMenuOpen}
+        onOpenChange={setMobileMenuOpen}
+        activeId={activeId}
+        onSelect={setActiveId}
+      />
     </div>
   );
 }

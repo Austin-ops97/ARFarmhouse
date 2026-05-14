@@ -292,7 +292,7 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-white/10 bg-background/80 px-5 py-4 backdrop-blur-xl">
+            <div className="flex items-center justify-end gap-2 border-t border-white/10 bg-background/80 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:pb-4">
               <Button type="button" variant="outline" className="rounded-xl" onClick={closeDialog}>
                 Cancel
               </Button>
