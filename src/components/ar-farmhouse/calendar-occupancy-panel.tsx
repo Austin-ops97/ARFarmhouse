@@ -13,10 +13,7 @@ import {
 import { demoCalendarMonth } from "@/lib/social-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
 function initials(name: string) {
   return name
@@ -27,7 +24,7 @@ function initials(name: string) {
 }
 
 const heatClass: Record<0 | 1 | 2 | 3, string> = {
-  0: "bg-white/[0.06]",
+  0: "bg-muted/70 dark:bg-white/[0.06]",
   1: "bg-emerald-500/25",
   2: "bg-amber-400/28",
   3: "bg-rose-500/30",
@@ -43,7 +40,7 @@ export function CalendarOccupancyPanel() {
       <div className={cn(surface, "min-w-0 max-w-full p-4 sm:p-5")}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <Home className="size-5 text-primary" aria-hidden />
             </span>
             <div>
@@ -67,7 +64,7 @@ export function CalendarOccupancyPanel() {
                   transition={{ delay: Math.min(d * 0.008, 0.2) }}
                   title={`May ${d}`}
                   className={cn(
-                    "h-9 min-w-0 rounded-sm border border-white/[0.06] sm:h-11 sm:rounded-md",
+                    "h-9 min-w-0 rounded-sm border border-border/40 dark:border-white/[0.06] sm:h-11 sm:rounded-md",
                     heatClass[level],
                     isToday && "ring-1 ring-primary/50"
                   )}
@@ -90,7 +87,7 @@ export function CalendarOccupancyPanel() {
               return (
                 <div
                   key={d}
-                  className="flex min-w-[72px] flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.03] px-2 py-2 text-center"
+                  className="ar-nested-well flex min-w-[72px] flex-1 flex-col rounded-2xl px-2 py-2 text-center"
                 >
                   <span className="text-[10px] text-muted-foreground">May {d}</span>
                   <span className="mt-1 text-[11px] font-semibold text-foreground">{label}</span>
@@ -127,7 +124,7 @@ export function CalendarOccupancyPanel() {
         <div className={cn(surface, "min-w-0 p-4 sm:p-5")}>
           <ul className="mt-3 space-y-2">
             {demoUpcomingArrivals.map((g) => (
-              <li key={g.name} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+              <li key={g.name} className="ar-nested-well flex items-start gap-3 rounded-2xl px-3 py-2">
                 <Avatar size="default" className="shrink-0">
                   <AvatarImage src={g.avatar} alt="" />
                   <AvatarFallback>{initials(g.name)}</AvatarFallback>
@@ -148,12 +145,12 @@ export function CalendarOccupancyPanel() {
         <p className="text-xs font-medium text-muted-foreground">Checkout & turnover</p>
         <div className="mt-3 space-y-2">
           {demoDepartureSchedule.map((d) => (
-            <div key={d.range} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+            <div key={d.range} className="ar-nested-well flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5">
               <div>
                 <p className="text-sm font-medium text-foreground">{d.label}</p>
                 <p className="text-[11px] text-muted-foreground">{d.range}</p>
               </div>
-              <span className="shrink-0 rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+              <span className="shrink-0 rounded-full border border-border/55 bg-muted/55 px-2.5 py-1 text-[11px] font-medium text-muted-foreground dark:border-white/12 dark:bg-white/[0.05]">
                 {d.count} people
               </span>
             </div>

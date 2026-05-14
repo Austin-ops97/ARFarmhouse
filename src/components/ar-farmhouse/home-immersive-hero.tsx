@@ -93,17 +93,17 @@ export function HomeImmersiveHero() {
 
       <div className={cn("relative z-10 flex flex-col justify-center gap-8 p-6 py-10 sm:gap-9 sm:p-8 sm:py-12 lg:gap-10 lg:p-12", heroMin)}>
         <div className="max-w-3xl space-y-6">
-          <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-white/55">
+          <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-white/88">
             {narrative.eyebrow}
-            <span className="mx-2 text-white/25">·</span>
-            <span className="tracking-[0.18em] text-white/70">Alex</span>
+            <span className="mx-2 text-white/40">·</span>
+            <span className="tracking-[0.18em] text-white/92">Alex</span>
           </p>
 
           <div className="space-y-4">
             <h1 className="font-heading text-[clamp(2rem,5.4vw,3.35rem)] font-semibold leading-[1.05] tracking-tight text-white text-balance">
               {narrative.headline}
             </h1>
-            <p className="max-w-2xl text-[15px] leading-relaxed text-white/72 sm:text-base">{narrative.lede}</p>
+            <p className="max-w-2xl text-[15px] leading-relaxed text-white/90 sm:text-base">{narrative.lede}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -125,24 +125,24 @@ export function HomeImmersiveHero() {
             </Button>
           </div>
 
-          <p className="text-sm text-white/55">{narrative.pulse}</p>
+          <p className="text-sm font-medium text-white/88">{narrative.pulse}</p>
         </div>
 
-        <div className="grid gap-4 border-t border-white/[0.08] pt-8 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-[1fr_1.1fr]">
-          <div className="flex items-start justify-between gap-4 rounded-2xl bg-white/[0.04] px-4 py-4 ring-1 ring-white/[0.06] backdrop-blur-xl">
+        <div className="grid gap-4 border-t border-white/14 pt-8 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-[1fr_1.1fr]">
+          <div className="flex items-start justify-between gap-4 rounded-2xl bg-white/[0.08] px-4 py-4 ring-1 ring-white/14 backdrop-blur-xl">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-white/45">{mockWeather.location}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/88">{mockWeather.location}</p>
               <p className="mt-2 font-heading text-4xl font-semibold tracking-tight text-white">{mockWeather.tempF}°</p>
-              <p className="mt-1 text-xs text-white/60">{mockWeather.condition}</p>
-              <p className="mt-3 text-[11px] text-white/45">{mockWeather.highLow}</p>
+              <p className="mt-1 text-xs font-medium text-white/88">{mockWeather.condition}</p>
+              <p className="mt-3 text-[11px] font-medium text-white/85">{mockWeather.highLow}</p>
             </div>
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-white/[0.06] ring-1 ring-white/[0.08]">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/16">
               <CloudSun className="size-5 text-mist" aria-hidden />
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white/[0.04] px-4 py-4 ring-1 ring-white/[0.06] backdrop-blur-xl">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-white/45">Arriving soon</p>
+          <div className="rounded-2xl bg-white/[0.08] px-4 py-4 ring-1 ring-white/14 backdrop-blur-xl">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/88">Arriving soon</p>
             <div className="mt-4 flex items-center gap-4">
               <div className="flex -space-x-2.5">
                 {mockWeekendGuests.slice(0, 4).map((guest, i) => (
@@ -154,7 +154,7 @@ export function HomeImmersiveHero() {
               </div>
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium text-white">Staggered arrivals from Friday</p>
-                <p className="text-xs text-white/55">Full guest list and ETAs live in the weekend hub.</p>
+                <p className="text-xs font-medium text-white/88">Full guest list and ETAs live in the weekend hub.</p>
               </div>
             </div>
           </div>

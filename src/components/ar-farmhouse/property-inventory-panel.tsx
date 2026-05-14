@@ -6,10 +6,7 @@ import { AlertTriangle, Package } from "lucide-react";
 import { demoInventory } from "@/lib/operations-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
 export function PropertyInventoryPanel() {
   const reduceMotion = useReducedMotion();
@@ -17,7 +14,7 @@ export function PropertyInventoryPanel() {
   return (
     <div className="space-y-4">
       <div className={cn(surface, "flex items-start gap-3 p-4 sm:p-5")}>
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
           <Package className="size-5 text-primary" aria-hidden />
         </span>
         <div>
@@ -44,7 +41,7 @@ export function PropertyInventoryPanel() {
               {item.low && <AlertTriangle className="size-4 shrink-0 text-amber-300/90" aria-hidden />}
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">Unit · {item.unit}</p>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted/80 dark:bg-white/[0.06]">
               <motion.div
                 className={cn("h-full rounded-full", item.low ? "bg-amber-400/80" : "bg-primary/70")}
                 initial={{ width: 0 }}

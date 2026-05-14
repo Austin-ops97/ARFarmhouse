@@ -9,10 +9,7 @@ import type { DemoResource } from "@/lib/operations-demo";
 import { demoResources } from "@/lib/operations-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
 function ResourceRow({ item, open, onToggle }: { item: DemoResource; open: boolean; onToggle: () => void }) {
   const reduceMotion = useReducedMotion();
@@ -21,7 +18,7 @@ function ResourceRow({ item, open, onToggle }: { item: DemoResource; open: boole
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-start justify-between gap-3 p-4 text-left transition-colors hover:bg-white/[0.04] sm:p-5"
+        className="flex w-full items-start justify-between gap-3 p-4 text-left transition-colors hover:bg-muted/40 sm:p-5 dark:hover:bg-white/[0.04]"
       >
         <div className="min-w-0 space-y-1">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-primary/90">{item.category}</p>
@@ -29,7 +26,7 @@ function ResourceRow({ item, open, onToggle }: { item: DemoResource; open: boole
           <p className="text-sm text-muted-foreground">{item.summary}</p>
           <div className="flex flex-wrap gap-1 pt-1">
             {item.tags.map((tag) => (
-              <span key={tag} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-muted-foreground">
+              <span key={tag} className="rounded-full border border-border/50 bg-muted/45 px-2 py-0.5 text-[10px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]">
                 {tag}
               </span>
             ))}
@@ -46,7 +43,7 @@ function ResourceRow({ item, open, onToggle }: { item: DemoResource; open: boole
             animate={{ height: "auto", opacity: 1 }}
             exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden border-t border-white/10"
+            className="overflow-hidden border-t border-border/45 dark:border-white/10"
           >
             <p className="p-4 text-sm leading-relaxed text-muted-foreground sm:p-5 sm:pt-4">{item.detail}</p>
           </motion.div>
@@ -91,7 +88,7 @@ export function PropertyResourcesPanel() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search the binder — Wi-Fi, boats, shutoffs…"
-            className="rounded-xl border-white/10 bg-white/[0.04] pl-10"
+            className="rounded-xl border border-border/60 bg-card/70 pl-10 dark:border-white/10 dark:bg-white/[0.04]"
           />
         </div>
       </div>

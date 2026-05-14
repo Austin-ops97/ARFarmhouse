@@ -54,7 +54,7 @@ export function HomeThisWeekend() {
           </h2>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{demoThisWeekend.dateLabel}</p>
         </div>
-        <Button type="button" variant="outline" className="w-fit rounded-full border-white/10 bg-white/[0.03]" onClick={() => openWeekendHub("current")}>
+        <Button type="button" variant="outline" className="w-fit rounded-full border-border/55 bg-card/70 dark:border-white/10 dark:bg-white/[0.03]" onClick={() => openWeekendHub("current")}>
           Open hub
         </Button>
       </div>
@@ -73,7 +73,7 @@ export function HomeThisWeekend() {
               <div className="absolute inset-0 bg-gradient-to-t from-background via-background/45 to-transparent" />
             </div>
             <div className="relative space-y-6 p-6 sm:p-8">
-              <div className="flex items-center gap-2 text-xs font-medium text-white/70">
+              <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-white">
                 <Clock3 className="size-4 text-mist" aria-hidden />
                 Countdown to first arrivals
               </div>
@@ -81,14 +81,14 @@ export function HomeThisWeekend() {
                 {tiles.map((t) => (
                   <div
                     key={t.label}
-                    className="rounded-2xl bg-white/[0.06] px-2 py-3 text-center ring-1 ring-white/[0.08] backdrop-blur-md"
+                    className="rounded-2xl bg-white/12 px-2 py-3 text-center ring-1 ring-white/18 backdrop-blur-md"
                   >
                     <p className="font-heading text-2xl font-semibold tabular-nums text-white sm:text-3xl">{t.value}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-wide text-white/45">{t.label}</p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/90">{t.label}</p>
                   </div>
                 ))}
               </div>
-              <p className="text-sm text-white/70">{demoThisWeekend.weather.label}</p>
+              <p className="text-sm font-medium text-white/92">{demoThisWeekend.weather.label}</p>
             </div>
           </div>
 

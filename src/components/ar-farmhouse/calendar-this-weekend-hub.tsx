@@ -21,10 +21,7 @@ import {
 } from "@/lib/calendar-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
 function initials(name: string) {
   return name
@@ -62,13 +59,13 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
                   type="button"
                   size="sm"
                   variant="secondary"
-                  className="min-h-11 w-full rounded-xl border-white/20 bg-background/70 touch-manipulation backdrop-blur-md sm:min-h-9 sm:w-auto"
+                  className="min-h-11 w-full rounded-xl border-border/60 bg-card/85 touch-manipulation backdrop-blur-md sm:min-h-9 sm:w-auto dark:border-white/20 dark:bg-background/70"
                   onClick={onOpenCommandCenter}
                 >
                   Full hub
                 </Button>
               )}
-              <div className="rounded-2xl border border-white/15 bg-background/55 px-3 py-2 text-right backdrop-blur-md">
+              <div className="rounded-2xl border border-border/55 bg-card/80 px-3 py-2 text-right backdrop-blur-md dark:border-white/15 dark:bg-background/55">
                 <p className="flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
                   <CloudSun className="size-3.5 text-mist" aria-hidden />
                   {demoThisWeekend.weather.label}
@@ -85,7 +82,7 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
             <p className="text-xs font-medium text-muted-foreground">Arrivals</p>
             <ul className="mt-2 space-y-2">
               {demoArrivals.map((a) => (
-                <li key={a.name} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                <li key={a.name} className="ar-nested-well flex items-center gap-3 rounded-2xl px-3 py-2">
                   <Avatar size="default" className="ring-2 ring-background/80">
                     <AvatarImage src={a.avatar} alt="" />
                     <AvatarFallback>{initials(a.name)}</AvatarFallback>
@@ -102,7 +99,7 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
             <p className="text-xs font-medium text-muted-foreground">Departures</p>
             <ul className="mt-2 space-y-2">
               {demoDepartures.map((d) => (
-                <li key={d.name} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                <li key={d.name} className="ar-nested-well flex items-start gap-3 rounded-2xl px-3 py-2">
                   <Clock className="mt-0.5 size-4 shrink-0 text-primary/80" aria-hidden />
                   <div>
                     <p className="text-sm font-medium text-foreground">{d.name}</p>
@@ -114,7 +111,7 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
             </ul>
           </div>
         </div>
-        <div className="border-t border-white/10 px-5 py-4">
+        <div className="border-t border-border/45 px-5 py-4 dark:border-white/10">
           <p className="text-xs text-muted-foreground">{demoThisWeekend.occupancySummary}</p>
           <p className="mt-2 text-sm leading-relaxed text-foreground/90">{demoThisWeekend.notes}</p>
         </div>
@@ -128,7 +125,7 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
           </div>
           <ul className="mt-3 space-y-2">
             {demoMealPlan.map((m) => (
-              <li key={m.meal} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+              <li key={m.meal} className="ar-nested-well rounded-2xl px-3 py-2.5">
                 <p className="text-sm font-medium text-foreground">{m.meal}</p>
                 <p className="text-[11px] text-muted-foreground">
                   {m.chef} · {m.dish}
@@ -145,7 +142,7 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
           </div>
           <ul className="mt-3 space-y-2">
             {demoWeekendActivities.map((a) => (
-              <li key={a.title} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+              <li key={a.title} className="ar-nested-well rounded-2xl px-3 py-2.5">
                 <p className="text-sm font-medium text-foreground">{a.title}</p>
                 <p className="text-[11px] text-muted-foreground">
                   {a.when} · {a.people.join(", ")}
@@ -175,12 +172,14 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
                         [g.item]: !(g.item in c ? c[g.item]! : g.done),
                       }))
                     }
-                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left transition-colors hover:border-white/16"
+                    className="ar-nested-well flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:border-border/70 dark:hover:border-white/16"
                   >
                     <span
                       className={cn(
                         "flex size-7 shrink-0 items-center justify-center rounded-full border",
-                        done ? "border-primary/40 bg-primary/15 text-primary" : "border-white/12 bg-white/[0.04]"
+                        done
+                          ? "border-primary/40 bg-primary/15 text-primary"
+                          : "border-border/55 bg-muted/50 dark:border-white/12 dark:bg-white/[0.04]"
                       )}
                     >
                       {done && <Check className="size-3.5" aria-hidden />}
@@ -203,13 +202,13 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
           <p className="text-xs font-medium text-muted-foreground">Supplies & house</p>
           <ul className="mt-3 space-y-2">
             {demoSharedSupplies.map((s) => (
-              <li key={s.item} className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-foreground/90">
+              <li key={s.item} className="ar-nested-well rounded-2xl px-3 py-2 text-sm text-foreground/90">
                 <span className="font-medium">{s.item}</span>
                 <span className="text-muted-foreground"> — {s.status}</span>
               </li>
             ))}
           </ul>
-          <Separator className="my-4 bg-white/10" />
+          <Separator className="my-4 bg-border/50 dark:bg-white/10" />
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Ship className="size-3.5 text-primary" aria-hidden />
             Equipment
@@ -228,7 +227,10 @@ export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandC
         <p className="text-xs font-medium text-muted-foreground">Packing nudges</p>
         <ul className="mt-2 flex flex-wrap gap-2">
           {demoPackingReminders.map((p) => (
-            <li key={p} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-muted-foreground">
+            <li
+              key={p}
+              className="rounded-full border border-border/50 bg-muted/45 px-3 py-1.5 text-[11px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]"
+            >
               {p}
             </li>
           ))}

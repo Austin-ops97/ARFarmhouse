@@ -67,8 +67,7 @@ export function LocalGuideListRow({
   return (
     <div
       className={cn(
-        "flex min-h-[4.5rem] items-stretch gap-0 overflow-hidden rounded-2xl border border-white/10",
-        "bg-white/[0.035] shadow-[0_12px_40px_-28px_rgba(0,0,0,0.75)] backdrop-blur-xl touch-manipulation"
+        "ar-surface-raised flex min-h-[4.5rem] items-stretch gap-0 overflow-hidden rounded-2xl touch-manipulation"
       )}
     >
       <button
@@ -77,7 +76,7 @@ export function LocalGuideListRow({
         className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-3 pr-2 text-left sm:gap-3.5 sm:pl-3.5"
       >
         {isRestaurant ? (
-          <div className="relative size-11 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/20 sm:size-12">
+          <div className="relative size-11 shrink-0 overflow-hidden rounded-xl border border-border/55 bg-muted/40 dark:border-white/10 dark:bg-black/20 sm:size-12">
             <Image
               src={place.imageUrl}
               alt=""
@@ -89,7 +88,7 @@ export function LocalGuideListRow({
           </div>
         ) : (
           <div
-            className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/12 bg-white/[0.06] sm:size-12"
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/55 bg-muted/50 dark:border-white/12 dark:bg-white/[0.06] sm:size-12"
             aria-hidden
           >
             {createElement(storeGlyph, {
@@ -110,7 +109,7 @@ export function LocalGuideListRow({
                 Verified
               </span>
             ) : (
-              <span className="shrink-0 rounded-full border border-white/12 bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
+              <span className="shrink-0 rounded-full border border-border/55 bg-muted/45 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground dark:border-white/12 dark:bg-white/[0.04]">
                 Confirm
               </span>
             )}
@@ -137,7 +136,7 @@ export function LocalGuideListRow({
         </div>
       </button>
 
-      <div className="flex w-[4.75rem] shrink-0 flex-col justify-center gap-1.5 border-l border-white/[0.07] bg-black/15 px-1.5 py-2 sm:w-[5.5rem] sm:px-2">
+      <div className="flex w-[4.75rem] shrink-0 flex-col justify-center gap-1.5 border-l border-border/40 bg-muted/25 px-1.5 py-2 sm:w-[5.5rem] sm:px-2 dark:border-white/[0.07] dark:bg-black/15">
         <Button
           type="button"
           size="sm"
@@ -156,7 +155,7 @@ export function LocalGuideListRow({
           type="button"
           size="sm"
           variant="outline"
-          className="h-auto min-h-11 w-full flex-col gap-0.5 rounded-lg border-white/14 bg-white/[0.04] px-1 py-1.5 text-[10px] font-semibold leading-none sm:min-h-10 sm:text-[11px]"
+          className="h-auto min-h-11 w-full flex-col gap-0.5 rounded-lg border border-border/60 bg-card/80 px-1 py-1.5 text-[10px] font-semibold leading-none sm:min-h-10 sm:text-[11px] dark:border-white/14 dark:bg-white/[0.04]"
           onClick={(e) => {
             e.stopPropagation();
             onDirections();
@@ -175,7 +174,7 @@ export function LocalGuideListRow({
             "flex h-9 w-full items-center justify-center rounded-lg border text-[11px] font-medium transition-colors",
             saved
               ? "border-primary/35 bg-primary/15 text-primary"
-              : "border-white/12 bg-transparent text-muted-foreground hover:border-white/18 hover:text-foreground"
+              : "border-border/55 bg-transparent text-muted-foreground hover:border-border/80 hover:text-foreground dark:border-white/12 dark:hover:border-white/18"
           )}
           aria-pressed={saved}
           aria-label={saved ? "Remove from saved" : "Save place"}

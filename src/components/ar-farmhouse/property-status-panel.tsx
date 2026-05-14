@@ -8,10 +8,7 @@ import type { DemoStatusCard, StatusIconKey } from "@/lib/operations-demo";
 import { demoStatusCards } from "@/lib/operations-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
 const icons: Record<StatusIconKey, typeof CloudSun> = {
   cloud: CloudSun,
@@ -25,7 +22,7 @@ const icons: Record<StatusIconKey, typeof CloudSun> = {
 };
 
 const toneClass: Record<NonNullable<DemoStatusCard["tone"]>, string> = {
-  default: "from-white/[0.06] to-transparent",
+  default: "from-muted/50 to-transparent dark:from-white/[0.06] dark:to-transparent",
   mint: "from-primary/14 to-transparent",
   amber: "from-amber-400/12 to-transparent",
   rose: "from-rose-400/10 to-transparent",
@@ -56,11 +53,11 @@ export function PropertyStatusPanel() {
               )}
             />
             <div className="relative flex items-start justify-between gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06]">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border/55 bg-muted/55 dark:border-white/10 dark:bg-white/[0.06]">
                 <Icon className="size-5 text-primary" aria-hidden />
               </div>
               {card.id === "s8" && (
-                <div className="relative h-14 w-24 overflow-hidden rounded-xl border border-white/10">
+                <div className="relative h-14 w-24 overflow-hidden rounded-xl border border-border/55 dark:border-white/10">
                   <Image
                     src="https://images.unsplash.com/photo-1470770843672-f972a00901c5?auto=format&fit=crop&w=200&q=75"
                     alt=""

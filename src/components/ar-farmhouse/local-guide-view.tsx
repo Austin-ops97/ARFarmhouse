@@ -75,7 +75,7 @@ export function LocalGuideView() {
   return (
     <div className="pb-6">
       <div className="mb-4 px-0.5 sm:mb-5">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-md">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border/55 bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-md dark:border-white/12 dark:bg-white/[0.04]">
           <Compass className="size-3.5 text-primary" aria-hidden />
           Mena & Ouachitas
         </div>
@@ -95,7 +95,7 @@ export function LocalGuideView() {
 
       <div
         className={cn(
-          "sticky z-30 -mx-3 border-b border-white/[0.08] bg-background/[0.92] px-3 py-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/78 sm:-mx-4 sm:px-4",
+          "sticky z-30 -mx-3 border-b border-border/45 bg-background/92 px-3 py-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/78 sm:-mx-4 sm:px-4 dark:border-white/[0.08]",
           "top-[var(--ar-mobile-sticky-top)] sm:top-[calc(var(--ar-header-height)+0.5rem)]"
         )}
       >
@@ -105,13 +105,13 @@ export function LocalGuideView() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={segment === "restaurants" ? "Search restaurants…" : "Search stores…"}
-            className="h-11 rounded-2xl border-white/12 bg-white/[0.05] pl-10 text-[15px] backdrop-blur-xl placeholder:text-muted-foreground/75"
+            className="h-11 rounded-2xl border border-border/60 bg-card/75 pl-10 text-[15px] backdrop-blur-xl placeholder:text-muted-foreground/75 dark:border-white/12 dark:bg-white/[0.05]"
           />
         </div>
 
         <LayoutGroup id="local-guide-segments">
           <div
-            className="mt-3 grid grid-cols-2 gap-0 rounded-2xl border border-white/10 bg-black/25 p-1"
+            className="mt-3 grid grid-cols-2 gap-0 rounded-2xl border border-border/55 bg-muted/40 p-1 dark:border-white/10 dark:bg-black/25"
             role="tablist"
             aria-label="Listing type"
           >
@@ -155,7 +155,7 @@ export function LocalGuideView() {
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors",
               verifiedOnlyToggle
                 ? "border-emerald-400/35 bg-emerald-500/12 text-emerald-50"
-                : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-white/16"
+                : "border-border/55 bg-muted/45 text-muted-foreground hover:border-border/80 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/16"
             )}
           >
             <ShieldCheck className="size-3.5" aria-hidden />
@@ -168,7 +168,7 @@ export function LocalGuideView() {
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors",
               favoritesOnly
                 ? "border-primary/35 bg-primary/12 text-foreground"
-                : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-white/16"
+                : "border-border/55 bg-muted/45 text-muted-foreground hover:border-border/80 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/16"
             )}
           >
             <Heart className={cn("size-3.5", favoritesOnly && "fill-current text-primary")} aria-hidden />
@@ -189,9 +189,7 @@ export function LocalGuideView() {
       >
         {filtered.length === 0 ? (
           <div
-            className={cn(
-              "rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-10 text-center text-sm text-muted-foreground backdrop-blur-md"
-            )}
+            className={cn("ar-nested-well rounded-2xl px-4 py-10 text-center text-sm text-muted-foreground backdrop-blur-md")}
           >
             No matches. Try another search or toggle filters.
           </div>

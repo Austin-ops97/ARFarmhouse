@@ -111,12 +111,7 @@ function ToggleRow({
 
 function SettingsGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-[1.35rem] border border-border/55 bg-card/50 shadow-[0_20px_60px_-44px_rgba(0,0,0,0.4)] backdrop-blur-xl",
-        "dark:border-white/[0.07] dark:bg-white/[0.035] dark:shadow-[0_24px_70px_-48px_rgba(0,0,0,0.75)]"
-      )}
-    >
+    <div className={cn("ar-surface-raised overflow-hidden rounded-[1.35rem]")}>
       <div className="border-b border-border/45 px-4 py-3.5 dark:border-white/[0.06]">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
       </div>
@@ -139,7 +134,7 @@ function Collapsible({
   const [open, setOpen] = useState(!!defaultOpen);
 
   return (
-    <div className="rounded-[1.35rem] border border-border/55 bg-card/40 backdrop-blur-xl dark:border-white/[0.07] dark:bg-white/[0.028]">
+    <div className="ar-surface-tier2 rounded-[1.35rem]">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

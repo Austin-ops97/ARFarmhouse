@@ -17,10 +17,7 @@ import {
 } from "@/lib/operations-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
 const sectionLabel: Record<TaskListSection, string> = {
   active: "Active tasks",
@@ -111,7 +108,7 @@ export function TasksView() {
         </div>
         <ul className="space-y-2">
           {weekendTasksPreview.map((t) => (
-            <li key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+            <li key={t.id} className="ar-nested-well flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm">
               <span className="text-foreground/90">{t.title}</span>
               <span className="shrink-0 text-[11px] text-muted-foreground">{t.dueLabel}</span>
             </li>
@@ -132,7 +129,7 @@ export function TasksView() {
         className={cn(surface, "flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6")}
       >
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
             <CheckSquare className="size-5 text-primary" aria-hidden />
           </span>
           <div className="min-w-0 space-y-1">
@@ -143,13 +140,15 @@ export function TasksView() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-2xl border border-white/10 bg-white/[0.04] p-1">
+          <div className="flex rounded-2xl border border-border/55 bg-muted/40 p-1 dark:border-white/10 dark:bg-white/[0.04]">
             <button
               type="button"
               onClick={() => setView("list")}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-colors",
-                view === "list" ? "bg-white/[0.1] text-foreground" : "text-muted-foreground hover:text-foreground"
+                view === "list"
+                  ? "bg-card text-foreground shadow-sm dark:bg-white/[0.1]"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <List className="size-4" aria-hidden />
@@ -160,7 +159,9 @@ export function TasksView() {
               onClick={() => setView("board")}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-colors",
-                view === "board" ? "bg-white/[0.1] text-foreground" : "text-muted-foreground hover:text-foreground"
+                view === "board"
+                  ? "bg-card text-foreground shadow-sm dark:bg-white/[0.1]"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <LayoutGrid className="size-4" aria-hidden />
@@ -178,9 +179,9 @@ export function TasksView() {
         <div className="grid gap-4 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className={cn(surface, "ar-skeleton-shimmer space-y-3 p-4")}>
-              <Skeleton className="h-4 w-40 rounded-full bg-white/[0.08]" />
-              <Skeleton className="h-24 w-full rounded-2xl bg-white/[0.06]" />
-              <Skeleton className="h-24 w-full rounded-2xl bg-white/[0.06]" />
+              <Skeleton className="h-4 w-40 rounded-full bg-muted/80 dark:bg-white/[0.08]" />
+              <Skeleton className="h-24 w-full rounded-2xl bg-muted/70 dark:bg-white/[0.06]" />
+              <Skeleton className="h-24 w-full rounded-2xl bg-muted/70 dark:bg-white/[0.06]" />
             </div>
           ))}
         </div>

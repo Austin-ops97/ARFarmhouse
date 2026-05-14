@@ -72,7 +72,7 @@ export function CalendarEventCard({
           <span className="rounded-full border border-border/60 bg-card/75 px-2.5 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md dark:border-white/15 dark:bg-background/55">
             {event.dateLabel}
           </span>
-          <span className="rounded-full border border-primary/25 bg-primary/15 px-2.5 py-1 text-[10px] font-medium text-primary-foreground backdrop-blur-md">
+          <span className="rounded-full border border-primary/30 bg-primary/20 px-2.5 py-1 text-[10px] font-semibold tabular-nums text-primary-foreground shadow-sm backdrop-blur-md ring-1 ring-primary/15 dark:border-primary/25 dark:bg-primary/15">
             {cd.line}
           </span>
         </div>
@@ -90,7 +90,7 @@ export function CalendarEventCard({
               {event.weather.highF}° / {event.weather.lowF}° · {event.weather.label}
             </span>
           </div>
-          <span className="text-[10px] font-medium text-muted-foreground">{cd.sub}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/90">{cd.sub}</span>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">

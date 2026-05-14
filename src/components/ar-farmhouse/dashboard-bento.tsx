@@ -34,8 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl",
+  "ar-surface-raised relative overflow-hidden rounded-[1.35rem]",
   "transition-[transform,box-shadow,border-color] duration-300 will-change-transform"
 );
 
@@ -83,7 +82,7 @@ export function DashboardBento() {
         <div className={cn(surface, "flex h-full min-h-[220px] flex-col p-4 sm:p-5")}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+              <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
                 <Rss className="size-5 text-primary" aria-hidden />
               </span>
               <div>
@@ -91,14 +90,14 @@ export function DashboardBento() {
                 <p className="text-xs text-muted-foreground">Quiet updates · no noise</p>
               </div>
             </div>
-            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-muted-foreground">
+            <span className="rounded-full border border-border/50 bg-muted/45 px-2.5 py-1 text-[10px] font-medium text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]">
               Today
             </span>
           </div>
-          <Separator className="my-4 bg-white/10" />
+          <Separator className="my-4 bg-border/50 dark:bg-white/10" />
           <div className="space-y-4">
             {mockFeed.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div key={item.id} className="ar-nested-well rounded-2xl p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium text-foreground">{item.author}</p>
                   <p className="text-[11px] text-muted-foreground">{item.time}</p>
@@ -113,7 +112,7 @@ export function DashboardBento() {
       <BentoMotion className="xl:col-span-4" delay={0.05}>
         <div className={cn(surface, "flex h-full min-h-[220px] flex-col p-5")}>
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <PartyPopper className="size-5 text-mist" aria-hidden />
             </span>
             <div>
@@ -125,7 +124,7 @@ export function DashboardBento() {
             {mockEvents.map((ev) => (
               <div
                 key={ev.title}
-                className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                className="flex items-start gap-3 ar-nested-well rounded-2xl p-4"
               >
                 <span
                   className={cn(
@@ -146,7 +145,7 @@ export function DashboardBento() {
       <BentoMotion className="xl:col-span-3" delay={0.08}>
         <div className={cn(surface, "flex h-full min-h-[220px] flex-col p-5")}>
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <MapPinned className="size-5 text-primary" aria-hidden />
             </span>
             <div>
@@ -154,7 +153,7 @@ export function DashboardBento() {
               <p className="text-xs text-muted-foreground">Preview</p>
             </div>
           </div>
-          <div className="relative mt-4 min-h-[160px] flex-1 overflow-hidden rounded-2xl border border-white/10">
+          <div className="ar-nested-well relative mt-4 min-h-[160px] flex-1 overflow-hidden rounded-2xl">
             <Image
               src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80"
               alt=""
@@ -174,7 +173,7 @@ export function DashboardBento() {
       <BentoMotion className="xl:col-span-3" delay={0.1}>
         <div className={cn(surface, "flex h-full min-h-[220px] flex-col p-5")}>
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <CheckCircle2 className="size-5 text-primary" aria-hidden />
             </span>
             <div>
@@ -184,7 +183,7 @@ export function DashboardBento() {
           </div>
           <div className="mt-4 space-y-3">
             {mockTasks.map((t) => (
-              <div key={t.label} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+              <div key={t.label} className="flex items-center gap-3 ar-nested-well rounded-2xl px-3 py-2.5">
                 {t.done ? (
                   <CheckCircle2 className="size-5 shrink-0 text-primary" aria-hidden />
                 ) : (
@@ -202,7 +201,7 @@ export function DashboardBento() {
       <BentoMotion className="xl:col-span-3" delay={0.12}>
         <div className={cn(surface, "flex h-full min-h-[220px] flex-col p-5")}>
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <Banknote className="size-5 text-mist" aria-hidden />
             </span>
             <div>
@@ -220,7 +219,7 @@ export function DashboardBento() {
       <BentoMotion className="xl:col-span-6" delay={0.14}>
         <div className={cn(surface, "flex h-full min-h-[200px] flex-col p-5")}>
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <Camera className="size-5 text-primary" aria-hidden />
             </span>
             <div>
@@ -230,7 +229,7 @@ export function DashboardBento() {
           </div>
           <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
             {mockPhotos.map((src) => (
-              <div key={src} className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-white/10">
+              <div key={src} className="ar-nested-well relative aspect-[4/3] overflow-hidden rounded-2xl">
                 <Image src={src} alt="" fill className="object-cover" sizes="(min-width: 1280px) 200px, 33vw" />
               </div>
             ))}
@@ -241,7 +240,7 @@ export function DashboardBento() {
       <BentoMotion className="xl:col-span-4" delay={0.16}>
         <div className={cn(surface, "flex h-full min-h-[200px] flex-col p-5")}>
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <Compass className="size-5 text-mist" aria-hidden />
             </span>
             <div>
@@ -251,7 +250,7 @@ export function DashboardBento() {
           </div>
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
             {mockWeekendPlans.bullets.map((b) => (
-              <li key={b} className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+              <li key={b} className="flex gap-2 ar-nested-well rounded-2xl px-3 py-2">
                 <span className="mt-1 size-1.5 shrink-0 rounded-full bg-primary/70" />
                 <span>{b}</span>
               </li>
@@ -263,7 +262,7 @@ export function DashboardBento() {
       <BentoMotion className="xl:col-span-4" delay={0.18}>
         <div className={cn(surface, "flex h-full min-h-[200px] flex-col p-5")}>
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <Mountain className="size-5 text-primary" aria-hidden />
             </span>
             <div>
@@ -271,7 +270,7 @@ export function DashboardBento() {
               <p className="text-xs text-muted-foreground">{mockTrailConditions.rating}</p>
             </div>
           </div>
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="mt-4 ar-nested-well rounded-2xl p-4">
             <p className="text-sm font-medium text-foreground">{mockTrailConditions.summary}</p>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{mockTrailConditions.detail}</p>
           </div>
@@ -281,7 +280,7 @@ export function DashboardBento() {
       <BentoMotion className="xl:col-span-4" delay={0.2}>
         <div className={cn(surface, "flex h-full min-h-[200px] flex-col p-5")}>
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <Shield className="size-5 text-mist" aria-hidden />
             </span>
             <div>
@@ -290,15 +289,15 @@ export function DashboardBento() {
             </div>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="ar-nested-well rounded-2xl p-3">
               <p className="text-[11px] text-muted-foreground">Perimeter</p>
               <p className="mt-2 text-sm font-medium text-foreground">{mockPropertyStatus.gates}</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="ar-nested-well rounded-2xl p-3">
               <p className="text-[11px] text-muted-foreground">Climate</p>
               <p className="mt-2 text-sm font-medium text-foreground">{mockPropertyStatus.climate}</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:col-span-1">
+            <div className="ar-nested-well rounded-2xl p-3 sm:col-span-1">
               <p className="text-[11px] text-muted-foreground">Power</p>
               <p className="mt-2 text-sm font-medium text-foreground">{mockPropertyStatus.generator}</p>
             </div>
@@ -309,7 +308,7 @@ export function DashboardBento() {
       <BentoMotion className="xl:col-span-12" delay={0.22}>
         <div className={cn(surface, "flex h-full min-h-[200px] flex-col p-5")}>
           <div className="flex items-center gap-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <span className="flex size-10 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
               <Vote className="size-5 text-primary" aria-hidden />
             </span>
             <div>
@@ -327,7 +326,7 @@ export function DashboardBento() {
                     <span>{opt}</span>
                     <span>{pct}%</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                  <div className="h-2 overflow-hidden rounded-full bg-muted/80 dark:bg-white/[0.06]">
                     <motion.div
                       className="h-full rounded-full bg-primary/70"
                       initial={{ width: 0 }}
@@ -340,7 +339,7 @@ export function DashboardBento() {
               );
             })}
           </div>
-          <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-muted-foreground">
+          <div className="mt-4 inline-flex items-center gap-2 ar-nested-well rounded-2xl px-3 py-2 text-[11px] text-muted-foreground">
             <Megaphone className="size-3.5 text-mist" aria-hidden />
             <span>Closes Sunday · results post to Feed automatically</span>
           </div>

@@ -78,13 +78,14 @@ function ColumnShell({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-[260px] min-w-0 flex-1 flex-col rounded-[1.25rem] border border-white/10 bg-white/[0.02] p-2 transition-colors sm:min-h-[300px] sm:p-3",
-        isOver && "border-primary/40 bg-primary/[0.06]"
+        "flex min-h-[260px] min-w-0 flex-1 flex-col rounded-[1.25rem] border border-border/55 bg-muted/35 p-2 transition-colors sm:min-h-[300px] sm:p-3",
+        "dark:border-white/10 dark:bg-white/[0.02]",
+        isOver && "border-primary/40 bg-primary/10 dark:bg-primary/[0.06]"
       )}
     >
       <div className="mb-2 flex items-center justify-between px-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{columnTitle[col]}</p>
-        <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <span className="rounded-full border border-border/50 bg-card/90 px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]">
           {count}
         </span>
       </div>

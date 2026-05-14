@@ -46,7 +46,7 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0.1 : 0.16 }}
         >
-          <button type="button" className="absolute inset-0 bg-background/78 backdrop-blur-xl" aria-label="Close" onClick={close} />
+          <button type="button" className="ar-scrim absolute inset-0" aria-label="Close" onClick={close} />
           <motion.div
             role="dialog"
             aria-modal="true"
@@ -56,11 +56,10 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
             exit={reduceMotion ? undefined : { y: 28, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 36 }}
             className={cn(
-              "relative z-10 flex max-h-[min(92dvh,880px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12",
-              "bg-background/94 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.92)] backdrop-blur-2xl sm:rounded-[1.75rem]"
+              "ar-modal-shell relative z-10 flex max-h-[min(92dvh,880px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] touch-manipulation sm:rounded-[1.75rem]"
             )}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <div className="flex items-center justify-between gap-3 border-b border-border/45 px-5 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-white/10">
               <div className="min-w-0">
                 <p id={titleId} className="truncate font-heading text-lg font-semibold tracking-tight text-foreground">
                   {place.business}
@@ -86,7 +85,7 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
                     Confirm hours before visiting
                   </span>
                 )}
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] text-muted-foreground">
+                <span className="rounded-full border border-border/50 bg-muted/50 px-2.5 py-1 text-[10px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]">
                   {place.distanceMi} mi from farmhouse
                 </span>
               </div>
@@ -119,7 +118,7 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 border-t border-white/10 px-5 py-4">
+            <div className="flex flex-wrap gap-2 border-t border-border/45 px-5 py-4 dark:border-white/10">
               {telHref ? (
                 <a
                   href={telHref}

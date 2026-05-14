@@ -8,10 +8,7 @@ import { Button } from "@/components/ui/button";
 import type { FeedSurfaceInsert } from "@/lib/ecosystem-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-2xl border border-white/[0.09]",
-  "bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-[0_20px_55px_-36px_rgba(0,0,0,0.8)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised relative overflow-hidden rounded-2xl");
 
 export function FeedEcosystemCard({ insert }: { insert: FeedSurfaceInsert }) {
   const reduceMotion = useReducedMotion();

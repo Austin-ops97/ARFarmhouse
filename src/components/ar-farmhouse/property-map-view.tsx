@@ -26,10 +26,7 @@ import {
 } from "@/lib/operations-demo";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
 const pinAccent: Record<MapPinKind, string> = {
   trail: "bg-emerald-400/90",
@@ -138,7 +135,7 @@ export function PropertyMapView() {
               <Download className="size-4" />
               Offline trail PDF
             </Button>
-            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-medium text-muted-foreground">
+            <span className="rounded-full border border-border/50 bg-muted/45 px-3 py-1.5 text-[10px] font-medium text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]">
               Demo · static map
             </span>
           </div>
@@ -157,7 +154,7 @@ export function PropertyMapView() {
         </div>
 
         <div
-          className="relative aspect-[16/11] w-full cursor-grab touch-none overflow-hidden rounded-2xl border border-white/10 active:cursor-grabbing sm:aspect-[21/11]"
+          className="ar-nested-well relative aspect-[16/11] w-full cursor-grab touch-none overflow-hidden rounded-2xl active:cursor-grabbing sm:aspect-[21/11]"
           onWheel={onWheel}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -204,14 +201,14 @@ export function PropertyMapView() {
                 <span className="relative flex flex-col items-center">
                   <span
                     className={cn(
-                      "flex size-10 items-center justify-center rounded-2xl border border-white/20 shadow-lg backdrop-blur-md",
+                      "flex size-10 items-center justify-center rounded-2xl border border-border/40 shadow-lg backdrop-blur-md dark:border-white/20",
                       pinAccent[pin.kind],
                       "ring-2 ring-background/60"
                     )}
                   >
                     <PinIcon kind={pin.kind} />
                   </span>
-                  <span className="mt-1 max-w-[140px] rounded-lg border border-white/15 bg-background/70 px-2 py-0.5 text-center text-[10px] font-medium text-foreground backdrop-blur-md">
+                  <span className="mt-1 max-w-[140px] rounded-lg border border-border/55 bg-card/85 px-2 py-0.5 text-center text-[10px] font-medium text-foreground backdrop-blur-md dark:border-white/15 dark:bg-background/70">
                     {pin.label.split(" · ")[0]}
                   </span>
                 </span>
@@ -226,7 +223,7 @@ export function PropertyMapView() {
           <h3 className="text-sm font-semibold text-foreground">Trail strips</h3>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {demoMapTrails.map((tr) => (
-              <div key={tr.id} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3">
+              <div key={tr.id} className="ar-nested-well rounded-2xl px-3 py-3">
                 <p className="text-sm font-medium text-foreground">{tr.name}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{tr.condition}</p>
               </div>
@@ -238,7 +235,7 @@ export function PropertyMapView() {
           <h3 className="text-sm font-semibold text-foreground">Recently explored</h3>
           <ul className="mt-3 space-y-2">
             {demoRecentlyExplored.map((r) => (
-              <li key={r.trail + r.when} className="flex items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs">
+              <li key={r.trail + r.when} className="ar-nested-well flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs">
                 <span className="font-medium text-foreground">{r.trail}</span>
                 <span className="shrink-0 text-muted-foreground">{r.who}</span>
               </li>
@@ -253,7 +250,7 @@ export function PropertyMapView() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-background/92 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-2xl sm:inset-auto sm:bottom-auto sm:left-auto sm:right-6 sm:top-24 sm:max-w-sm sm:rounded-2xl sm:border sm:p-5 lg:right-10"
+            className="fixed inset-x-0 bottom-0 z-50 border-t border-border/45 bg-popover/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-2xl sm:inset-auto sm:bottom-auto sm:left-auto sm:right-6 sm:top-24 sm:max-w-sm sm:rounded-2xl sm:border sm:border-border/55 sm:p-5 sm:shadow-[var(--ar-modal-elevate)] lg:right-10 dark:border-white/10 dark:bg-background/92"
           >
             <div className="mx-auto flex max-w-lg items-start justify-between gap-3 sm:max-w-none">
               <div>
@@ -261,14 +258,14 @@ export function PropertyMapView() {
                 <p className="mt-1 font-heading text-lg font-semibold text-foreground">{selected.label}</p>
                 <p className="mt-2 text-sm text-muted-foreground">{selected.blurb}</p>
                 {selected.trailCondition && (
-                  <p className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-muted-foreground">
+                  <p className="mt-2 inline-flex rounded-full border border-border/50 bg-muted/50 px-2 py-1 text-[11px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]">
                     Trail feel · {selected.trailCondition}
                   </p>
                 )}
               </div>
               <button
                 type="button"
-                className="rounded-full p-2 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+                className="rounded-full p-2 text-muted-foreground hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/[0.06]"
                 onClick={() => setSelected(null)}
                 aria-label="Close"
               >

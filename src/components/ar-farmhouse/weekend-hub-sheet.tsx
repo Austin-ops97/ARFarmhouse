@@ -129,15 +129,16 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">{bundle.dateLabel}</p>
                 </div>
-                <div className="rounded-2xl border border-border/55 bg-card/80 px-3 py-2 text-right backdrop-blur-md dark:border-white/15 dark:bg-background/60">
-                  <p className="flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
+                <div className="rounded-2xl border border-border/55 bg-card/85 px-3 py-2 text-right backdrop-blur-md dark:border-white/15 dark:bg-background/60">
+                  <p className="font-heading text-lg font-semibold tabular-nums tracking-tight text-foreground sm:text-xl">{cd.line}</p>
+                  <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground/88">{cd.sub}</p>
+                  <p className="mt-3 flex items-center justify-end gap-1.5 text-[11px] font-medium text-foreground/80">
                     <CloudSun className="size-3.5 text-mist" aria-hidden />
                     {bundle.weather.label}
                   </p>
                   <p className="text-sm font-semibold text-foreground">
                     {bundle.weather.highF}° / {bundle.weather.lowF}°
                   </p>
-                  <p className="text-[10px] text-muted-foreground">{cd.line}</p>
                 </div>
               </div>
             </div>

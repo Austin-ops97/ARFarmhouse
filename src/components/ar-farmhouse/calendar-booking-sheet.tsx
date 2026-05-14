@@ -80,7 +80,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0.12 : 0.22 }}
         >
-          <button type="button" className="absolute inset-0 bg-background/75 backdrop-blur-xl" aria-label="Close" onClick={close} />
+          <button type="button" className="ar-scrim absolute inset-0" aria-label="Close" onClick={close} />
           <motion.div
             role="dialog"
             aria-modal="true"
@@ -90,12 +90,11 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
             exit={reduceMotion ? undefined : { y: 22, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className={cn(
-              "relative z-10 flex max-h-[min(92dvh,100dvh)] w-full max-w-[100vw] flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12 sm:max-h-[min(94dvh,920px)] sm:max-w-lg",
-              "bg-background/92 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.9)] backdrop-blur-2xl md:max-w-xl md:rounded-[1.75rem]",
-              "touch-manipulation"
+              "ar-modal-shell relative z-10 flex max-h-[min(92dvh,100dvh)] w-full max-w-[100vw] flex-col overflow-hidden rounded-t-[1.75rem] touch-manipulation",
+              "sm:max-h-[min(94dvh,920px)] sm:max-w-lg md:max-w-xl md:rounded-[1.75rem]"
             )}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5 sm:pb-4">
+            <div className="flex items-center justify-between gap-3 border-b border-border/45 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5 sm:pb-4 dark:border-white/10">
               <div>
                 <p id={titleId} className="font-heading text-lg font-semibold tracking-tight text-foreground">
                   Book a stay
@@ -138,10 +137,10 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                             type="button"
                             onClick={() => setTripId(t.id)}
                             className={cn(
-                              "rounded-2xl border px-3 py-3 text-left transition-colors",
+                              "rounded-2xl px-3 py-3 text-left transition-colors",
                               active
-                                ? "border-primary/35 bg-primary/12 text-foreground"
-                                : "border-white/10 bg-white/[0.03] hover:border-white/16"
+                                ? "border border-primary/35 bg-primary/12 text-foreground"
+                                : "ar-nested-well hover:border-border/70 dark:hover:border-white/16"
                             )}
                           >
                             <p className="text-sm font-medium">{t.label}</p>
@@ -183,16 +182,18 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                               "relative flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center rounded-md border p-0.5 text-[10px] font-medium transition-colors sm:aspect-square sm:min-h-0 sm:rounded-lg sm:text-[11px]",
                               range
                                 ? "border-primary/40 bg-primary/20 text-foreground"
-                                : "border-white/10 bg-white/[0.04] text-muted-foreground hover:border-white/18",
+                                : "border-border/50 bg-muted/50 text-foreground hover:border-border/80 dark:border-white/10 dark:bg-white/[0.04] dark:text-muted-foreground dark:hover:border-white/18",
                               h === 3 && !range && "border-amber-400/25 bg-amber-500/10",
-                              h === 2 && !range && "border-white/12 bg-white/[0.06]"
+                              h === 2 &&
+                                !range &&
+                                "border-amber-300/30 bg-amber-400/12 dark:border-white/12 dark:bg-white/[0.06]"
                             )}
                           >
                             <span>{d}</span>
                             <span
                               className={cn(
                                 "mt-0.5 h-1 w-4 rounded-full opacity-80",
-                                h === 0 && "bg-white/15",
+                                h === 0 && "bg-muted-foreground/30 dark:bg-white/15",
                                 h === 1 && "bg-emerald-400/35",
                                 h === 2 && "bg-amber-300/45",
                                 h === 3 && "bg-rose-400/45"
@@ -204,7 +205,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                     </div>
                   </div>
 
-                  <div className="flex min-h-12 flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="ar-nested-well flex min-h-12 flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Users className="size-4 text-primary" aria-hidden />
                       Guests
@@ -247,9 +248,9 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                             disabled={disabled}
                             onClick={() => setRoomId(r.id)}
                             className={cn(
-                              "flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition-colors",
-                              active && "border-primary/35 bg-primary/10",
-                              !active && !disabled && "border-white/10 bg-white/[0.03] hover:border-white/16",
+                              "flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors",
+                              active && "border border-primary/35 bg-primary/10",
+                              !active && !disabled && "ar-nested-well hover:border-border/70 dark:hover:border-white/16",
                               disabled && "cursor-not-allowed opacity-45"
                             )}
                           >
@@ -272,7 +273,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                     <Input
                       id="trip-purpose"
                       placeholder="e.g. Cousins weekend, dock stain party, slow reset"
-                      className="h-11 rounded-2xl border-white/10 bg-white/[0.04]"
+                      className="h-11 rounded-2xl border border-border/60 bg-card/75 dark:border-white/10 dark:bg-white/[0.04]"
                     />
                   </div>
 
@@ -285,7 +286,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="Dietary notes, boat slip needs, early arrival ask…"
-                      className="min-h-[100px] rounded-2xl border-white/10 bg-white/[0.04]"
+                      className="min-h-[100px] rounded-2xl border border-border/60 bg-card/75 dark:border-white/10 dark:bg-white/[0.04]"
                     />
                   </div>
 

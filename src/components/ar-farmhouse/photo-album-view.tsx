@@ -13,10 +13,7 @@ import { usePhotoAlbum } from "@/contexts/photo-album-context";
 import { ALBUM_SHELVES, shelfItems, type AlbumMediaItem, type AlbumShelfId } from "@/lib/photo-album-media";
 import { cn } from "@/lib/utils";
 
-const cardSurface = cn(
-  "rounded-[1.35rem] border border-border/50 bg-card/45 shadow-[0_24px_70px_-40px_rgba(0,0,0,0.45)] backdrop-blur-xl",
-  "dark:border-white/[0.08] dark:bg-white/[0.035] dark:shadow-[0_28px_80px_-44px_rgba(0,0,0,0.78)]"
-);
+const cardSurface = cn("ar-surface-raised rounded-[1.35rem]");
 
 function MasonryTile({
   item,

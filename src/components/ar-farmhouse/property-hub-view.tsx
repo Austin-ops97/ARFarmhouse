@@ -9,10 +9,7 @@ import { PropertyResourcesPanel } from "@/components/ar-farmhouse/property-resou
 import { PropertyStatusPanel } from "@/components/ar-farmhouse/property-status-panel";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-[1.35rem] border border-white/10",
-  "bg-white/[0.035] shadow-[0_24px_70px_-34px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-);
+const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
 type HubTab = "status" | "resources" | "inventory";
 
@@ -37,7 +34,7 @@ export function PropertyHubView() {
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Systems, binders, and pantries — one calm place for how AR Farmhouse actually runs.
         </p>
-        <div className="mt-5 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+        <div className="mt-5 flex flex-wrap gap-2 rounded-2xl border border-border/55 bg-muted/40 p-1 dark:border-white/10 dark:bg-white/[0.03]">
           {tabs.map((t) => {
             const active = tab === t.id;
             const Icon = t.icon;
@@ -48,7 +45,9 @@ export function PropertyHubView() {
                 onClick={() => setTab(t.id)}
                 className={cn(
                   "inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium transition-colors sm:flex-none sm:px-5",
-                  active ? "bg-white/[0.1] text-foreground shadow-inner shadow-white/5" : "text-muted-foreground hover:text-foreground"
+                  active
+                    ? "bg-card text-foreground shadow-sm dark:bg-white/[0.1] dark:shadow-inner dark:shadow-white/5"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
