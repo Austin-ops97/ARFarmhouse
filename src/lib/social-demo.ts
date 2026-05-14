@@ -226,6 +226,7 @@ export const demoFeedPosts: DemoFeedPost[] = [
 
 export type DemoWeekendEvent = {
   id: string;
+  hubSlug: "memorial-mdw" | "fishing-jun" | "deer-camp" | "bbq-jul" | "dock-may";
   title: string;
   tagline: string;
   dateLabel: string;
@@ -243,6 +244,7 @@ export type DemoWeekendEvent = {
 export const demoWeekendEvents: DemoWeekendEvent[] = [
   {
     id: "ev-mdw",
+    hubSlug: "memorial-mdw",
     title: "Memorial Day Weekend",
     tagline: "Low agenda · high togetherness",
     dateLabel: "May 23 – May 26",
@@ -261,6 +263,7 @@ export const demoWeekendEvents: DemoWeekendEvent[] = [
   },
   {
     id: "ev-fish",
+    hubSlug: "fishing-jun",
     title: "Fishing Trip · Willow Creek",
     tagline: "Dawn launch · thermos required",
     dateLabel: "Jun 7 – Jun 8",
@@ -279,6 +282,7 @@ export const demoWeekendEvents: DemoWeekendEvent[] = [
   },
   {
     id: "ev-deer",
+    hubSlug: "deer-camp",
     title: "Deer Camp Opening Weekend",
     tagline: "Tradition, timber, and slow coffee",
     dateLabel: "Nov 14 – Nov 16",
@@ -297,6 +301,7 @@ export const demoWeekendEvents: DemoWeekendEvent[] = [
   },
   {
     id: "ev-bbq",
+    hubSlug: "bbq-jul",
     title: "Family BBQ · Great lawn",
     tagline: "Smoke, strings lights, barefoot kids",
     dateLabel: "Jul 19 · 4pm",
@@ -312,6 +317,7 @@ export const demoWeekendEvents: DemoWeekendEvent[] = [
   },
   {
     id: "ev-dock",
+    hubSlug: "dock-may",
     title: "Dock Work Weekend",
     tagline: "Many hands · lighter work",
     dateLabel: "May 30 – May 31",

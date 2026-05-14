@@ -6,7 +6,9 @@ import { useMemo, useState } from "react";
 
 import { CalendarWeekendsView } from "@/components/ar-farmhouse/calendar-weekends-view";
 import { DashboardBento } from "@/components/ar-farmhouse/dashboard-bento";
+import { DashboardEcosystemStrip } from "@/components/ar-farmhouse/dashboard-ecosystem-strip";
 import { DashboardHero } from "@/components/ar-farmhouse/dashboard-hero";
+import { EcosystemProvider } from "@/components/ar-farmhouse/ecosystem-context";
 import { DashboardMobileDrawer, DashboardMobileDrawerTrigger } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { DashboardSectionPlaceholder } from "@/components/ar-farmhouse/dashboard-section-placeholder";
 import { DashboardSidebar } from "@/components/ar-farmhouse/dashboard-sidebar";
@@ -16,6 +18,7 @@ import { LocalGuideView } from "@/components/ar-farmhouse/local-guide-view";
 import { PropertyHubView } from "@/components/ar-farmhouse/property-hub-view";
 import { PropertyMapView } from "@/components/ar-farmhouse/property-map-view";
 import { TasksView } from "@/components/ar-farmhouse/tasks-view";
+import { WeekendHubPortal } from "@/components/ar-farmhouse/weekend-hub-portal";
 
 const sectionSubtitle: Record<NavId, string> = {
   home: "AR Farmhouse · this weekend",
@@ -42,6 +45,7 @@ export function Dashboard() {
         return (
           <>
             <DashboardHero />
+            <DashboardEcosystemStrip />
             <DashboardBento />
           </>
         );
@@ -79,6 +83,7 @@ export function Dashboard() {
   }, [activeId]);
 
   return (
+    <EcosystemProvider goTo={setActiveId}>
     <div className="min-h-dvh overflow-x-hidden bg-background [--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.75rem)] supports-[padding:max(0px)]:[--ar-mobile-sticky-top:calc(env(safe-area-inset-top)+3.875rem)]">
       <DashboardSidebar activeId={activeId} onSelect={setActiveId} />
 
@@ -123,6 +128,8 @@ export function Dashboard() {
         activeId={activeId}
         onSelect={setActiveId}
       />
+      <WeekendHubPortal />
     </div>
+    </EcosystemProvider>
   );
 }

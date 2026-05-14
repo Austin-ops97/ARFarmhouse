@@ -6,6 +6,7 @@ import { Check, CloudSun, Clock, Ship, ShoppingBasket, Tent, UtensilsCrossed } f
 import { useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   demoArrivals,
@@ -33,7 +34,7 @@ function initials(name: string) {
     .slice(0, 2);
 }
 
-export function CalendarThisWeekendHub() {
+export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandCenter?: () => void }) {
   const reduceMotion = useReducedMotion();
   const [checked, setChecked] = useState<Record<string, boolean>>({});
 
@@ -53,14 +54,27 @@ export function CalendarThisWeekendHub() {
               <h3 className="font-heading text-2xl font-semibold tracking-tight text-foreground">{demoThisWeekend.title}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{demoThisWeekend.dateLabel}</p>
             </div>
-            <div className="rounded-2xl border border-white/15 bg-background/55 px-3 py-2 text-right backdrop-blur-md">
-              <p className="flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
-                <CloudSun className="size-3.5 text-mist" aria-hidden />
-                {demoThisWeekend.weather.label}
-              </p>
-              <p className="text-sm font-semibold text-foreground">
-                {demoThisWeekend.weather.highF}° / {demoThisWeekend.weather.lowF}°
-              </p>
+            <div className="flex flex-wrap items-end justify-end gap-2">
+              {onOpenCommandCenter && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-xl border-white/20 bg-background/70 backdrop-blur-md"
+                  onClick={onOpenCommandCenter}
+                >
+                  Full hub
+                </Button>
+              )}
+              <div className="rounded-2xl border border-white/15 bg-background/55 px-3 py-2 text-right backdrop-blur-md">
+                <p className="flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
+                  <CloudSun className="size-3.5 text-mist" aria-hidden />
+                  {demoThisWeekend.weather.label}
+                </p>
+                <p className="text-sm font-semibold text-foreground">
+                  {demoThisWeekend.weather.highF}° / {demoThisWeekend.weather.lowF}°
+                </p>
+              </div>
             </div>
           </div>
         </div>

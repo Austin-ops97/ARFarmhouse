@@ -5,7 +5,9 @@ import { motion, useReducedMotion } from "framer-motion";
 import { CalendarDays, CloudSun, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { useMemo, useSyncExternalStore } from "react";
 
+import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   dashboardHeroImage,
@@ -34,6 +36,7 @@ function useGreeting() {
 export function DashboardHero() {
   const reduceMotion = useReducedMotion();
   const greeting = useGreeting();
+  const { openWeekendHub } = useEcosystem();
 
   const initials = useMemo(
     () =>
@@ -107,6 +110,15 @@ export function DashboardHero() {
                 {mockBooking.title} · {mockBooking.dates}
               </span>
             </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="rounded-xl border-white/15 bg-white/[0.08] text-foreground backdrop-blur-md hover:bg-white/[0.12]"
+              onClick={() => openWeekendHub("current")}
+            >
+              Weekend hub
+            </Button>
           </div>
         </div>
 

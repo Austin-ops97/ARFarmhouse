@@ -16,6 +16,7 @@ import {
   type CalendarSurfaceMode,
 } from "@/components/ar-farmhouse/calendar-surfaces";
 import { CalendarThisWeekendHub } from "@/components/ar-farmhouse/calendar-this-weekend-hub";
+import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { demoCoordEvents } from "@/lib/calendar-demo";
@@ -48,6 +49,7 @@ function rowIndexForDay(day: number, rows: (number | null)[][]) {
 
 export function CalendarPropertyView() {
   const reduceMotion = useReducedMotion();
+  const { openWeekendHub } = useEcosystem();
   const [boot, setBoot] = useState(true);
   const [mode, setMode] = useState<CalendarSurfaceMode>("month");
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -197,7 +199,7 @@ export function CalendarPropertyView() {
             <h3 className="text-sm font-semibold text-foreground">This weekend · coordination</h3>
             <span className="text-[11px] text-muted-foreground">Shared lists · demo</span>
           </div>
-          <CalendarThisWeekendHub />
+          <CalendarThisWeekendHub onOpenCommandCenter={() => openWeekendHub("current")} />
 
           <div className="flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-foreground">Upcoming stays & trips</h3>
@@ -208,7 +210,7 @@ export function CalendarPropertyView() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {demoWeekendEvents.map((ev) => (
-              <CalendarEventCard key={ev.id} event={ev} />
+              <CalendarEventCard key={ev.id} event={ev} onOpenWeekendHub={() => openWeekendHub(ev.hubSlug)} />
             ))}
           </div>
         </div>

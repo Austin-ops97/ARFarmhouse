@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { CalendarDays, Camera, CloudSun, Home, Sparkles, Users } from "lucide-react";
+import { CalendarDays, Camera, CloudSun, Heart, Home, Sparkles, Users } from "lucide-react";
 
+import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { demoFamilyMembers } from "@/lib/social-demo";
 import { mockBooking, mockPhotos, mockPropertyStatus, mockWeather } from "@/lib/mock-data";
@@ -24,9 +25,32 @@ function initials(name: string) {
 
 export function FeedRail() {
   const reduceMotion = useReducedMotion();
+  const { openWeekendHub } = useEcosystem();
 
   return (
     <aside className="sticky top-6 space-y-4" aria-label="At the property">
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, x: 12 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className={railCard}
+      >
+        <div className="flex items-center gap-2 text-[11px] font-medium text-primary/90">
+          <Heart className="size-3.5" aria-hidden />
+          <span>Shared memory</span>
+        </div>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Same weekend last year: firelight on the dock, slow songs, kids asleep in camping chairs.
+        </p>
+        <button
+          type="button"
+          onClick={() => openWeekendHub("current")}
+          className="mt-3 text-[11px] font-medium text-primary hover:underline"
+        >
+          Open this weekend&apos;s hub
+        </button>
+      </motion.div>
+
       <motion.div
         initial={reduceMotion ? false : { opacity: 0, x: 12 }}
         animate={{ opacity: 1, x: 0 }}

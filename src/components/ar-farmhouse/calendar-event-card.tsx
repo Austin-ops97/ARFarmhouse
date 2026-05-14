@@ -34,7 +34,13 @@ function initials(name: string) {
     .slice(0, 2);
 }
 
-export function CalendarEventCard({ event }: { event: DemoWeekendEvent }) {
+export function CalendarEventCard({
+  event,
+  onOpenWeekendHub,
+}: {
+  event: DemoWeekendEvent;
+  onOpenWeekendHub?: () => void;
+}) {
   const reduceMotion = useReducedMotion();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -179,6 +185,12 @@ export function CalendarEventCard({ event }: { event: DemoWeekendEvent }) {
             Open thread
           </button>
         </div>
+
+        {onOpenWeekendHub && (
+          <Button type="button" variant="secondary" className="w-full rounded-xl" onClick={onOpenWeekendHub}>
+            Weekend hub · full context
+          </Button>
+        )}
       </div>
     </motion.article>
   );

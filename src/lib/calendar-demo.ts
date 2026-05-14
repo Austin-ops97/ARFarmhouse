@@ -114,6 +114,7 @@ export const demoFeedCalendarBridge = [
     detail: "May 23–26 · Main + guest suite",
     timeLabel: "2d ago",
     avatar: demoFamilyMembers[3].avatar,
+    hubSlug: "memorial-mdw" as const,
   },
   {
     id: "b2",
@@ -123,6 +124,7 @@ export const demoFeedCalendarBridge = [
     detail: "Birthday weekend · AR Farmhouse",
     timeLabel: "Last week",
     avatar: demoFamilyMembers[2].avatar,
+    hubSlug: "current" as const,
   },
   {
     id: "b3",
@@ -132,6 +134,7 @@ export const demoFeedCalendarBridge = [
     detail: "Jun 7–8 · Willow Creek",
     timeLabel: "Yesterday",
     avatar: demoFamilyMembers[1].avatar,
+    hubSlug: "fishing-jun" as const,
   },
 ];
 

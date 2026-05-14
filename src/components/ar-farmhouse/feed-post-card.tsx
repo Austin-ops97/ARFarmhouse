@@ -17,9 +17,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
+import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { DemoFeedPost } from "@/lib/social-demo";
 import { FEED_IMAGE_SIZES, FEED_MEDIA_BLEED } from "@/lib/feed-layout";
+import { hubSlugFromLinkedEventLabel } from "@/lib/ecosystem-demo";
 import { cn } from "@/lib/utils";
 
 const categoryLabel: Record<DemoFeedPost["category"], string> = {
@@ -155,6 +157,7 @@ function FeedLightbox({
 
 export function FeedPostCard({ post }: { post: DemoFeedPost }) {
   const reduceMotion = useReducedMotion();
+  const { openWeekendHub } = useEcosystem();
   const [reactionState, setReactionState] = useState(() =>
     Object.fromEntries(post.reactions.map((r) => [r.emoji, { count: r.count, on: !!r.active }]))
   );
@@ -482,10 +485,18 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
         )}
 
         {post.linkedEvent && (
-          <div className="mx-1 mt-3 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/[0.09] px-3 py-2 text-xs text-primary-foreground/95 sm:mx-0">
+          <button
+            type="button"
+            onClick={() => {
+              const slug = hubSlugFromLinkedEventLabel(post.linkedEvent!);
+              if (slug) openWeekendHub(slug);
+            }}
+            className="mx-1 mt-3 flex w-full items-center gap-2 rounded-xl border border-primary/20 bg-primary/[0.09] px-3 py-2 text-left text-xs text-primary-foreground/95 transition-colors hover:border-primary/35 hover:bg-primary/[0.12] sm:mx-0"
+          >
             <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
             <span className="font-medium">{post.linkedEvent}</span>
-          </div>
+            <span className="ml-auto text-[10px] text-muted-foreground">Open hub</span>
+          </button>
         )}
 
         <button

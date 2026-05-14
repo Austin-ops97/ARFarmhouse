@@ -2,14 +2,16 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { ImagePlus, PenLine } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CreatePostDialog } from "@/components/ar-farmhouse/create-post-dialog";
+import { FeedEcosystemCard } from "@/components/ar-farmhouse/feed-ecosystem-card";
 import { FeedPostCard } from "@/components/ar-farmhouse/feed-post-card";
 import { FeedRail } from "@/components/ar-farmhouse/feed-rail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FEED_LAYOUT_CLASS, FEED_RAIL_CLASS, FEED_STREAM_CLASS } from "@/lib/feed-layout";
+import { demoFeedSurfaceInserts, type FeedSurfaceInsert } from "@/lib/ecosystem-demo";
 import { demoFamilyMembers, demoFeedPosts, type DemoFeedPost } from "@/lib/social-demo";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +23,24 @@ function sliceFeed(start: number, take: number): DemoFeedPost[] {
   for (let i = 0; i < take; i++) {
     const base = demoFeedPosts[(start + i) % demoFeedPosts.length];
     out.push({ ...base, id: `${base.id}~${start + i}` });
+  }
+  return out;
+}
+
+function interleaveFeedWithEcosystem(posts: DemoFeedPost[]) {
+  const inserts = [...demoFeedSurfaceInserts].sort((a, b) => a.afterPostIndex - b.afterPostIndex);
+  const out: Array<{ key: string; t: "post"; post: DemoFeedPost } | { key: string; t: "insert"; insert: FeedSurfaceInsert }> = [];
+  let ii = 0;
+  posts.forEach((post, idx) => {
+    out.push({ key: post.id, t: "post", post });
+    while (ii < inserts.length && inserts[ii].afterPostIndex === idx) {
+      out.push({ key: inserts[ii].id, t: "insert", insert: inserts[ii] });
+      ii++;
+    }
+  });
+  while (ii < inserts.length) {
+    out.push({ key: inserts[ii].id, t: "insert", insert: inserts[ii] });
+    ii++;
   }
   return out;
 }
@@ -69,6 +89,8 @@ export function FeedView() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const me = demoFamilyMembers[3];
+
+  const feedStream = useMemo(() => interleaveFeedWithEcosystem(posts), [posts]);
 
   useEffect(() => {
     const t = window.setTimeout(() => setBootLoading(false), reduceMotion ? 120 : 680);
@@ -157,9 +179,13 @@ export function FeedView() {
         ) : (
           <>
             <div className="space-y-0">
-              {posts.map((post) => (
-                <FeedPostCard key={post.id} post={post} />
-              ))}
+              {feedStream.map((item) =>
+                item.t === "post" ? (
+                  <FeedPostCard key={item.key} post={item.post} />
+                ) : (
+                  <FeedEcosystemCard key={item.key} insert={item.insert} />
+                )
+              )}
             </div>
 
             <div ref={loadMoreRef} className="h-px w-full shrink-0" aria-hidden />

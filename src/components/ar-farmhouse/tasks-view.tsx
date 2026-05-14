@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskCard } from "@/components/ar-farmhouse/task-card";
 import { TasksBoard } from "@/components/ar-farmhouse/tasks-board";
+import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
+import { getWeekendHubBundle } from "@/lib/ecosystem-demo";
 import {
   initialDemoTasks,
   type DemoTask,
@@ -32,6 +34,7 @@ const sectionOrder: TaskListSection[] = ["emergency", "active", "maintenance", "
 
 export function TasksView() {
   const reduceMotion = useReducedMotion();
+  const { openWeekendHub } = useEcosystem();
   const [tasks, setTasks] = useState<DemoTask[]>(initialDemoTasks);
   const [view, setView] = useState<"list" | "board">("list");
   const [loading, setLoading] = useState(true);
@@ -84,8 +87,45 @@ export function TasksView() {
     return g;
   }, [tasks]);
 
+  const hubBundle = useMemo(() => getWeekendHubBundle("current"), []);
+  const weekendTasksPreview = useMemo(() => tasks.filter((t) => t.listSection === "weekend").slice(0, 4), [tasks]);
+
   return (
     <div className="space-y-6">
+      <motion.section
+        initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={cn(surface, "space-y-3 p-4 sm:p-5")}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-primary/90">Ecosystem</p>
+            <p className="font-heading text-lg font-semibold tracking-tight text-foreground">Before arrivals · {hubBundle.title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Prep tasks are mirrored from the weekend hub — same story as Calendar and Feed.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" className="shrink-0 rounded-xl" onClick={() => openWeekendHub("current")}>
+            Weekend hub
+          </Button>
+        </div>
+        <ul className="space-y-2">
+          {weekendTasksPreview.map((t) => (
+            <li key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+              <span className="text-foreground/90">{t.title}</span>
+              <span className="shrink-0 text-[11px] text-muted-foreground">{t.dueLabel}</span>
+            </li>
+          ))}
+          {hubBundle.tasksBeforeArrival.slice(0, 2).map((t) => (
+            <li key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-primary/15 bg-primary/[0.06] px-3 py-2 text-sm">
+              <span className="text-foreground/90">{t.title}</span>
+              <span className="shrink-0 text-[11px] text-muted-foreground">{t.dueLabel}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-[11px] text-muted-foreground/85">Things to bring: {hubBundle.packing.slice(0, 2).join(" · ")}</p>
+      </motion.section>
+
       <motion.section
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
