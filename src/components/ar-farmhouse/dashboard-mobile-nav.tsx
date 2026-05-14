@@ -30,7 +30,7 @@ export function DashboardMobileNav({ activeId, onSelect }: MobileBottomNavProps)
               onClick={() => onSelect(item.id)}
               whileTap={reduceMotion ? undefined : { scale: 0.94 }}
               className={cn(
-                "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-[10px] font-medium transition-colors",
+                "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-[10px] font-medium transition-colors touch-manipulation",
                 active ? "text-foreground" : "text-muted-foreground"
               )}
             >
