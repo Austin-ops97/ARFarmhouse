@@ -17,7 +17,7 @@ import { PropertyMapView } from "@/components/ar-farmhouse/property-map-view";
 import { TasksView } from "@/components/ar-farmhouse/tasks-view";
 
 const sectionSubtitle: Record<NavId, string> = {
-  home: "Aspen Ridge · this weekend",
+  home: "AR Farmhouse · this weekend",
   feed: "Private · emotionally warm",
   calendar: "Stays, RSVPs, and soft holds",
   map: "Trails, pins, and quiet orientation",

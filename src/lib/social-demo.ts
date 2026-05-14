@@ -43,7 +43,7 @@ export const demoAttachableEvents = [
   "Deer Camp Opening Weekend",
   "Family BBQ · Great lawn",
   "Dock Work Weekend",
-  "Birthday weekend · Aspen Ridge",
+  "Birthday weekend · AR Farmhouse",
 ] as const;
 
 export const demoFeedPosts: DemoFeedPost[] = [
@@ -53,7 +53,7 @@ export const demoFeedPosts: DemoFeedPost[] = [
     layout: "hero",
     author: { name: "Jordan K.", handle: "jordan", avatar: demoFamilyMembers[1].avatar },
     timeLabel: "2h ago",
-    location: "Aspen Ridge · North camera",
+    location: "AR Farmhouse · North camera",
     title: "Elk at first light",
     body: "Quiet morning on the ridge — a small herd drifted through the meadow before the fog lifted.",
     kind: "image",
@@ -126,7 +126,7 @@ export const demoFeedPosts: DemoFeedPost[] = [
     kind: "event_recap",
     cover:
       "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1400&q=85",
-    linkedEvent: "Birthday weekend · Aspen Ridge",
+    linkedEvent: "Birthday weekend · AR Farmhouse",
     reactions: [
       { emoji: "🎂", count: 12 },
       { emoji: "❤️", count: 10 },

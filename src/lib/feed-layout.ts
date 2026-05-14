@@ -1,7 +1,17 @@
-/** Feed column: full width on phones, scales up to ~1152px on large desktops */
-export const FEED_COLUMN_CLASS =
-  "mx-auto w-full min-w-0 max-w-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl 2xl:max-w-6xl";
+/** Center stream — Instagram / Threads–like readable width (not stretched) */
+export const FEED_STREAM_CLASS =
+  "w-full min-w-0 max-w-[min(100%,520px)] mx-auto shrink-0";
 
-/** Next/Image sizes hint aligned with FEED_COLUMN_CLASS breakpoints */
+/** Outer wrapper when rail is shown */
+export const FEED_LAYOUT_CLASS =
+  "mx-auto flex w-full max-w-[min(100%,1580px)] flex-col gap-8 lg:flex-row lg:items-start lg:justify-center lg:gap-10 xl:gap-14";
+
+/** Right contextual column */
+export const FEED_RAIL_CLASS = "hidden w-full min-w-0 max-w-[300px] shrink-0 xl:block";
+
+/** Mobile edge-bleed for media (pairs with dashboard `px-4`) */
+export const FEED_MEDIA_BLEED = "-mx-4 sm:mx-0";
+
+/** Next/Image sizes — tuned to ~520px stream */
 export const FEED_IMAGE_SIZES =
-  "(max-width: 639px) 100vw, (max-width: 767px) 576px, (max-width: 1023px) 672px, (max-width: 1279px) 768px, (max-width: 1535px) 896px, 1152px";
+  "(max-width: 639px) 100vw, (max-width: 1023px) 520px, (max-width: 1279px) 520px, 560px";

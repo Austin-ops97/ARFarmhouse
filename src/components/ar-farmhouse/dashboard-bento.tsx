@@ -150,7 +150,7 @@ export function DashboardBento() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
             <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-              <span className="rounded-full bg-background/55 px-2 py-1 backdrop-blur-md">North ridge camera</span>
+              <span className="rounded-full bg-background/55 px-2 py-1 backdrop-blur-md">North camera · AR Farmhouse</span>
               <span className="rounded-full bg-background/55 px-2 py-1 backdrop-blur-md">Live · 2m ago</span>
             </div>
           </div>

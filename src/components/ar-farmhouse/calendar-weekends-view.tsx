@@ -201,7 +201,7 @@ export function CalendarWeekendsView() {
           <div className="flex shrink-0 flex-wrap gap-2">
             <span className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-muted-foreground">
               <Home className="size-4 text-primary" aria-hidden />
-              Aspen Ridge
+              AR Farmhouse
             </span>
             <span className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-muted-foreground">
               <Users className="size-4 text-mist" aria-hidden />

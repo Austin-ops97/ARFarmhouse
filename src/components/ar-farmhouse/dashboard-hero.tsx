@@ -89,7 +89,7 @@ export function DashboardHero() {
               {greeting}, Alex
             </h2>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
-              Aspen Ridge is composed for the weekend — arrivals staggered, house climate dialed, trails
+              AR Farmhouse is composed for the weekend — arrivals staggered, house climate dialed, trails
               reading clear.
             </p>
           </div>

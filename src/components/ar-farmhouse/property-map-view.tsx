@@ -105,7 +105,7 @@ export function PropertyMapView() {
           <div>
             <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Property map</h2>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              Pan and zoom the ridge — pins are invitations to explore, not survey stakes.
+              Pan and zoom the property — pins are invitations to explore, not survey stakes.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

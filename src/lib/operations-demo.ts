@@ -10,14 +10,14 @@ export type DemoStatusCard = {
 };
 
 export const demoStatusCards: DemoStatusCard[] = [
-  { id: "s1", title: "Weather", value: "54° · clear", hint: "Aspen Ridge · light breeze", icon: "cloud", tone: "mint" },
+  { id: "s1", title: "Weather", value: "54° · clear", hint: "AR Farmhouse · light breeze", icon: "cloud", tone: "mint" },
   { id: "s2", title: "Power", value: "Grid + standby", hint: "Generator ready · last test Tue", icon: "zap", tone: "default" },
   { id: "s3", title: "Internet", value: "Starlink · solid", hint: "42 ms · guest QoS on", icon: "router", tone: "mint" },
   { id: "s4", title: "Water", value: "Tanks 88%", hint: "Well pump quiet · softener cycle Thu", icon: "droplets", tone: "default" },
   { id: "s5", title: "Occupancy", value: "8 guests", hint: "Family weekend · quiet hours on", icon: "users", tone: "amber" },
   { id: "s6", title: "Arrivals", value: "Next Fri 3pm", hint: "Morgan + Jordan · staggered", icon: "home", tone: "default" },
   { id: "s7", title: "Gate", value: "Closed · latched", hint: "South sensor nominal", icon: "lock", tone: "mint" },
-  { id: "s8", title: "Ridge camera", value: "Live", hint: "North field · motion low", icon: "camera", tone: "default" },
+  { id: "s8", title: "North camera", value: "Live", hint: "North field · motion low", icon: "camera", tone: "default" },
 ];
 export type TaskPriority = "low" | "medium" | "high" | "emergency";
 export type TaskListSection = "active" | "maintenance" | "completed" | "weekend" | "emergency";
@@ -228,7 +228,7 @@ export const demoMapPins: DemoMapPin[] = [
   { id: "p6", label: "South service gate", kind: "gate", x: 85, y: 55, blurb: "Secured · sensor nominal", trailCondition: "ideal" },
   { id: "p7", label: "Boat dock", kind: "dock", x: 55, y: 78, blurb: "Two slips · bumpers replaced", trailCondition: "wet" },
   { id: "p8", label: "Pump house", kind: "utility", x: 62, y: 38, blurb: "Pressure steady · winterize checklist in Tasks", trailCondition: "ideal" },
-  { id: "p9", label: "Ridge camera", kind: "camera", x: 68, y: 30, blurb: "Live preview · 2m latency", trailCondition: "ideal" },
+  { id: "p9", label: "North camera", kind: "camera", x: 68, y: 30, blurb: "Live preview · 2m latency", trailCondition: "ideal" },
 ];
 
 export const demoMapTrails = [
@@ -258,10 +258,10 @@ export const demoResources: DemoResource[] = [
   {
     id: "r1",
     category: "Connectivity",
-    title: "Wi-Fi · Aspen Ridge",
+    title: "Wi-Fi · AR Farmhouse",
     summary: "Network name and guest behavior",
     detail:
-      "Primary SSID: AspenRidge-Core (hidden on request). Guest: AspenRidge-Guest — bandwidth capped kindly for video calls. Router closet in mudroom; if blinking amber, power-cycle once only.",
+      "Primary SSID: ARFarmhouse-Core (hidden on request). Guest: ARFarmhouse-Guest — bandwidth capped kindly for video calls. Router closet in mudroom; if blinking amber, power-cycle once only.",
     tags: ["wifi", "guest"],
   },
   {
@@ -315,7 +315,7 @@ export const demoResources: DemoResource[] = [
     title: "Trusted vendors",
     summary: "Propane · septic · arborist",
     detail:
-      "Sticker sheet inside pantry door. Prefer text-first for scheduling — mention Aspen Ridge gate code only after arrival time confirmed.",
+      "Sticker sheet inside pantry door. Prefer text-first for scheduling — mention AR Farmhouse gate code only after arrival time confirmed.",
     tags: ["vendors"],
   },
   {

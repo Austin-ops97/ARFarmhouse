@@ -35,7 +35,7 @@ export function PropertyHubView() {
       >
         <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Property hub</h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Systems, binders, and pantries — one calm place for how the ridge actually runs.
+          Systems, binders, and pantries — one calm place for how AR Farmhouse actually runs.
         </p>
         <div className="mt-5 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-1">
           {tabs.map((t) => {

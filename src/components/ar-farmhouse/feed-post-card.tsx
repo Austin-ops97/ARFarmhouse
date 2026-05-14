@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Bookmark,
+  ChevronDown,
   Heart,
   MapPin,
   MessageCircle,
@@ -11,18 +12,24 @@ import {
   Play,
   Send,
   Sparkles,
+  X,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { DemoFeedPost } from "@/lib/social-demo";
-import { FEED_IMAGE_SIZES } from "@/lib/feed-layout";
+import { FEED_IMAGE_SIZES, FEED_MEDIA_BLEED } from "@/lib/feed-layout";
 import { cn } from "@/lib/utils";
 
-const surface = cn(
-  "relative overflow-hidden rounded-2xl border border-white/10",
-  "bg-white/[0.035] shadow-[0_20px_50px_-28px_rgba(0,0,0,0.75)] backdrop-blur-xl sm:rounded-[1.15rem]"
-);
+const categoryLabel: Record<DemoFeedPost["category"], string> = {
+  memory: "Memory",
+  update: "Update",
+  event: "Event",
+  wildlife: "Wildlife",
+  project: "Project",
+  weekend_recap: "Weekend",
+};
 
 function initials(name: string) {
   return name
@@ -39,14 +46,150 @@ function useAlbumIndex(length: number) {
   return { i, next, prev, setI };
 }
 
+type LightboxState = { urls: string[]; index: number } | null;
+
+function FeedLightbox({
+  state,
+  onClose,
+  onPrev,
+  onNext,
+  reduceMotion,
+}: {
+  state: LightboxState;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  reduceMotion: boolean | null;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!state) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") onPrev();
+      if (e.key === "ArrowRight") onNext();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state, onClose, onPrev, onNext]);
+
+  if (!mounted) return null;
+
+  const activeSrc = state?.urls[state.index];
+
+  return createPortal(
+    <AnimatePresence>
+      {state && activeSrc ? (
+        <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo"
+          key="feed-lightbox"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0.12 : 0.22 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/88 p-4 backdrop-blur-md"
+          onClick={onClose}
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 z-10 rounded-full border border-white/15 bg-white/10 p-2.5 text-white hover:bg-white/20"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            aria-label="Close"
+          >
+            <X className="size-5" />
+          </button>
+          {state.urls.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-lg text-white hover:bg-white/20 sm:left-6"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPrev();
+                }}
+                aria-label="Previous"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-lg text-white hover:bg-white/20 sm:right-6"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNext();
+                }}
+                aria-label="Next"
+              >
+                ›
+              </button>
+            </>
+          )}
+          <motion.div
+            key={activeSrc}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="relative max-h-[min(90dvh,900px)] w-full max-w-4xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative aspect-[4/5] w-full sm:aspect-auto sm:max-h-[85vh] sm:min-h-[320px]">
+              <Image src={activeSrc} alt="" fill className="object-contain" sizes="(max-width: 768px) 100vw, 1200px" priority />
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>,
+    document.body
+  );
+}
+
 export function FeedPostCard({ post }: { post: DemoFeedPost }) {
   const reduceMotion = useReducedMotion();
   const [reactionState, setReactionState] = useState(() =>
     Object.fromEntries(post.reactions.map((r) => [r.emoji, { count: r.count, on: !!r.active }]))
   );
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [lightbox, setLightbox] = useState<LightboxState>(null);
+  const touchStart = useRef(0);
 
   const album = post.album ?? [];
   const albumNav = useAlbumIndex(Math.max(album.length, 1));
+
+  const albumUrls = useMemo(() => {
+    if (post.kind === "image" && post.cover) return [post.cover];
+    if (post.kind === "album" && album.length) return album;
+    if (post.kind === "video" && post.video) return [post.video.poster];
+    if (post.kind === "event_recap" && post.cover) return [post.cover];
+    return [];
+  }, [post, album]);
+
+  const openLightboxAt = (index: number) => {
+    if (!albumUrls.length) return;
+    setLightbox({ urls: albumUrls, index: Math.min(index, albumUrls.length - 1) });
+  };
+
+  const lightboxPrev = () =>
+    setLightbox((s) => {
+      if (!s) return s;
+      const n = (s.index - 1 + s.urls.length) % s.urls.length;
+      return { ...s, index: n };
+    });
+
+  const lightboxNext = () =>
+    setLightbox((s) => {
+      if (!s) return s;
+      const n = (s.index + 1) % s.urls.length;
+      return { ...s, index: n };
+    });
 
   const toggleReaction = useCallback((emoji: string) => {
     setReactionState((prev) => {
@@ -61,7 +204,7 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
     [reactionState]
   );
 
-  const primaryKey = post.reactions[0]?.emoji ?? "❤️";
+  const primaryKey = post.reactions.find((r) => r.emoji === "❤️")?.emoji ?? post.reactions[0]?.emoji ?? "❤️";
   const heartActive = reactionState[primaryKey]?.on ?? false;
   const hasMedia =
     (post.kind === "image" && post.cover) ||
@@ -69,37 +212,43 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
     (post.kind === "video" && post.video) ||
     (post.kind === "event_recap" && post.cover);
 
-  const mediaAspect =
-    post.layout === "hero"
-      ? "aspect-[4/5] sm:aspect-[1/1] sm:max-h-[min(72vh,560px)] md:max-h-[min(74vh,620px)] lg:max-h-[min(76vh,700px)] xl:max-h-[min(78vh,780px)]"
-      : "aspect-[4/5]";
+  const mediaShell = cn(
+    "relative overflow-hidden bg-zinc-950/40",
+    FEED_MEDIA_BLEED,
+    "rounded-none sm:rounded-[1.35rem]",
+    "ring-1 ring-inset ring-white/[0.06]",
+    "shadow-[0_24px_80px_-40px_rgba(0,0,0,0.85)]"
+  );
+
+  const onAlbumTouchEnd = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchStart.current;
+    if (dx < -48) albumNav.next();
+    if (dx > 48) albumNav.prev();
+  };
 
   return (
-    <motion.article
-      layout={false}
-      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-5% 0px" }}
-      transition={{ duration: reduceMotion ? 0.2 : 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="touch-manipulation"
-    >
-      <div
-        className={cn(
-          surface,
-          "transition-[box-shadow,border-color] duration-300",
-          "hover:border-white/14 hover:shadow-[0_28px_70px_-36px_rgba(0,0,0,0.78)]"
-        )}
+    <>
+      <motion.article
+        layout={false}
+        initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-4% 0px" }}
+        transition={{ duration: reduceMotion ? 0.2 : 0.55, ease: [0.22, 1, 0.36, 1] }}
+        className="touch-manipulation pb-10 sm:pb-12"
       >
-        {/* Header — IG / FB style */}
-        <div className="flex items-center gap-3 px-3 py-2.5 sm:px-3.5 lg:px-5 lg:py-3">
-          <Avatar size="default" className="ring-2 ring-background/80">
+        <header className="flex items-start gap-3 px-1 pb-3 sm:px-0">
+          <Avatar size="lg" className="ring-2 ring-white/10">
             <AvatarImage src={post.author.avatar} alt="" />
             <AvatarFallback>{initials(post.author.name)}</AvatarFallback>
           </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-foreground lg:text-base">{post.author.name}</p>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-[15px] font-semibold tracking-tight text-foreground">{post.author.name}</span>
+              <span className="text-[13px] text-muted-foreground">{post.timeLabel}</span>
+              <span className="text-[11px] font-medium text-primary/90">· {categoryLabel[post.category]}</span>
+            </div>
             {post.location && (
-              <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+              <p className="mt-1 flex items-center gap-1 text-[12px] text-muted-foreground">
                 <MapPin className="size-3 shrink-0 opacity-70" aria-hidden />
                 <span>{post.location}</span>
               </p>
@@ -107,60 +256,61 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
           </div>
           <button
             type="button"
-            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
             aria-label="Post options"
           >
             <MoreHorizontal className="size-5" />
           </button>
-        </div>
+        </header>
 
-        {/* Media first — full bleed inside card */}
+        {/* Media — dominant, immersive */}
         {post.kind === "image" && post.cover && (
-          <div className={cn("relative w-full bg-black/25", mediaAspect)}>
-            <Image
-              src={post.cover}
-              alt=""
-              fill
-              sizes={FEED_IMAGE_SIZES}
-              className="object-cover"
-              loading="lazy"
-            />
-          </div>
+          <button type="button" className={cn("group/media block w-full text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
+            <div className="relative aspect-[4/5] max-h-[min(88vh,720px)] w-full sm:aspect-[4/5] sm:max-h-[min(82vh,680px)]">
+              <motion.div
+                className="relative h-full w-full"
+                whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Image src={post.cover} alt="" fill sizes={FEED_IMAGE_SIZES} className="object-cover" loading="lazy" />
+              </motion.div>
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/50 via-transparent to-transparent opacity-80 sm:opacity-100" />
+            </div>
+          </button>
         )}
 
         {post.kind === "album" && album.length > 0 && (
-          <div className="relative w-full bg-black/25">
-            <div className={cn("relative w-full", mediaAspect)}>
-              <Image
-                src={album[albumNav.i] ?? album[0]}
-                alt=""
-                fill
-                className="object-cover"
-                sizes={FEED_IMAGE_SIZES}
-                loading="lazy"
-              />
-            </div>
-            {album.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Previous photo"
-                  onClick={albumNav.prev}
-                  className="absolute top-1/2 left-1.5 z-10 -translate-y-1/2 rounded-full bg-background/55 p-1.5 text-foreground backdrop-blur-md"
+          <div className={mediaShell}>
+            {/* Mobile: swipe carousel */}
+            <div
+              className="relative sm:hidden"
+              onTouchStart={(e) => {
+                touchStart.current = e.touches[0].clientX;
+              }}
+              onTouchEnd={onAlbumTouchEnd}
+            >
+              <div className="relative aspect-[4/5] max-h-[min(88vh,720px)] w-full">
+                <motion.div
+                  key={albumNav.i}
+                  initial={reduceMotion ? false : { opacity: 0.85 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2 }}
+                  className="relative h-full w-full"
                 >
-                  <span className="sr-only">Previous</span>
-                  <span className="text-xs font-bold">‹</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label="Next photo"
-                  onClick={albumNav.next}
-                  className="absolute top-1/2 right-1.5 z-10 -translate-y-1/2 rounded-full bg-background/55 p-1.5 text-foreground backdrop-blur-md"
-                >
-                  <span className="sr-only">Next</span>
-                  <span className="text-xs font-bold">›</span>
-                </button>
-                <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                  <button type="button" className="relative block h-full w-full" onClick={() => openLightboxAt(albumNav.i)}>
+                    <Image
+                      src={album[albumNav.i] ?? album[0]}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="100vw"
+                      loading="lazy"
+                    />
+                  </button>
+                </motion.div>
+              </div>
+              {album.length > 1 && (
+                <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
                   {album.map((_, idx) => (
                     <button
                       key={idx}
@@ -169,96 +319,119 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
                       onClick={() => albumNav.setI(idx)}
                       className={cn(
                         "h-1.5 rounded-full transition-all",
-                        idx === albumNav.i ? "w-5 bg-primary" : "w-1.5 bg-white/35"
+                        idx === albumNav.i ? "w-6 bg-primary" : "w-1.5 bg-white/40"
                       )}
                     />
                   ))}
                 </div>
-              </>
-            )}
+              )}
+            </div>
+
+            {/* Desktop: IG-style grid */}
+            <div className="hidden sm:block">
+              {album.length === 1 && (
+                <button type="button" className="relative block w-full" onClick={() => openLightboxAt(0)}>
+                  <div className="relative aspect-[4/5] max-h-[min(82vh,680px)] w-full">
+                    <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.02 }} transition={{ duration: 0.45 }}>
+                      <Image src={album[0]} alt="" fill className="object-cover" sizes={FEED_IMAGE_SIZES} loading="lazy" />
+                    </motion.div>
+                  </div>
+                </button>
+              )}
+              {album.length === 2 && (
+                <div className="grid grid-cols-2 gap-1">
+                  {album.map((src, idx) => (
+                    <button
+                      key={src}
+                      type="button"
+                      className="relative aspect-[4/5] overflow-hidden first:rounded-l-[1.25rem] last:rounded-r-[1.25rem]"
+                      onClick={() => openLightboxAt(idx)}
+                    >
+                      <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.02 }} transition={{ duration: 0.4 }}>
+                        <Image src={src} alt="" fill className="object-cover" sizes="260px" loading="lazy" />
+                      </motion.div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {album.length >= 3 && (
+                <div className="grid grid-cols-3 gap-1 overflow-hidden rounded-[1.25rem]">
+                  {album.slice(0, 3).map((src, idx) => (
+                    <button key={src} type="button" className="relative aspect-square" onClick={() => openLightboxAt(idx)}>
+                      <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.03 }} transition={{ duration: 0.35 }}>
+                        <Image src={src} alt="" fill className="object-cover" sizes="180px" loading="lazy" />
+                      </motion.div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {post.kind === "video" && post.video && (
-          <div className={cn("relative w-full bg-black/30", mediaAspect)}>
-            <Image
-              src={post.video.poster}
-              alt=""
-              fill
-              className="object-cover"
-              sizes={FEED_IMAGE_SIZES}
-              loading="lazy"
-            />
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-              <motion.span
-                className="flex size-16 items-center justify-center rounded-full border border-white/25 bg-background/45 text-foreground shadow-lg backdrop-blur-md"
-                whileHover={reduceMotion ? undefined : { scale: 1.05 }}
-                whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-              >
-                <Play className="size-7 translate-x-0.5" aria-hidden />
-              </motion.span>
-            </div>
-            <span className="absolute bottom-2.5 right-2.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-medium text-white">
-              {post.video.duration}
-            </span>
+          <div className={mediaShell}>
+            <button type="button" className="relative block w-full" onClick={() => openLightboxAt(0)}>
+              <div className="relative aspect-[4/5] max-h-[min(88vh,720px)] w-full">
+                <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.02 }} transition={{ duration: 0.45 }}>
+                  <Image src={post.video.poster} alt="" fill className="object-cover" sizes={FEED_IMAGE_SIZES} loading="lazy" />
+                </motion.div>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                  <span className="flex size-16 items-center justify-center rounded-full border border-white/25 bg-background/50 text-white shadow-xl backdrop-blur-md">
+                    <Play className="size-7 translate-x-0.5" aria-hidden />
+                  </span>
+                </div>
+                <span className="absolute bottom-3 right-3 rounded-md bg-black/60 px-2 py-1 text-[11px] font-medium text-white">
+                  {post.video.duration}
+                </span>
+              </div>
+            </button>
           </div>
         )}
 
         {post.kind === "event_recap" && post.cover && (
-          <div className={cn("relative w-full bg-black/25", mediaAspect)}>
-            <Image src={post.cover} alt="" fill className="object-cover" sizes={FEED_IMAGE_SIZES} loading="lazy" />
-            <div className="absolute bottom-2 left-2 rounded-md bg-black/55 px-2 py-1 text-[11px] font-medium text-white">
-              Event recap
+          <button type="button" className={cn("block w-full text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
+            <div className="relative aspect-[4/5] max-h-[min(88vh,720px)] w-full">
+              <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.02 }} transition={{ duration: 0.45 }}>
+                <Image src={post.cover} alt="" fill className="object-cover" sizes={FEED_IMAGE_SIZES} loading="lazy" />
+              </motion.div>
+              <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-background/55 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-md">
+                Event recap
+              </div>
             </div>
-          </div>
+          </button>
         )}
 
         {post.kind === "text" && !hasMedia && (
-          <div className="border-y border-white/[0.06] bg-white/[0.02] px-3 py-4 sm:px-3.5 lg:px-5 lg:py-5">
-            <p className="text-[15px] leading-relaxed text-foreground lg:text-base">{post.body}</p>
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] px-4 py-5 sm:px-5 sm:py-6">
+            <p className="text-[15px] leading-relaxed text-foreground/95 sm:text-base">{post.body}</p>
           </div>
         )}
 
-        {/* Action bar */}
-        <div className="flex items-center gap-1 px-1.5 pt-2 sm:px-2 lg:px-4 lg:pt-2.5">
+        {/* Actions */}
+        <div className="flex items-center gap-0.5 px-1 pt-3 sm:px-0 sm:pt-4">
           <motion.button
             type="button"
             aria-label={heartActive ? "Unlike" : "Like"}
             onClick={() => toggleReaction(primaryKey)}
-            whileTap={reduceMotion ? undefined : { scale: 0.88 }}
-            className={cn(
-              "rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]",
-              heartActive && "text-red-400"
-            )}
+            whileTap={reduceMotion ? undefined : { scale: 0.86 }}
+            className={cn("rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]", heartActive && "text-red-400")}
           >
-            <Heart className={cn("size-6 lg:size-7", heartActive && "fill-current")} strokeWidth={1.75} />
+            <Heart className={cn("size-7", heartActive && "fill-current")} strokeWidth={1.6} />
           </motion.button>
-          <button
-            type="button"
-            className="rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]"
-            aria-label="Comment"
-          >
-            <MessageCircle className="size-6 lg:size-7" strokeWidth={1.75} />
+          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]" aria-label="Comment">
+            <MessageCircle className="size-7" strokeWidth={1.6} />
           </button>
-          <button
-            type="button"
-            className="rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]"
-            aria-label="Share"
-          >
-            <Send className="size-6 lg:size-7" strokeWidth={1.75} />
+          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]" aria-label="Share">
+            <Send className="size-7" strokeWidth={1.6} />
           </button>
           <span className="flex-1" />
-          <button
-            type="button"
-            className="rounded-full p-2 text-foreground transition-colors hover:bg-white/[0.06]"
-            aria-label="Save"
-          >
-            <Bookmark className="size-6 lg:size-7" strokeWidth={1.75} />
+          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-white/[0.06]" aria-label="Save">
+            <Bookmark className="size-7" strokeWidth={1.6} />
           </button>
         </div>
 
-        {/* Reactions row (IG-adjacent: emoji + counts) */}
-        <div className="flex flex-wrap gap-1.5 px-3 pb-1 pt-0.5 sm:px-3.5 lg:px-5">
+        <div className="flex flex-wrap gap-1.5 px-1 pt-1 sm:px-0">
           {post.reactions.map((r) => {
             const state = reactionState[r.emoji] ?? { count: r.count, on: false };
             return (
@@ -266,39 +439,44 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
                 key={r.emoji}
                 type="button"
                 onClick={() => toggleReaction(r.emoji)}
-                whileTap={reduceMotion ? undefined : { scale: 0.9 }}
+                whileTap={reduceMotion ? undefined : { scale: 0.88 }}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] transition-colors",
-                  state.on ? "bg-white/[0.1]" : "hover:bg-white/[0.06]"
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[14px] transition-colors",
+                  state.on ? "bg-primary/15 text-foreground" : "hover:bg-white/[0.06]"
                 )}
               >
-                <span>{r.emoji}</span>
-                <span className="text-[11px] font-medium tabular-nums text-muted-foreground">{state.count}</span>
+                <motion.span
+                  key={`${r.emoji}-${state.on}`}
+                  initial={reduceMotion ? false : { scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 18 }}
+                >
+                  {r.emoji}
+                </motion.span>
+                <span className="text-[12px] font-medium tabular-nums text-muted-foreground">{Math.max(0, state.count)}</span>
               </motion.button>
             );
           })}
         </div>
 
-        {/* Likes / engagement summary */}
         {totalEngagement > 0 && (
-          <p className="px-3 pb-1 text-sm font-semibold text-foreground sm:px-3.5 lg:px-5 lg:text-base">
+          <p className="px-1 pt-2 text-sm font-semibold text-foreground sm:px-0">
             {totalEngagement.toLocaleString()} {totalEngagement === 1 ? "reaction" : "reactions"}
           </p>
         )}
 
-        {/* Caption — username + copy (FB/IG) */}
         {post.kind !== "text" && (
-          <div className="space-y-1.5 px-3 pb-2 sm:px-3.5 lg:px-5">
-            {post.title && <p className="text-sm font-semibold text-foreground lg:text-base">{post.title}</p>}
-            <p className="text-sm leading-relaxed text-foreground lg:text-[15px]">
-              <span className="font-semibold">{post.author.name.split(" ")[0]} </span>
-              <span className="font-normal text-foreground/90">{post.body}</span>
+          <div className="space-y-1.5 px-1 pt-2 sm:px-0 sm:pt-3">
+            {post.title && <p className="text-[15px] font-semibold leading-snug text-foreground">{post.title}</p>}
+            <p className="text-[15px] leading-relaxed text-foreground/90 sm:text-base">
+              <span className="font-semibold text-foreground">{post.author.name.split(" ")[0]} </span>
+              {post.body}
             </p>
           </div>
         )}
 
         {post.linkedEvent && (
-          <div className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs text-primary-foreground/95 sm:mx-3.5 lg:mx-5">
+          <div className="mx-1 mt-3 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/[0.09] px-3 py-2 text-xs text-primary-foreground/95 sm:mx-0">
             <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
             <span className="font-medium">{post.linkedEvent}</span>
           </div>
@@ -306,24 +484,45 @@ export function FeedPostCard({ post }: { post: DemoFeedPost }) {
 
         <button
           type="button"
-          className="px-3 pb-1 text-left text-sm font-medium text-muted-foreground hover:text-foreground sm:px-3.5 lg:px-5 lg:text-[15px]"
+          onClick={() => setCommentsOpen((v) => !v)}
+          className="mt-2 flex w-full items-center justify-between gap-2 px-1 py-1 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:px-0"
         >
-          View all {post.commentCount} comments
+          <span>
+            {commentsOpen ? "Hide" : "View"} {post.commentCount} comments
+          </span>
+          <motion.span animate={{ rotate: commentsOpen ? 180 : 0 }} transition={{ duration: 0.25 }}>
+            <ChevronDown className="size-4 shrink-0 opacity-70" aria-hidden />
+          </motion.span>
         </button>
 
-        <div className="space-y-1.5 px-3 pb-2 sm:px-3.5 lg:px-5">
-          {post.commentsPreview.map((c) => (
-            <p key={`${c.author}-${c.text}`} className="text-sm leading-snug lg:text-[15px]">
-              <span className="font-semibold text-foreground">{c.author}</span>{" "}
-              <span className="text-foreground/85">{c.text}</span>
-            </p>
-          ))}
-        </div>
+        <AnimatePresence initial={false}>
+          {commentsOpen && (
+            <motion.div
+              initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="space-y-2 border-l border-primary/25 py-2 pl-3 sm:pl-4">
+                {post.commentsPreview.map((c) => (
+                  <p key={`${c.author}-${c.text}`} className="text-[14px] leading-relaxed text-foreground/90">
+                    <span className="font-semibold text-foreground">{c.author}</span> {c.text}
+                  </p>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.article>
 
-        <p className="px-3 pb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:px-3.5 lg:px-5">
-          {post.timeLabel}
-        </p>
-      </div>
-    </motion.article>
+      <FeedLightbox
+        state={lightbox}
+        onClose={() => setLightbox(null)}
+        onPrev={lightboxPrev}
+        onNext={lightboxNext}
+        reduceMotion={reduceMotion}
+      />
+    </>
   );
 }

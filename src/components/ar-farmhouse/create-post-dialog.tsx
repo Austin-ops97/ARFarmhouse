@@ -247,7 +247,7 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
                 <Input
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Aspen Ridge · North ridge"
+                  placeholder="AR Farmhouse · North camera"
                   className="rounded-xl border-white/10 bg-white/[0.03]"
                 />
               </div>
