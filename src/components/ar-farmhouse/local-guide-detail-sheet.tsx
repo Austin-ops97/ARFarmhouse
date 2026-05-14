@@ -44,7 +44,7 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: reduceMotion ? 0.12 : 0.22 }}
+          transition={{ duration: reduceMotion ? 0.1 : 0.16 }}
         >
           <button type="button" className="absolute inset-0 bg-background/78 backdrop-blur-xl" aria-label="Close" onClick={close} />
           <motion.div
@@ -54,7 +54,7 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
             initial={reduceMotion ? false : { y: 36, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={reduceMotion ? undefined : { y: 28, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 320, damping: 34 }}
+            transition={{ type: "spring", stiffness: 420, damping: 36 }}
             className={cn(
               "relative z-10 flex max-h-[min(92dvh,880px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12",
               "bg-background/94 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.92)] backdrop-blur-2xl sm:rounded-[1.75rem]"
@@ -73,7 +73,9 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
             </div>
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
-              <LocalGuideMapPreview className="h-40 w-full sm:h-44" />
+              <LocalGuideMapPreview
+                className={place.section === "stores" ? "h-32 w-full sm:h-36" : "h-36 w-full sm:h-40"}
+              />
               <div className="mt-4 flex flex-wrap gap-2">
                 {isVerifiedRow(place) ? (
                   <span className="rounded-full border border-emerald-400/28 bg-emerald-500/12 px-2.5 py-1 text-[10px] font-medium text-emerald-100/95">
@@ -89,12 +91,14 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
                 </span>
               </div>
 
-              {familyRecommendations[place.key] && (
-                <div className="mt-4 rounded-2xl border border-primary/22 bg-primary/[0.08] px-4 py-3">
-                  <p className="text-[11px] font-medium text-primary/95">Family recommendation</p>
-                  <p className="mt-1 text-sm leading-relaxed text-foreground/95">{familyRecommendations[place.key]}</p>
+              {place.section === "restaurants" && familyRecommendations[place.key] ? (
+                <div className="mt-4 rounded-2xl border border-primary/18 bg-primary/[0.06] px-4 py-3">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-primary/80">Family note</p>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-foreground/90">
+                    {familyRecommendations[place.key]}
+                  </p>
                 </div>
-              )}
+              ) : null}
 
               <div className="mt-4 space-y-2 text-sm">
                 <p className="text-muted-foreground">

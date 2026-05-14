@@ -70,7 +70,7 @@ function mockDistanceMi(key: string) {
   return Math.round(v * 10) / 10;
 }
 
-/** Family-facing tips — keyed `section-id` */
+/** Family-facing tips — restaurants only, keyed `restaurants-id` */
 export const familyRecommendations: Record<string, string> = {
   "restaurants-6": "Best coffee before trail rides — grab a pastry and sit on the porch.",
   "restaurants-11": "Skyline hits for classic breakfast; usually calmer weekday mornings.",
@@ -78,13 +78,6 @@ export const familyRecommendations: Record<string, string> = {
   "restaurants-15": "Papa’s is our post-ATV comfort stop — share plates, easy with kids.",
   "restaurants-47": "McDonald’s late drive-through when everything else is dark.",
   "restaurants-2": "Fast reset on 71 — good when you’re hauling groceries back to the house.",
-  "stores-1": "One-stop for ice, pharmacy, and forgotten chargers.",
-  "stores-2": "Harps for a full grocery run — quieter than big-box on Sunday afternoons.",
-  "stores-45": "AutoZone when the truck throws a code on the way up.",
-  "stores-32": "Tim’s for last-minute layers or camp odds and ends.",
-  "stores-35": "Call ahead for ATV rental windows around Wolf Pen traffic.",
-  "stores-58": "Fuel + snacks before heading south toward the Gap.",
-  "stores-56": "Ice runs before big porch weekends — text the thread when you’re going.",
 };
 
 const base: LocalGuideRow[] = (raw as Omit<LocalGuideRow, "key" | "distanceMi" | "imageUrl">[]).map((r) => {
@@ -110,104 +103,6 @@ export const restaurants = data.filter((item) => item.section === "restaurants")
 export const stores = data.filter((item) => item.section === "stores");
 export const verifiedOnly = data.filter((item) => item.status.toLowerCase().includes("verified"));
 
-export type QuickCategoryId =
-  | "all"
-  | "restaurants"
-  | "coffee"
-  | "grocery"
-  | "fuel"
-  | "outdoor"
-  | "shopping"
-  | "hardware"
-  | "atv"
-  | "emergency";
-
-const lc = (s: string) => s.toLowerCase();
-
-export function matchesQuickCategory(row: LocalGuideRow, q: QuickCategoryId): boolean {
-  if (q === "all") return true;
-  if (q === "restaurants") return row.section === "restaurants";
-  if (q === "emergency") return row.section === "emergency";
-  const b = lc(row.business);
-  const c = lc(row.category);
-  const combo = `${b} ${c}`;
-  if (q === "coffee") return combo.includes("coffee") || b.includes("coffee");
-  if (q === "grocery")
-    return (
-      row.section === "stores" &&
-      (combo.includes("grocery") ||
-        combo.includes("walmart") ||
-        combo.includes("harps") ||
-        combo.includes("james") ||
-        combo.includes("dollar") ||
-        combo.includes("thibodeaux"))
-    );
-  if (q === "fuel")
-    return (
-      combo.includes("fuel") ||
-      b.includes("express") ||
-      b.includes("chuck stop") ||
-      b.includes("station") ||
-      b.includes("ez pay") ||
-      b.includes("country express")
-    );
-  if (q === "outdoor")
-    return (
-      combo.includes("outdoor") ||
-      combo.includes("bicycle") ||
-      b.includes("wolf pen") ||
-      b.includes("tim's outdoor") ||
-      b.includes("outback barn") ||
-      b.includes("spokes")
-    );
-  if (q === "shopping")
-    return (
-      row.section === "stores" &&
-      (combo.includes("gift") ||
-        combo.includes("boutique") ||
-        combo.includes("clothing") ||
-        combo.includes("bealls") ||
-        combo.includes("antique") ||
-        combo.includes("flea") ||
-        combo.includes("mercantile") ||
-        combo.includes("gallery") ||
-        combo.includes("jewelry") ||
-        combo.includes("book"))
-    );
-  if (q === "hardware")
-    return (
-      combo.includes("hardware") ||
-      combo.includes("auto parts") ||
-      b.includes("autozone") ||
-      combo.includes("reilly") ||
-      combo.includes("coast to coast") ||
-      combo.includes("electric supply")
-    );
-  if (q === "atv") return combo.includes("atv") || b.includes("wolf pen") || b.includes("little wolf");
-  return false;
-}
-
 export function isVerifiedRow(row: LocalGuideRow) {
   return row.status.toLowerCase().includes("verified");
 }
-
-/** Curated section presets → place keys */
-export const featuredPresets = {
-  familyFavorites: [
-    "restaurants-6",
-    "restaurants-11",
-    "stores-1",
-    "stores-2",
-    "restaurants-15",
-    "stores-32",
-  ],
-  closestEssentials: ["stores-1", "stores-2", "stores-4", "stores-45", "stores-46", "stores-58"],
-  bestBreakfast: ["restaurants-11", "restaurants-16", "restaurants-34", "restaurants-39", "restaurants-29"],
-  lateNight: ["restaurants-47", "restaurants-2", "restaurants-44", "restaurants-9", "restaurants-46"],
-  farmhouseSupplies: ["stores-1", "stores-5", "stores-30", "stores-31", "stores-45"],
-  atvOutdoor: ["stores-35", "stores-36", "stores-32", "stores-33", "stores-37"],
-  groceryIce: ["stores-1", "stores-2", "stores-3", "stores-56", "restaurants-28"],
-  hardwareFuel: ["stores-30", "stores-31", "stores-45", "stores-46", "stores-58", "stores-59"],
-} as const;
-
-export type FeaturedPresetId = keyof typeof featuredPresets;
