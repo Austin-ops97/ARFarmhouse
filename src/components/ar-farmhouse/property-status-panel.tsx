@@ -37,17 +37,21 @@ export function PropertyStatusPanel() {
         <div className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-border/55 bg-muted/40 dark:border-white/10 dark:bg-white/[0.05]">
           <CloudSun className="size-6 text-primary" aria-hidden />
         </div>
-        <p className="mt-5 font-heading text-lg font-semibold text-foreground">Systems idle</p>
-        <p className="mt-2 max-w-lg mx-auto text-sm leading-relaxed text-muted-foreground">
-          Weather, power, water, gates, and cameras will surface here when integrations are connected. Until then, the
-          house stays intentionally quiet — no pretend telemetry.
+        <p className="mt-5 font-heading text-lg font-semibold text-foreground">Property status at a glance</p>
+        <p className="mt-2 mx-auto max-w-lg text-sm leading-relaxed text-muted-foreground">
+          Weather, gate access, utilities, and occupancy will appear here when your family adds status cards — calm,
+          glanceable, and real.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-4">
+      <p className="px-1 text-[11px] text-muted-foreground">
+        {statusCards.length} live signal{statusCards.length === 1 ? "" : "s"} · property operations
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {statusCards.map((card, i) => {
         const Icon = icons[card.icon];
         const tone = card.tone ?? "default";
@@ -73,6 +77,7 @@ export function PropertyStatusPanel() {
           </motion.div>
         );
       })}
+      </div>
     </div>
   );
 }

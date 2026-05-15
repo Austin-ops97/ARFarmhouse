@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 export function HomePhotoMemories() {
   const reduceMotion = useReducedMotion();
   const { goTo } = useEcosystem();
-  const { allItems } = usePhotoAlbum();
+  const { allItems, openLightbox } = usePhotoAlbum();
 
   const lastWeekend = useMemo(() => shelfItems("this_weekend", allItems).slice(0, 4), [allItems]);
   const recent = useMemo(() => shelfItems("recent", allItems).slice(0, 5), [allItems]);
@@ -59,7 +59,10 @@ export function HomePhotoMemories() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-4%" }}
               transition={{ delay: reduceMotion ? 0 : idx * 0.04 }}
-              onClick={() => goTo("album")}
+              onClick={() => {
+                const list = lastWeekend.length ? lastWeekend : recent;
+                openLightbox({ items: list, index: idx });
+              }}
               className="group relative h-32 w-44 shrink-0 overflow-hidden rounded-xl ring-1 ring-border/45 sm:h-36 sm:w-52 dark:ring-white/[0.06]"
             >
               <Image

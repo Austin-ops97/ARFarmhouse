@@ -43,7 +43,10 @@ export type MapPinKind =
   | "dock"
   | "gathering"
   | "stand"
-  | "camera";
+  | "camera"
+  | "hunting"
+  | "emergency"
+  | "atv";
 
 export type PropertyMapPin = {
   id: string;
@@ -53,7 +56,13 @@ export type PropertyMapPin = {
   y: number;
   blurb: string;
   trailCondition?: "ideal" | "soft" | "wet" | "snow";
+  linkedEvent?: string;
+  favorite?: boolean;
 };
+
+export type ResourceStatus = "available" | "in_use" | "maintenance" | "offline";
+
+export type InventoryCategory = "consumables" | "maintenance" | "outdoor" | "fuel" | "general";
 
 export type PropertyMapTrail = {
   id: string;
@@ -75,6 +84,8 @@ export type PropertyResource = {
   summary: string;
   detail: string;
   tags: string[];
+  status?: ResourceStatus;
+  notes?: string;
 };
 
 export const PROPERTY_RESOURCES: PropertyResource[] = [];
@@ -88,6 +99,7 @@ export type PropertyInventoryItem = {
   lastUpdated: string;
   restockHint?: string;
   low: boolean;
+  category?: InventoryCategory;
 };
 
 export const PROPERTY_INVENTORY: PropertyInventoryItem[] = [];

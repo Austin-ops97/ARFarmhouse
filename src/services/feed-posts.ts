@@ -15,11 +15,12 @@ import {
 
 import { actionDebug } from "@/lib/action-debug";
 import { formatFeedTimeLabel, handleFromDisplayName } from "@/lib/datetime/relative";
+import { buildChipsFromCounts, normalizeReactionCounts } from "@/lib/reaction-counts";
 import { validateFeedImageFiles } from "@/lib/feed-publish";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
-import { uploadPostImages } from "@/services/storage-upload";
+import { deletePostMediaStorage, uploadPostImages } from "@/services/storage-upload";
 
 const POSTS = "posts";
 
@@ -36,6 +37,7 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
     kind === "image" && d.category === "wildlife" ? "hero" : kind === "album" && media.length >= 3 ? "tall" : "standard";
 
   const cover = kind === "image" || kind === "event_recap" ? media[0] : undefined;
+  const reactionCounts = normalizeReactionCounts(d.reactionCounts);
 
   return {
     id: snapshot.id,
@@ -55,7 +57,12 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
     cover,
     album: kind === "album" ? media : undefined,
     linkedEvent: d.linkedEvent ?? undefined,
-    reactions: [],
+    reactions: buildChipsFromCounts(reactionCounts, undefined).map((c) => ({
+      emoji: c.emoji,
+      count: c.count,
+      active: c.active,
+    })),
+    reactionCounts,
     commentsPreview: [],
     commentCount: typeof d.commentCount === "number" ? d.commentCount : 0,
   };
@@ -107,7 +114,9 @@ export async function createFeedPostWithMedia(
 
   let mediaUrls: string[] = [];
   if (input.files.length > 0) {
+    actionDebug("feed", "upload begin");
     mediaUrls = await uploadPostImages(id, input.files, onUploadProgress);
+    actionDebug("feed", "upload complete", { count: mediaUrls.length });
   }
 
   const payload: Record<string, unknown> = {
@@ -123,11 +132,13 @@ export async function createFeedPostWithMedia(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     commentCount: 0,
+    reactionCounts: {},
   };
 
   try {
+    actionDebug("feed", "firestore write begin", { postId: id });
     await setDoc(ref, payload);
-    actionDebug("feed", "publish complete", { postId: id });
+    actionDebug("feed", "firestore write complete", { postId: id });
     return id;
   } catch (e) {
     actionDebug("feed", "publish failed", e);
@@ -139,7 +150,12 @@ export async function createFeedPostWithMedia(
   }
 }
 
-export async function deleteFeedPost(postId: string, viewerUid: string, authorId: string) {
+export async function deleteFeedPost(
+  postId: string,
+  viewerUid: string,
+  authorId: string,
+  mediaUrls: string[] = []
+) {
   if (viewerUid !== authorId) throw new Error("Only the author can delete this post.");
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable");
@@ -152,4 +168,7 @@ export async function deleteFeedPost(postId: string, viewerUid: string, authorId
   commentsSnap.forEach((d) => batch.delete(d.ref));
   batch.delete(doc(db, POSTS, postId));
   await batch.commit();
+  if (mediaUrls.length > 0) {
+    await deletePostMediaStorage(postId, mediaUrls);
+  }
 }

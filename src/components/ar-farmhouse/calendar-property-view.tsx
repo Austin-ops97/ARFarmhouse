@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarPlus, Home, Sparkles, Users } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Home, Sparkles, Users } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { CalendarBookingSheet } from "@/components/ar-farmhouse/calendar-booking-sheet";
 import { CalendarFeedBridge } from "@/components/ar-farmhouse/calendar-feed-bridge";
@@ -18,8 +18,9 @@ import { CalendarThisWeekendHub } from "@/components/ar-farmhouse/calendar-this-
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { buildCalendarMonthMeta, type CalendarGridDay } from "@/lib/calendar-month-meta";
-import { usePropertyData } from "@/contexts/property-data-context";
+import { buildUpcomingStays, mergeEventsIntoMonthMeta } from "@/lib/calendar-event-merge";
+import type { CalendarGridDay } from "@/lib/calendar-month-meta";
+import { useCalendarMonthMeta, usePropertyData } from "@/contexts/property-data-context";
 import { cn } from "@/lib/utils";
 
 const surface = cn(
@@ -49,13 +50,21 @@ function rowIndexForDay(day: number, rows: (number | null)[][]) {
 export function CalendarPropertyView() {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
-  const { calendarEvents, calendarError } = usePropertyData();
-  const [boot, setBoot] = useState(true);
+  const { calendarEvents, calendarError, calendarLoading, shiftCalendarMonth, calendarViewDate } =
+    usePropertyData();
+  const baseMonth = useCalendarMonthMeta();
   const [mode, setMode] = useState<CalendarSurfaceMode>("month");
   const [bookingOpen, setBookingOpen] = useState(false);
   const [previewDay, setPreviewDay] = useState<number | null>(null);
 
-  const calendarMonth = useMemo(() => buildCalendarMonthMeta(), []);
+  const calendarMonth = useMemo(
+    () => mergeEventsIntoMonthMeta(baseMonth, calendarEvents),
+    [baseMonth, calendarEvents]
+  );
+  const upcomingStays = useMemo(
+    () => buildUpcomingStays(calendarEvents, calendarViewDate),
+    [calendarEvents, calendarViewDate]
+  );
   const rows = useMemo(
     () => monthWeekRows(calendarMonth.leadingBlanks, calendarMonth.daysInMonth),
     [calendarMonth.leadingBlanks, calendarMonth.daysInMonth]
@@ -72,11 +81,6 @@ export function CalendarPropertyView() {
     busy: "border-amber-300/25 bg-amber-400/10 text-amber-50/90",
     checkout: "border-sky-400/25 bg-sky-500/10 text-sky-50/90",
   };
-
-  useEffect(() => {
-    const t = window.setTimeout(() => setBoot(false), reduceMotion ? 80 : 420);
-    return () => window.clearTimeout(t);
-  }, [reduceMotion]);
 
   const previewEvents = useMemo(() => {
     if (previewDay === null) return [];
@@ -133,9 +137,35 @@ export function CalendarPropertyView() {
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_min(100%,22rem)] xl:items-start xl:gap-6">
         <div className="min-w-0 space-y-5">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="rounded-xl"
+              onClick={() => shiftCalendarMonth(-1)}
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <p className="min-w-0 flex-1 text-center font-heading text-sm font-semibold text-foreground sm:text-base">
+              {calendarMonth.label}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="rounded-xl"
+              onClick={() => shiftCalendarMonth(1)}
+              aria-label="Next month"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+
           <CalendarViewModeTabs mode={mode} onModeChange={setMode} />
 
-          {boot ? (
+          {calendarLoading ? (
             <div className={cn(surface, "min-w-0 space-y-4 p-4 sm:p-5")}>
               <Skeleton className="h-48 w-full rounded-2xl bg-white/[0.06]" />
               <div className="grid grid-cols-7 gap-2">
@@ -178,8 +208,13 @@ export function CalendarPropertyView() {
                           <ul className="mt-2 space-y-1">
                             {previewEvents.map((e) => (
                               <li key={e.id} className="text-sm text-foreground/90">
-                                {e.title}
+                                <span className="font-medium">{e.title}</span>
                                 {e.timeLabel && <span className="text-muted-foreground"> · {e.timeLabel}</span>}
+                                {e.attendeeLabels.length > 0 && (
+                                  <span className="mt-0.5 block text-[12px] text-muted-foreground">
+                                    {e.attendeeLabels.join(", ")}
+                                  </span>
+                                )}
                               </li>
                             ))}
                           </ul>
@@ -233,26 +268,45 @@ export function CalendarPropertyView() {
               From your calendar
             </span>
           </div>
-          <div
-            className={cn(
-              surface,
-              "flex min-h-[12rem] flex-col items-center justify-center gap-3 p-8 text-center sm:min-h-[14rem]"
-            )}
-          >
-            <p className="font-heading text-lg font-semibold text-foreground">No weekends planned yet</p>
-            <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-              When stays are on the calendar, cards for each trip appear here with weather, headcount, and a link into
-              the weekend hub.
-            </p>
-            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setBookingOpen(true)}>
-              Start a booking
-            </Button>
-          </div>
+          {upcomingStays.length === 0 ? (
+            <div
+              className={cn(
+                surface,
+                "flex min-h-[12rem] flex-col items-center justify-center gap-3 p-8 text-center sm:min-h-[14rem]"
+              )}
+            >
+              <p className="font-heading text-lg font-semibold text-foreground">Book your next stay</p>
+              <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+                Upcoming family trips will appear here with dates, headcount, and who is coming.
+              </p>
+              <Button type="button" variant="outline" className="rounded-xl" onClick={() => setBookingOpen(true)}>
+                Start a booking
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {upcomingStays.map((stay) => (
+                <div
+                  key={stay.id}
+                  className={cn(surface, "flex flex-col gap-2 p-4 text-left sm:flex-row sm:items-center sm:justify-between")}
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">{stay.title}</p>
+                    <p className="text-[12px] text-muted-foreground">{stay.rangeLabel}</p>
+                    <p className="mt-1 text-[13px] text-muted-foreground">{stay.attendeePreview}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-foreground">
+                    {stay.guests} guest{stay.guests === 1 ? "" : "s"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="min-w-0 space-y-5 xl:sticky xl:self-start xl:top-[calc(var(--ar-header-height)+0.75rem)] xl:space-y-4">
           <CalendarFeedBridge />
-          <CalendarOccupancyPanel calendarMonth={calendarMonth} />
+          <CalendarOccupancyPanel calendarMonth={calendarMonth} events={calendarEvents} />
           <div className={cn(surface, "p-5")}>
             <p className="text-xs font-medium text-muted-foreground">Busy weekends</p>
             {calendarMonth.busyWeekends.length === 0 ? (
@@ -288,7 +342,12 @@ export function CalendarPropertyView() {
         </div>
       </div>
 
-      <CalendarBookingSheet open={bookingOpen} onOpenChange={setBookingOpen} />
+      <CalendarBookingSheet
+        open={bookingOpen}
+        onOpenChange={setBookingOpen}
+        viewDate={calendarViewDate}
+        existingEvents={calendarEvents}
+      />
     </div>
   );
 }

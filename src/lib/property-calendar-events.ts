@@ -18,16 +18,28 @@ export type PropertyCalendarEventAccent =
   | "slate"
   | "emerald";
 
+export type CalendarEventStatus = "pending" | "confirmed" | "cancelled";
+
 /** Month-scoped coordination item (day numbers are 1…daysInMonth for the viewed month). */
 export type PropertyCalendarEvent = {
   id: string;
   title: string;
   startDay: number;
-  endDay?: number;
+  endDay: number;
   timeLabel?: string;
   kind: PropertyCalendarEventKind;
   accent: PropertyCalendarEventAccent;
+  status: CalendarEventStatus;
+  guests: number;
+  tripId: string;
+  tripPurpose: string;
+  notes: string;
+  requestedBy: string;
+  requestedByName: string;
+  attendeeLabels: string[];
+  attendeePetIds: string[];
+  year: number;
+  monthIndex: number;
 };
 
-/** Live bookings/events will subscribe here — empty until Firestore calendar exists. */
 export const PROPERTY_CALENDAR_EVENTS: PropertyCalendarEvent[] = [];

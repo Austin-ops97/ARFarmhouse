@@ -8,78 +8,103 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   writeBatch,
 } from "firebase/firestore";
 
+import { computeReactionCountsUpdate, normalizeReactionCounts } from "@/lib/reaction-counts";
+import { formatFeedTimeLabel } from "@/lib/datetime/relative";
 import { tryGetFirestoreDb } from "@/lib/firebase";
+import { buildChipsFromCounts } from "@/lib/reaction-counts";
 
 const DEFAULT_EMOJIS = ["❤️", "👏", "🔥"] as const;
 
 export type ReactionChip = { emoji: string; count: number; active: boolean };
 
-function sortReactionChips(chips: ReactionChip[]) {
-  chips.sort((a, b) => {
-    const ai = DEFAULT_EMOJIS.indexOf(a.emoji as (typeof DEFAULT_EMOJIS)[number]);
-    const bi = DEFAULT_EMOJIS.indexOf(b.emoji as (typeof DEFAULT_EMOJIS)[number]);
-    if (ai !== -1 || bi !== -1) {
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    }
-    return b.count - a.count;
-  });
-}
-
-function buildReactionChips(counts: Record<string, number>, mineEmoji: string | undefined): ReactionChip[] {
-  const emojiSet = new Set<string>([...DEFAULT_EMOJIS, ...Object.keys(counts)]);
-  const chips: ReactionChip[] = Array.from(emojiSet).map((emoji) => ({
-    emoji,
-    count: Math.max(0, counts[emoji] ?? 0),
-    active: mineEmoji === emoji,
-  }));
-  sortReactionChips(chips);
-  return chips;
-}
-
-/** Client-side preview of `setPostReaction` for optimistic UI. */
 export function previewReactionAfterToggle(chips: ReactionChip[], tapEmoji: string): ReactionChip[] {
   const mine = chips.find((c) => c.active)?.emoji;
   const counts: Record<string, number> = {};
   for (const c of chips) counts[c.emoji] = c.count;
-
-  let nextMine: string | undefined;
-  if (mine === tapEmoji) {
-    counts[tapEmoji] = Math.max(0, (counts[tapEmoji] ?? 0) - 1);
-    nextMine = undefined;
-  } else {
-    if (mine) counts[mine] = Math.max(0, (counts[mine] ?? 0) - 1);
-    counts[tapEmoji] = (counts[tapEmoji] ?? 0) + 1;
-    nextMine = tapEmoji;
-  }
-  return buildReactionChips(counts, nextMine);
+  const { counts: nextCounts, nextUserEmoji } = computeReactionCountsUpdate(counts, mine, tapEmoji);
+  return buildChipsFromCounts(nextCounts, nextUserEmoji);
 }
 
-export async function setPostReaction(postId: string, uid: string, emoji: string) {
+export async function fetchMyReactionEmoji(postId: string, uid: string): Promise<string | undefined> {
+  const db = tryGetFirestoreDb();
+  if (!db) return undefined;
+  const snap = await getDoc(doc(db, "posts", postId, "reactions", uid));
+  return snap.data()?.emoji as string | undefined;
+}
+
+export async function setPostReaction(
+  postId: string,
+  uid: string,
+  emoji: string,
+  countsSeed: Record<string, number>
+) {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable");
-  const ref = doc(db, "posts", postId, "reactions", uid);
-  const cur = await getDoc(ref);
-  const prev = cur.data()?.emoji as string | undefined;
-  if (prev === emoji) {
-    await deleteDoc(ref);
-    return;
-  }
-  await setDoc(ref, { emoji, updatedAt: serverTimestamp() }, { merge: true });
+
+  const postRef = doc(db, "posts", postId);
+  const reactionRef = doc(db, "posts", postId, "reactions", uid);
+
+  await runTransaction(db, async (tx) => {
+    const [reactionSnap, postSnap] = await Promise.all([tx.get(reactionRef), tx.get(postRef)]);
+    const prevUserEmoji = reactionSnap.data()?.emoji as string | undefined;
+    const storedCounts = normalizeReactionCounts(postSnap.data()?.reactionCounts ?? countsSeed);
+    const { counts: nextCounts, nextUserEmoji } = computeReactionCountsUpdate(
+      storedCounts,
+      prevUserEmoji,
+      emoji
+    );
+
+    if (nextUserEmoji) {
+      tx.set(reactionRef, { emoji: nextUserEmoji, updatedAt: serverTimestamp() }, { merge: true });
+    } else {
+      tx.delete(reactionRef);
+    }
+    tx.update(postRef, {
+      reactionCounts: nextCounts,
+      updatedAt: serverTimestamp(),
+    });
+  });
 }
 
 export type FeedComment = {
   id: string;
+  authorId: string;
   author: string;
+  authorAvatarUrl: string | null;
   text: string;
+  parentId: string | null;
   createdAtMs: number;
+  updatedAtMs: number | null;
+  edited: boolean;
 };
+
+function mapCommentDoc(id: string, data: Record<string, unknown>): FeedComment {
+  const created = (data.createdAt as { toDate?: () => Date } | undefined)?.toDate?.();
+  const updated = (data.updatedAt as { toDate?: () => Date } | undefined)?.toDate?.();
+  const createdAtMs = created ? created.getTime() : 0;
+  const updatedAtMs = updated ? updated.getTime() : null;
+  return {
+    id,
+    authorId: (data.authorId as string) ?? "",
+    author: (data.authorName as string) ?? "Member",
+    authorAvatarUrl: (data.authorAvatarUrl as string | null) ?? null,
+    text: (data.text as string) ?? "",
+    parentId: (data.parentId as string | null) ?? null,
+    createdAtMs,
+    updatedAtMs,
+    edited: Boolean(data.edited),
+  };
+}
+
+export function commentTimeLabel(ms: number): string {
+  return formatFeedTimeLabel(new Date(ms));
+}
 
 export async function addFeedComment(input: {
   postId: string;
@@ -87,6 +112,7 @@ export async function addFeedComment(input: {
   authorName: string;
   authorAvatarUrl: string | null;
   text: string;
+  parentId?: string | null;
 }) {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable");
@@ -99,71 +125,54 @@ export async function addFeedComment(input: {
     authorName: input.authorName,
     authorAvatarUrl: input.authorAvatarUrl,
     text: trimmed,
+    parentId: input.parentId ?? null,
+    edited: false,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
   batch.update(doc(db, "posts", input.postId), {
     commentCount: increment(1),
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
+  return cref.id;
 }
 
-export function subscribePostReactions(
-  postId: string,
-  uid: string | undefined,
-  onChips: (chips: ReactionChip[]) => void,
-  onError?: (e: Error) => void
-): () => void {
-  const db = tryGetFirestoreDb();
-  if (!db) return () => {};
-  const ref = collection(db, "posts", postId, "reactions");
-  return onSnapshot(
-    ref,
-    (snap) => {
-      const counts: Record<string, number> = {};
-      let mine: string | undefined;
-      snap.forEach((d) => {
-        const emoji = d.data().emoji as string | undefined;
-        if (!emoji) return;
-        counts[emoji] = (counts[emoji] ?? 0) + 1;
-        if (uid && d.id === uid) mine = emoji;
-      });
-      onChips(buildReactionChips(counts, mine));
-    },
-    (err) => onError?.(err instanceof Error ? err : new Error(String(err)))
-  );
-}
-
-export function subscribePostSaved(
-  postId: string,
-  uid: string | undefined,
-  onSaved: (saved: boolean) => void,
-  onError?: (e: Error) => void
-): () => void {
-  const db = tryGetFirestoreDb();
-  if (!db || !uid || !postId) {
-    onSaved(false);
-    return () => {};
-  }
-  const ref = doc(db, "users", uid, "savedPosts", postId);
-  return onSnapshot(
-    ref,
-    (snap) => {
-      onSaved(snap.exists());
-    },
-    (err) => onError?.(err instanceof Error ? err : new Error(String(err)))
-  );
-}
-
-export async function setPostSaved(postId: string, uid: string, saved: boolean) {
+export async function updateFeedComment(input: {
+  postId: string;
+  commentId: string;
+  uid: string;
+  text: string;
+}) {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable");
-  const ref = doc(db, "users", uid, "savedPosts", postId);
-  if (saved) {
-    await setDoc(ref, { postId, savedAt: serverTimestamp() }, { merge: true });
-  } else {
-    await deleteDoc(ref);
-  }
+  const trimmed = input.text.trim();
+  if (!trimmed) throw new Error("Comment is empty");
+  const ref = doc(db, "posts", input.postId, "comments", input.commentId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Comment not found");
+  if (snap.data()?.authorId !== input.uid) throw new Error("You can only edit your own comments.");
+  await setDoc(
+    ref,
+    { text: trimmed, edited: true, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+}
+
+export async function deleteFeedComment(postId: string, commentId: string, uid: string) {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  const ref = doc(db, "posts", postId, "comments", commentId);
+  const batch = writeBatch(db);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  if (snap.data()?.authorId !== uid) throw new Error("You can only delete your own comments.");
+  batch.delete(ref);
+  batch.update(doc(db, "posts", postId), {
+    commentCount: increment(-1),
+    updatedAt: serverTimestamp(),
+  });
+  await batch.commit();
 }
 
 export function subscribePostComments(
@@ -182,20 +191,23 @@ export function subscribePostComments(
   return onSnapshot(
     q,
     (snap) => {
-      const rows: FeedComment[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        const created = data.createdAt?.toDate?.() as Date | undefined;
-        rows.push({
-          id: d.id,
-          author: (data.authorName as string) ?? "Member",
-          text: (data.text as string) ?? "",
-          createdAtMs: created ? created.getTime() : 0,
-        });
-      });
+      const rows = snap.docs.map((d) => mapCommentDoc(d.id, d.data() as Record<string, unknown>));
       rows.sort((a, b) => a.createdAtMs - b.createdAtMs);
       onRows(rows);
     },
     (err) => onError?.(err instanceof Error ? err : new Error(String(err)))
   );
 }
+
+export async function setPostSaved(postId: string, uid: string, saved: boolean) {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  const ref = doc(db, "users", uid, "savedPosts", postId);
+  if (saved) {
+    await setDoc(ref, { postId, savedAt: serverTimestamp() }, { merge: true });
+  } else {
+    await deleteDoc(ref);
+  }
+}
+
+export { DEFAULT_EMOJIS };

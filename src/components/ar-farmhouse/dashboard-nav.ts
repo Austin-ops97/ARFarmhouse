@@ -8,6 +8,7 @@ import {
   Map,
   MessageSquare,
   Settings,
+  UserRound,
 } from "lucide-react";
 
 export type NavId =
@@ -19,6 +20,7 @@ export type NavId =
   | "tasks"
   | "album"
   | "property"
+  | "profile"
   | "settings";
 
 export const sidebarNav = [
@@ -30,6 +32,7 @@ export const sidebarNav = [
   { id: "tasks" as const, label: "Tasks", icon: CheckSquare },
   { id: "album" as const, label: "Photo Album", icon: Images },
   { id: "property" as const, label: "Property", icon: Building2 },
+  { id: "profile" as const, label: "Profile", icon: UserRound },
   { id: "settings" as const, label: "Settings", icon: Settings },
 ] satisfies ReadonlyArray<{ id: NavId; label: string; icon: typeof Home }>;
 
@@ -43,5 +46,6 @@ export const mobileDrawerLabel: Record<NavId, string> = {
   tasks: "Tasks",
   album: "Photo Album",
   property: "Property",
+  profile: "Your household identity",
   settings: "Settings",
 };

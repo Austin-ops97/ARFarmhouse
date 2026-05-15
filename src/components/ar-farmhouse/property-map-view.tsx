@@ -3,23 +3,34 @@
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
+  AlertTriangle,
   Binoculars,
   Camera,
   ChevronRight,
+  Crosshair,
   Download,
   MapPin,
   Minus,
   Plus,
   Tent,
   Trees,
+  Truck,
 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
+import { PropertyMapControls } from "@/components/ar-farmhouse/property-map-controls";
+import { SyncStatusBanner } from "@/components/ar-farmhouse/sync-status-banner";
 import { Button } from "@/components/ui/button";
 import { usePropertyData } from "@/contexts/property-data-context";
 import {
+  defaultMapFilters,
+  filterMapPins,
+  mapPinCountsByLayer,
+  PIN_KIND_LABELS,
+  visibleTrails,
+} from "@/lib/property-map-layers";
+import {
   PROPERTY_MAP_BACKDROP,
-  PROPERTY_MAP_RECENT_TRAILS,
   type MapPinKind,
   type PropertyMapPin,
 } from "@/lib/property-operations";
@@ -37,6 +48,9 @@ const pinAccent: Record<MapPinKind, string> = {
   gathering: "bg-orange-300/90",
   stand: "bg-lime-300/85",
   camera: "bg-rose-300/90",
+  hunting: "bg-stone-300/90",
+  emergency: "bg-red-400/90",
+  atv: "bg-orange-400/85",
 };
 
 function PinIcon({ kind }: { kind: MapPinKind }) {
@@ -49,6 +63,12 @@ function PinIcon({ kind }: { kind: MapPinKind }) {
       return <Binoculars className="size-3.5 text-sky-950/80" aria-hidden />;
     case "cabin":
       return <Tent className="size-3.5 text-amber-950/80" aria-hidden />;
+    case "emergency":
+      return <AlertTriangle className="size-3.5 text-red-950/80" aria-hidden />;
+    case "atv":
+      return <Truck className="size-3.5 text-orange-950/80" aria-hidden />;
+    case "hunting":
+      return <Crosshair className="size-3.5 text-stone-950/80" aria-hidden />;
     default:
       return <MapPin className="size-3.5 text-background" aria-hidden />;
   }
@@ -56,11 +76,22 @@ function PinIcon({ kind }: { kind: MapPinKind }) {
 
 export function PropertyMapView() {
   const reduceMotion = useReducedMotion();
-  const { mapPins, mapTrails } = usePropertyData();
+  const { mapPins, mapTrails, propertySyncError } = usePropertyData();
+  const [filters, setFilters] = useState(defaultMapFilters);
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
   const [selected, setSelected] = useState<PropertyMapPin | null>(null);
+
+  const visiblePins = useMemo(() => filterMapPins(mapPins, filters), [mapPins, filters]);
+  const trailsShown = useMemo(() => visibleTrails(mapTrails, filters), [mapTrails, filters]);
+  const layerCounts = useMemo(() => mapPinCountsByLayer(mapPins), [mapPins]);
+
+  const resetView = useCallback(() => {
+    setScale(1);
+    setTx(0);
+    setTy(0);
+  }, []);
   const dragRef = useRef({
     x: 0,
     y: 0,
@@ -118,6 +149,7 @@ export function PropertyMapView() {
 
   return (
     <div className="space-y-6">
+      <SyncStatusBanner error={propertySyncError} />
       <motion.section
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -127,7 +159,7 @@ export function PropertyMapView() {
           <div>
             <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Property map</h2>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              Pan and zoom the property — pins are invitations to explore, not survey stakes.
+              Navigate trails, cabins, gates, and utility points — layered for calm exploration on any device.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -142,8 +174,19 @@ export function PropertyMapView() {
         </div>
       </motion.section>
 
+      <PropertyMapControls
+        filters={filters}
+        onChange={setFilters}
+        pinCount={visiblePins.length}
+        trailCount={trailsShown.length}
+        layerCounts={layerCounts}
+      />
+
       <div className={cn(surface, "overflow-hidden p-1 sm:p-2")}>
         <div className="relative flex items-center justify-end gap-2 px-2 pb-2 pt-1 sm:px-3">
+          <Button type="button" variant="ghost" size="sm" className="rounded-xl text-[11px]" onClick={resetView}>
+            Reset view
+          </Button>
           <Button type="button" variant="outline" size="icon-sm" className="rounded-xl" onClick={() => setScale((s) => clampScale(s - 0.1))}>
             <Minus className="size-4" />
           </Button>
@@ -175,7 +218,7 @@ export function PropertyMapView() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-background/85 via-background/15 to-background/40" />
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-              {mapTrails.map((tr) => (
+              {trailsShown.map((tr) => (
                 <path
                   key={tr.id}
                   d={tr.d}
@@ -191,7 +234,16 @@ export function PropertyMapView() {
               ))}
             </svg>
 
-            {mapPins.map((pin) => (
+            {mapPins.length === 0 && (
+              <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/40 px-6 text-center backdrop-blur-[2px]">
+                <p className="font-heading text-sm font-semibold text-foreground">Map points will appear here</p>
+                <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                  Track important property locations — trails, gates, cabins, and utilities.
+                </p>
+              </div>
+            )}
+
+            {visiblePins.map((pin) => (
               <motion.button
                 key={pin.id}
                 type="button"
@@ -229,12 +281,14 @@ export function PropertyMapView() {
         <div className={cn(surface, "p-4 sm:p-5")}>
           <h3 className="text-sm font-semibold text-foreground">Trail strips</h3>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {mapTrails.length === 0 ? (
+            {trailsShown.length === 0 ? (
               <p className="col-span-full rounded-2xl border border-border/50 bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground dark:border-white/10 dark:bg-white/[0.03]">
-                No saved trail maps yet. When GIS or GPX layers connect, strips and conditions render here.
+                {mapTrails.length === 0
+                  ? "No trail layers saved yet. Add trail paths in Firestore to see them on the map."
+                  : "Trail lines hidden by your layer filters."}
               </p>
             ) : (
-              mapTrails.map((tr) => (
+              trailsShown.map((tr) => (
                 <div key={tr.id} className="ar-nested-well rounded-2xl px-3 py-3">
                   <p className="text-sm font-medium text-foreground">{tr.name}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{tr.condition}</p>
@@ -245,17 +299,25 @@ export function PropertyMapView() {
         </div>
 
         <div className={cn(surface, "p-4 sm:p-5")}>
-          <h3 className="text-sm font-semibold text-foreground">Recently explored</h3>
-          <ul className="mt-3 space-y-2">
-            {PROPERTY_MAP_RECENT_TRAILS.length === 0 ? (
+          <h3 className="text-sm font-semibold text-foreground">Waypoints</h3>
+          <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+            {visiblePins.length === 0 ? (
               <li className="ar-nested-well rounded-xl px-3 py-4 text-center text-xs text-muted-foreground">
-                No recent trail activity logged. Post a ridge walk to the feed and it can echo here later.
+                {mapPins.length === 0
+                  ? "No waypoints on the map yet."
+                  : "No waypoints match your filters."}
               </li>
             ) : (
-              PROPERTY_MAP_RECENT_TRAILS.map((r) => (
-                <li key={r.trail + r.when} className="ar-nested-well flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs">
-                  <span className="font-medium text-foreground">{r.trail}</span>
-                  <span className="shrink-0 text-muted-foreground">{r.who}</span>
+              visiblePins.slice(0, 12).map((pin) => (
+                <li key={pin.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(pin)}
+                    className="ar-nested-well flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs transition hover:bg-muted/50"
+                  >
+                    <span className="font-medium text-foreground">{pin.label}</span>
+                    <span className="shrink-0 text-muted-foreground">{PIN_KIND_LABELS[pin.kind]}</span>
+                  </button>
                 </li>
               ))
             )}
@@ -273,9 +335,12 @@ export function PropertyMapView() {
           >
             <div className="mx-auto flex max-w-lg items-start justify-between gap-3 sm:max-w-none">
               <div>
-                <p className="text-xs font-medium text-primary">Waypoint</p>
+                <p className="text-xs font-medium text-primary">{PIN_KIND_LABELS[selected.kind]}</p>
                 <p className="mt-1 font-heading text-lg font-semibold text-foreground">{selected.label}</p>
                 <p className="mt-2 text-sm text-muted-foreground">{selected.blurb}</p>
+                {selected.linkedEvent && (
+                  <p className="mt-2 text-[12px] text-muted-foreground">Trip · {selected.linkedEvent}</p>
+                )}
                 {selected.trailCondition && (
                   <p className="mt-2 inline-flex rounded-full border border-border/50 bg-muted/50 px-2 py-1 text-[11px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]">
                     Trail feel · {selected.trailCondition}

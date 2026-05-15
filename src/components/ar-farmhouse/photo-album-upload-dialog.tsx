@@ -2,48 +2,43 @@
 
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ImagePlus, Link2, X } from "lucide-react";
+import { AlertCircle, ImagePlus, Upload, X } from "lucide-react";
 import { useCallback, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ALBUM_UPLOAD_BUCKETS, type AlbumMediaItem } from "@/lib/photo-album-media";
+import { useAuth } from "@/contexts/auth-context";
+import { compressImageFile } from "@/lib/image-compress";
+import { validateFeedImageFiles } from "@/lib/feed-publish";
+import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
+import { createAlbumMediaItems } from "@/services/album-media";
 import { cn } from "@/lib/utils";
-
-async function compressToDataUrl(file: File, maxEdge = 960, quality = 0.74): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
-  const w = Math.round(bmp.width * scale);
-  const h = Math.round(bmp.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas unsupported");
-  ctx.drawImage(bmp, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", quality);
-}
 
 type PhotoAlbumUploadDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCommit: (items: AlbumMediaItem[]) => void;
+  onUploaded?: () => void;
 };
 
-export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAlbumUploadDialogProps) {
+export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: PhotoAlbumUploadDialogProps) {
   const reduceMotion = useReducedMotion();
   const inputId = useId();
+  const { user, displayName, avatarUrl } = useAuth();
   const [files, setFiles] = useState<{ file: File; preview: string }[]>([]);
   const [albumKey, setAlbumKey] = useState<string>(ALBUM_UPLOAD_BUCKETS[0].key);
   const [caption, setCaption] = useState("");
   const [eventLink, setEventLink] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const reset = useCallback(() => {
     setFiles([]);
     setCaption("");
     setEventLink("");
     setAlbumKey(ALBUM_UPLOAD_BUCKETS[0].key);
+    setProgress(null);
+    setError(null);
   }, []);
 
   const onFiles = useCallback((list: FileList | null) => {
@@ -54,6 +49,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
       next.push({ file, preview: URL.createObjectURL(file) });
     });
     setFiles((prev) => [...prev, ...next].slice(0, 12));
+    setError(null);
   }, []);
 
   const removeAt = (idx: number) => {
@@ -65,31 +61,42 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
     });
   };
 
+  const dismiss = useCallback(() => {
+    files.forEach((f) => URL.revokeObjectURL(f.preview));
+    reset();
+    onOpenChange(false);
+  }, [files, onOpenChange, reset]);
+
   const handleSubmit = async () => {
-    if (files.length === 0) return;
+    if (files.length === 0 || !user) return;
     setBusy(true);
+    setError(null);
+    setProgress({ done: 0, total: files.length });
     try {
-      const items: AlbumMediaItem[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const { file } = files[i];
-        const src = await compressToDataUrl(file);
-        items.push({
-          id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `up-${Date.now()}-${i}`,
-          src,
-          caption: caption.trim() || "Added from your device",
-          source: "upload",
+      const raw = files.map((f) => f.file);
+      validateFeedImageFiles(raw);
+      const compressed = await Promise.all(raw.map((f) => compressImageFile(f)));
+      await createAlbumMediaItems(
+        {
+          authorId: user.uid,
+          authorDisplayName: displayName || user.displayName || "Family member",
+          authorPhotoUrl: avatarUrl ?? user.photoURL ?? null,
+          caption,
           albumKey,
-          linkedEvent: eventLink.trim() ? eventLink.trim() : undefined,
-          addedAt: Date.now(),
-          postTitle: ALBUM_UPLOAD_BUCKETS.find((a) => a.key === albumKey)?.label,
-        });
-      }
-      onCommit(items);
+          linkedEvent: eventLink.trim() || null,
+          files: compressed,
+        },
+        (done, total) => setProgress({ done, total })
+      );
       files.forEach((f) => URL.revokeObjectURL(f.preview));
       reset();
       onOpenChange(false);
+      onUploaded?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed. Try again.");
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -102,16 +109,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <button
-            type="button"
-            className="ar-scrim absolute inset-0"
-            aria-label="Dismiss"
-            onClick={() => {
-              files.forEach((f) => URL.revokeObjectURL(f.preview));
-              reset();
-              onOpenChange(false);
-            }}
-          />
+          <button type="button" className="ar-scrim absolute inset-0" aria-label="Dismiss" onClick={dismiss} />
           <motion.div
             role="dialog"
             aria-modal="true"
@@ -128,18 +126,16 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
             <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
               <div>
                 <p id={`${inputId}-title`} className="font-heading text-base font-semibold tracking-tight text-foreground">
-                  Add to album
+                  Add to family archive
                 </p>
-                <p className="text-[11px] text-muted-foreground">Stored on this device until cloud albums are enabled</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Saved for everyone signed in · optimized for mobile
+                </p>
               </div>
               <button
                 type="button"
                 className="flex size-9 items-center justify-center rounded-full border border-border/60 bg-background/50 transition hover:bg-muted/60"
-                onClick={() => {
-                  files.forEach((f) => URL.revokeObjectURL(f.preview));
-                  reset();
-                  onOpenChange(false);
-                }}
+                onClick={dismiss}
                 aria-label="Close"
               >
                 <X className="size-4" />
@@ -178,8 +174,11 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
               {files.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {files.map((f, idx) => (
-                    <div key={`${f.preview}-${idx}`} className="group relative aspect-square overflow-hidden rounded-xl ring-1 ring-border/50">
-                      <Image src={f.preview} alt="" fill className="object-cover transition duration-500 group-hover:scale-[1.04]" sizes="120px" />
+                    <div
+                      key={`${f.preview}-${idx}`}
+                      className="group relative aspect-square overflow-hidden rounded-xl ring-1 ring-border/50"
+                    >
+                      <Image src={f.preview} alt="" fill className="object-cover" sizes="120px" />
                       <button
                         type="button"
                         onClick={() => removeAt(idx)}
@@ -191,6 +190,27 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
                     </div>
                   ))}
                 </div>
+              )}
+
+              {progress && busy && (
+                <div className="mt-4">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted/60">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-300"
+                      style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                    Uploading {progress.done} of {progress.total}…
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <p className="mt-3 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/8 px-3 py-2 text-[12px] text-destructive">
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  {error}
+                </p>
               )}
 
               <div className="mt-5 space-y-3">
@@ -209,7 +229,9 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
                   </select>
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Linked event (optional)</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Linked trip (optional)
+                  </p>
                   <input
                     type="text"
                     value={eventLink}
@@ -231,21 +253,17 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
             </div>
 
             <div className="flex gap-2 border-t border-border/50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1 rounded-xl"
-                onClick={() => {
-                  files.forEach((f) => URL.revokeObjectURL(f.preview));
-                  reset();
-                  onOpenChange(false);
-                }}
-              >
+              <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={dismiss} disabled={busy}>
                 Cancel
               </Button>
-              <Button type="button" className="flex-1 rounded-xl" disabled={files.length === 0 || busy} onClick={() => void handleSubmit()}>
-                <Link2 className="opacity-80" data-icon="inline-start" aria-hidden />
-                {busy ? "Saving…" : "Save to album"}
+              <Button
+                type="button"
+                className="flex-1 rounded-xl"
+                disabled={files.length === 0 || busy || !user}
+                onClick={() => void handleSubmit()}
+              >
+                <Upload className="opacity-80" data-icon="inline-start" aria-hidden />
+                {busy ? "Uploading…" : "Save to archive"}
               </Button>
             </div>
           </motion.div>

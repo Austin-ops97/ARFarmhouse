@@ -35,7 +35,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
+import { FeedCommentList } from "@/components/ar-farmhouse/feed-comment-list";
 import { usePostSocial } from "@/hooks/use-post-social";
+import { useInViewReady } from "@/lib/use-in-view-ready";
+import { reactionTotal } from "@/lib/reaction-counts";
+import { useSavedPosts } from "@/contexts/saved-posts-context";
+import { setPostSaved } from "@/services/post-engagement";
 import { buildPostDeepLink } from "@/lib/app-url";
 import { FEED_IMAGE_SIZES, FEED_MEDIA_BLEED } from "@/lib/feed-layout";
 import { hubSlugFromLinkedEventLabel } from "@/lib/linked-event-hub";
@@ -186,9 +191,10 @@ export function FeedPostCard({
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
   const { user, displayName, avatarUrl, configured } = useAuth();
+  const { isSaved } = useSavedPosts();
+  const { ref: inViewRef, inView: engagementActive } = useInViewReady("280px 0px");
   const interactionsLive = configured && !!user?.uid;
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [commentDraft, setCommentDraft] = useState("");
   const [commentBusy, setCommentBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -199,13 +205,27 @@ export function FeedPostCard({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
 
+  const savedForPost = isSaved(post.id);
+
+  const onSavedChange = useCallback(
+    async (next: boolean) => {
+      if (!user?.uid) return;
+      await setPostSaved(post.id, user.uid, next);
+    },
+    [post.id, user?.uid]
+  );
+
   const social = usePostSocial({
     postId: post.id,
     uid: user?.uid,
     displayName,
     avatarUrl,
+    reactionCounts: post.reactionCounts,
     commentsOpen,
+    engagementActive: engagementActive || commentsOpen,
     remoteEnabled: interactionsLive,
+    saved: savedForPost,
+    onSavedChange,
   });
 
   const displayReactions = useMemo(
@@ -253,7 +273,15 @@ export function FeedPostCard({
       return { ...s, index: n };
     });
 
-  const { toggleReaction: commitRemoteReaction, submitComment, toggleSaved, saved: savedRemote, socialError } = social;
+  const {
+    toggleReaction: commitRemoteReaction,
+    submitComment,
+    editComment,
+    removeComment,
+    toggleSaved,
+    saved: savedRemote,
+    socialError,
+  } = social;
   const [commentError, setCommentError] = useState<string | null>(null);
 
   const toggleReaction = useCallback(
@@ -265,8 +293,8 @@ export function FeedPostCard({
   );
 
   const totalEngagement = useMemo(
-    () => Object.values(mergedReactionState).reduce((acc, r) => acc + r.count, 0),
-    [mergedReactionState]
+    () => reactionTotal(post.reactionCounts),
+    [post.reactionCounts]
   );
 
   const primaryKey =
@@ -289,11 +317,6 @@ export function FeedPostCard({
     "ring-1 ring-inset ring-border/55 dark:ring-white/[0.06]",
     "shadow-[var(--ar-panel-elevate)] dark:shadow-[0_24px_80px_-40px_rgba(0,0,0,0.85)]"
   );
-
-  const commentLines = useMemo(() => {
-    if (interactionsLive && commentsOpen) return social.commentsPreview;
-    return post.commentsPreview;
-  }, [commentsOpen, post.commentsPreview, interactionsLive, social.commentsPreview]);
 
   const commentCountLabel = useMemo(() => {
     if (interactionsLive && commentsOpen) {
@@ -349,14 +372,14 @@ export function FeedPostCard({
     if (!user?.uid) return;
     setDeleteBusy(true);
     try {
-      await deleteFeedPost(post.id, user.uid, post.authorId);
+      await deleteFeedPost(post.id, user.uid, post.authorId, albumUrls);
       closeMenu();
     } catch (e) {
       setToast(e instanceof Error ? e.message : "Could not delete post.");
     } finally {
       setDeleteBusy(false);
     }
-  }, [closeMenu, post.authorId, post.id, user]);
+  }, [albumUrls, closeMenu, post.authorId, post.id, user]);
 
   const shareSummary = useMemo(() => {
     const t = post.title ? `${post.title} — ${post.body}` : post.body;
@@ -381,6 +404,7 @@ export function FeedPostCard({
   return (
     <>
       <motion.article
+        ref={inViewRef}
         id={`feed-post-${post.id}`}
         layout={false}
         initial={reduceMotion ? false : { opacity: 0, y: 20 }}
@@ -437,7 +461,16 @@ export function FeedPostCard({
                 whileHover={reduceMotion ? undefined : { scale: 1.02 }}
                 transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
               >
-                <Image src={post.cover} alt="" fill sizes={FEED_IMAGE_SIZES} className="object-cover" loading="lazy" />
+                <Image
+                  src={post.cover}
+                  alt=""
+                  fill
+                  sizes={FEED_IMAGE_SIZES}
+                  className="object-cover"
+                  loading="lazy"
+                  placeholder="blur"
+                  blurDataURL="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Crect fill='%231a1a1a' width='8' height='10'/%3E%3C/svg%3E"
+                />
               </motion.div>
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/50 via-transparent to-transparent opacity-80 sm:opacity-100" />
             </div>
@@ -701,57 +734,34 @@ export function FeedPostCard({
 
         <AnimatePresence initial={false}>
           {commentsOpen && (
-            <motion.div
+              <motion.div
               initial={reduceMotion ? false : { height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
               className="overflow-hidden"
             >
-              <div className="space-y-2 border-l border-primary/25 py-2 pl-3 sm:pl-4">
-                {commentLines.length === 0 && (
-                  <p className="text-[13px] text-muted-foreground">No comments yet — say hello.</p>
-                )}
-                {commentLines.map((c, idx) => (
-                  <p key={`${idx}-${c.author}-${c.text.slice(0, 24)}`} className="text-[14px] leading-relaxed text-foreground/90">
-                    <span className="font-semibold text-foreground">{c.author}</span> {c.text}
-                  </p>
-                ))}
-                {interactionsLive && user && (
-                  <form
-                    className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!commentDraft.trim() || commentBusy) return;
-                      setCommentBusy(true);
-                      void (async () => {
-                        setCommentError(null);
-                        try {
-                          await submitComment(commentDraft);
-                          setCommentDraft("");
-                        } catch (e) {
-                          setCommentError(e instanceof Error ? e.message : "Could not post comment.");
-                        } finally {
-                          setCommentBusy(false);
-                        }
-                      })();
-                    }}
-                  >
-                    <Input
-                      value={commentDraft}
-                      onChange={(e) => setCommentDraft(e.target.value)}
-                      placeholder="Write a comment…"
-                      className="rounded-xl border-border/60 bg-muted/50 text-[14px] dark:border-white/10 dark:bg-white/[0.04]"
-                      disabled={commentBusy}
-                    />
-                    <Button type="submit" size="sm" className="shrink-0 rounded-xl" disabled={commentBusy}>
-                      Send
-                    </Button>
-                  </form>
-                )}
-                {(commentError || socialError) && (
-                  <p className="text-[12px] text-red-400/95">{commentError ?? socialError}</p>
-                )}
+              <div className="border-l border-primary/25 py-2 pl-3 sm:pl-4">
+                <FeedCommentList
+                  comments={social.commentRows}
+                  currentUid={user?.uid}
+                  busy={commentBusy}
+                  error={commentError ?? socialError}
+                  onSubmit={async (text, parentId) => {
+                    setCommentBusy(true);
+                    setCommentError(null);
+                    try {
+                      await submitComment(text, parentId);
+                    } catch (e) {
+                      setCommentError(e instanceof Error ? e.message : "Could not post comment.");
+                      throw e;
+                    } finally {
+                      setCommentBusy(false);
+                    }
+                  }}
+                  onEdit={editComment}
+                  onDelete={removeComment}
+                />
               </div>
             </motion.div>
           )}

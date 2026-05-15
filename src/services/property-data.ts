@@ -1,18 +1,30 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
-  getDocs,
+  getDoc,
   onSnapshot,
+  query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
-  writeBatch,
+  where,
   type DocumentData,
+  type Query,
   type QueryDocumentSnapshot,
+  type QuerySnapshot,
+  type Transaction,
 } from "firebase/firestore";
 
+import { notifyBookingCreated, notifyTaskCreated } from "@/lib/notification-fanout";
 import { actionDebug } from "@/lib/action-debug";
-import { bookingEventTitle, rangesOverlap, TRIP_CALENDAR_META } from "@/lib/booking-calendar";
+import { bookingEventTitle, TRIP_CALENDAR_META } from "@/lib/booking-calendar";
+import {
+  BOOKING_CONFLICT_MESSAGE,
+  findOverlappingCalendarEvent,
+  type CalendarEventRange,
+} from "@/lib/booking-conflicts";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import type {
@@ -99,8 +111,9 @@ export async function createHouseTask(input: {
   if (!db) throw new Error("Firestore unavailable");
   const listSection = input.listSection ?? "active";
   const boardColumn = input.boardColumn ?? "todo";
-  await addDoc(collection(db, "houseTasks"), {
-    title: input.title.trim(),
+  const taskTitle = input.title.trim();
+  const ref = await addDoc(collection(db, "houseTasks"), {
+    title: taskTitle,
     listSection,
     boardColumn,
     boardOrder: Date.now(),
@@ -115,6 +128,14 @@ export async function createHouseTask(input: {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  void notifyTaskCreated({
+    taskId: ref.id,
+    actorId: input.uid,
+    actorName: input.displayName,
+    actorAvatarUrl: input.avatarUrl,
+    taskTitle,
+  });
+  return ref.id;
 }
 
 export async function updateHouseTask(taskId: string, patch: Partial<HouseTask>) {
@@ -135,6 +156,17 @@ export async function updateHouseTask(taskId: string, patch: Partial<HouseTask>)
   await updateDoc(doc(db, "houseTasks", taskId), data);
 }
 
+export async function deleteHouseTask(taskId: string, viewerUid: string) {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  const ref = doc(db, "houseTasks", taskId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const createdBy = snap.data()?.createdBy as string | undefined;
+  if (createdBy !== viewerUid) throw new Error("Only the creator can delete this task.");
+  await deleteDoc(ref);
+}
+
 export async function persistHouseTasksBatch(tasks: HouseTask[]) {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable");
@@ -151,19 +183,28 @@ export async function persistHouseTasksBatch(tasks: HouseTask[]) {
   );
 }
 
-function mapCalendarEventDoc(snap: QueryDocumentSnapshot<DocumentData>): PropertyCalendarEvent & {
-  year: number;
-  monthIndex: number;
-} {
+function mapCalendarEventDoc(snap: QueryDocumentSnapshot<DocumentData>): PropertyCalendarEvent {
   const data = snap.data();
+  const startDay = (data.startDay as number) ?? 1;
+  const endDay = (data.endDay as number) ?? startDay;
+  const status = data.status === "confirmed" || data.status === "cancelled" ? data.status : "pending";
   return {
     id: snap.id,
     title: (data.title as string) ?? "",
-    startDay: (data.startDay as number) ?? 1,
-    endDay: data.endDay as number | undefined,
+    startDay,
+    endDay,
     timeLabel: data.timeLabel as string | undefined,
-    kind: data.kind as PropertyCalendarEvent["kind"],
-    accent: data.accent as PropertyCalendarEvent["accent"],
+    kind: (data.kind as PropertyCalendarEvent["kind"]) ?? "family_booking",
+    accent: (data.accent as PropertyCalendarEvent["accent"]) ?? "mint",
+    status,
+    guests: typeof data.guests === "number" ? data.guests : 0,
+    tripId: (data.tripId as string) ?? "family",
+    tripPurpose: (data.tripPurpose as string) ?? "",
+    notes: (data.notes as string) ?? "",
+    requestedBy: (data.requestedBy as string) ?? "",
+    requestedByName: (data.requestedByName as string) ?? "Member",
+    attendeeLabels: Array.isArray(data.attendeeLabels) ? (data.attendeeLabels as string[]) : [],
+    attendeePetIds: Array.isArray(data.attendeePetIds) ? (data.attendeePetIds as string[]) : [],
     year: (data.year as number) ?? 0,
     monthIndex: (data.monthIndex as number) ?? 0,
   };
@@ -180,14 +221,15 @@ export function subscribeCalendarEvents(
     onEvents([]);
     return () => {};
   }
-  return onSnapshot(
+  const monthQuery = query(
     collection(db, "calendarEvents"),
+    where("year", "==", year),
+    where("monthIndex", "==", monthIndex)
+  );
+  return onSnapshot(
+    monthQuery,
     (snap) => {
-      const events = snap.docs
-        .map(mapCalendarEventDoc)
-        .filter((e) => e.year === year && e.monthIndex === monthIndex)
-        .sort((a, b) => a.startDay - b.startDay)
-        .map(({ year: _y, monthIndex: _m, ...event }) => event);
+      const events = snap.docs.map(mapCalendarEventDoc).sort((a, b) => a.startDay - b.startDay);
       onEvents(events);
     },
     (err) => {
@@ -197,13 +239,16 @@ export function subscribeCalendarEvents(
   );
 }
 
-async function loadMonthCalendarEvents(year: number, monthIndex: number) {
-  const db = tryGetFirestoreDb();
-  if (!db) return [];
-  const snap = await getDocs(collection(db, "calendarEvents"));
-  return snap.docs
-    .map(mapCalendarEventDoc)
-    .filter((e) => e.year === year && e.monthIndex === monthIndex);
+function mapCalendarEventRange(snap: QueryDocumentSnapshot<DocumentData>): CalendarEventRange {
+  const mapped = mapCalendarEventDoc(snap);
+  return {
+    id: mapped.id,
+    title: mapped.title,
+    startDay: mapped.startDay,
+    endDay: mapped.endDay,
+    year: mapped.year,
+    monthIndex: mapped.monthIndex,
+  };
 }
 
 export type BookingRequestPayload = {
@@ -214,10 +259,17 @@ export type BookingRequestPayload = {
   endDay: number;
   notes: string;
   tripPurpose: string;
+  tripTitle?: string;
   year: number;
   monthIndex: number;
   requestedBy: string;
   requestedByName: string;
+  requestedByAvatarUrl?: string | null;
+  ownerUid: string;
+  includeSelf: boolean;
+  attendeeMemberIds: string[];
+  attendeePetIds: string[];
+  attendeeLabels: string[];
 };
 
 export type BookingSubmitResult = {
@@ -237,64 +289,110 @@ export async function createBookingRequest(input: BookingRequestPayload): Promis
 
   actionDebug("booking", "submit start", { startDay, endDay, year: input.year, monthIndex: input.monthIndex });
 
-  const existing = await loadMonthCalendarEvents(input.year, input.monthIndex);
-  const conflict = existing.find((e) =>
-    rangesOverlap(startDay, endDay, e.startDay, e.endDay ?? e.startDay)
-  );
-  if (conflict) {
-    throw new Error(
-      `Those dates overlap "${conflict.title}". Adjust your range or ask the family to confirm the existing stay.`
-    );
-  }
-
   const meta = TRIP_CALENDAR_META[input.tripId] ?? TRIP_CALENDAR_META.family;
-  const title = bookingEventTitle(input.tripPurpose, input.tripId, input.guests);
+  const title =
+    input.tripTitle?.trim() ||
+    bookingEventTitle(input.tripPurpose, input.tripId, input.guests);
   const timeLabel = input.guests ? `${input.guests} guest${input.guests === 1 ? "" : "s"}` : undefined;
 
-  const batch = writeBatch(db);
   const bookingRef = doc(collection(db, "bookingRequests"));
   const eventRef = doc(collection(db, "calendarEvents"));
 
-  batch.set(bookingRef, {
-    ...input,
-    startDay,
-    endDay,
-    status: "pending",
-    calendarEventId: eventRef.id,
-    createdAt: serverTimestamp(),
-  });
-
-  batch.set(eventRef, {
-    title,
-    startDay,
-    endDay,
-    year: input.year,
-    monthIndex: input.monthIndex,
-    kind: meta.kind,
-    accent: meta.accent,
-    timeLabel,
-    status: "pending",
-    tripId: input.tripId,
-    roomId: input.roomId,
-    guests: input.guests,
-    notes: input.notes,
-    tripPurpose: input.tripPurpose,
-    requestedBy: input.requestedBy,
-    requestedByName: input.requestedByName,
-    bookingRequestId: bookingRef.id,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
   try {
-    await batch.commit();
+    await runTransaction(db, async (transaction) => {
+      const monthEventsQuery = query(
+        collection(db, "calendarEvents"),
+        where("year", "==", input.year),
+        where("monthIndex", "==", input.monthIndex)
+      );
+      type TransactionGetQuery = {
+        get: (q: Query<DocumentData>) => Promise<QuerySnapshot<DocumentData>>;
+      };
+      const eventsSnap = await (transaction as Transaction & TransactionGetQuery).get(
+        monthEventsQuery
+      );
+      const existing = eventsSnap.docs.map(mapCalendarEventRange);
+      actionDebug("booking", "overlap check", { existing: existing.length });
+      const conflict = findOverlappingCalendarEvent(
+        existing,
+        input.year,
+        input.monthIndex,
+        startDay,
+        endDay
+      );
+      if (conflict) {
+        throw new Error(
+          `Those dates overlap "${conflict.title}". Adjust your range or ask the family to confirm the existing stay.`
+        );
+      }
+
+      transaction.set(bookingRef, {
+        ...input,
+        startDay,
+        endDay,
+        status: "pending",
+        calendarEventId: eventRef.id,
+        createdAt: serverTimestamp(),
+      });
+
+      transaction.set(eventRef, {
+        title,
+        startDay,
+        endDay,
+        year: input.year,
+        monthIndex: input.monthIndex,
+        kind: meta.kind,
+        accent: meta.accent,
+        timeLabel,
+        status: "pending",
+        tripId: input.tripId,
+        roomId: input.roomId,
+        guests: input.guests,
+        ownerUid: input.ownerUid,
+        includeSelf: input.includeSelf,
+        attendeeMemberIds: input.attendeeMemberIds,
+        attendeePetIds: input.attendeePetIds,
+        attendeeLabels: input.attendeeLabels,
+        notes: input.notes,
+        tripPurpose: input.tripPurpose,
+        tripTitle: input.tripTitle?.trim() || null,
+        requestedBy: input.requestedBy,
+        requestedByName: input.requestedByName,
+        bookingRequestId: bookingRef.id,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    });
+
     actionDebug("booking", "submit complete", {
       bookingRequestId: bookingRef.id,
       calendarEventId: eventRef.id,
     });
+
+    const monthWord = new Date(input.year, input.monthIndex, 1).toLocaleString("en-US", {
+      month: "long",
+    });
+    const dateLabel =
+      endDay !== startDay ? `${monthWord} ${startDay}–${endDay}` : `${monthWord} ${startDay}`;
+    void notifyBookingCreated({
+      actorId: input.requestedBy,
+      actorName: input.requestedByName,
+      actorAvatarUrl: input.requestedByAvatarUrl ?? null,
+      tripTitle: title,
+      dateLabel,
+      calendarEventId: eventRef.id,
+      bookingRequestId: bookingRef.id,
+    });
+
     return { bookingRequestId: bookingRef.id, calendarEventId: eventRef.id };
   } catch (e) {
     actionDebug("booking", "submit failed", e);
+    if (e instanceof Error) {
+      if (e.message.includes("overlap")) throw e;
+      if (e.message.includes("failed-precondition") || e.message.includes("aborted")) {
+        throw new Error(BOOKING_CONFLICT_MESSAGE);
+      }
+    }
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("permission") || msg.includes("PERMISSION_DENIED")) {
       throw new Error("Could not save the booking. Check that you are signed in and Firestore rules allow writes.");
@@ -335,6 +433,8 @@ export function subscribePropertyMapPins(onPins: (pins: PropertyMapPin[]) => voi
         y: (d.y as number) ?? 0,
         blurb: (d.blurb as string) ?? "",
         trailCondition: d.trailCondition as PropertyMapPin["trailCondition"],
+        linkedEvent: typeof d.linkedEvent === "string" ? d.linkedEvent : undefined,
+        favorite: Boolean(d.favorite),
       };
     },
     onPins,
@@ -374,6 +474,8 @@ export function subscribePropertyResources(
         summary: (d.summary as string) ?? "",
         detail: (d.detail as string) ?? "",
         tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
+        status: d.status as PropertyResource["status"],
+        notes: typeof d.notes === "string" ? d.notes : undefined,
       };
     },
     onResources,
@@ -398,6 +500,7 @@ export function subscribePropertyInventory(
         lastUpdated: (d.lastUpdated as string) ?? "",
         restockHint: d.restockHint as string | undefined,
         low: Boolean(d.low),
+        category: d.category as PropertyInventoryItem["category"],
       };
     },
     onItems,

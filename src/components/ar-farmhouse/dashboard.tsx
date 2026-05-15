@@ -12,8 +12,14 @@ import { EcosystemProvider } from "@/components/ar-farmhouse/ecosystem-context";
 import { DashboardMobileDrawer } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { DashboardSidebar } from "@/components/ar-farmhouse/dashboard-sidebar";
 import type { NavId } from "@/components/ar-farmhouse/dashboard-nav";
+import { PropertyDataScope } from "@/components/ar-farmhouse/property-data-scope";
+import { FeedPostsProvider } from "@/contexts/feed-posts-context";
+import { PhotoAlbumLightboxHost } from "@/components/ar-farmhouse/photo-album-lightbox-host";
 import { PhotoAlbumProvider } from "@/contexts/photo-album-context";
+import { NotificationsProvider } from "@/contexts/notifications-context";
+import { SavedPostsProvider } from "@/contexts/saved-posts-context";
 import { useAuth } from "@/contexts/auth-context";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { cnDashboardMain, cnDashboardPageBody } from "@/lib/dashboard-layout";
 
 const RouteFeedView = dynamic(
@@ -42,6 +48,10 @@ const RoutePhotoAlbumView = dynamic(
 );
 const RoutePropertyHubView = dynamic(
   () => import("@/components/ar-farmhouse/property-hub-view").then((m) => m.PropertyHubView),
+  { loading: () => <DashboardViewFallback /> }
+);
+const RouteProfileView = dynamic(
+  () => import("@/components/ar-farmhouse/profile-view").then((m) => m.ProfileView),
   { loading: () => <DashboardViewFallback /> }
 );
 const RouteSettingsView = dynamic(
@@ -97,6 +107,8 @@ function DashboardRoutes() {
         return <RoutePhotoAlbumView />;
       case "property":
         return <RoutePropertyHubView />;
+      case "profile":
+        return <RouteProfileView />;
       case "settings":
         return <RouteSettingsView />;
       default:
@@ -126,7 +138,9 @@ function DashboardRoutes() {
                 transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 1, 0.36, 1] }}
                 className={cnDashboardPageBody(activeId === "home")}
               >
-                {main}
+                <ErrorBoundary title="This section needs a refresh">
+                  <PropertyDataScope activeId={activeId}>{main}</PropertyDataScope>
+                </ErrorBoundary>
               </motion.div>
             </AnimatePresence>
           </main>
@@ -146,8 +160,11 @@ function DashboardRoutes() {
 
 export function Dashboard() {
   return (
-    <PhotoAlbumProvider>
-      <Suspense
+    <FeedPostsProvider>
+      <SavedPostsProvider>
+        <NotificationsProvider>
+        <PhotoAlbumProvider>
+          <Suspense
         fallback={
           <div className="flex min-h-dvh items-center justify-center bg-background px-6">
             <div className="w-full max-w-md space-y-4">
@@ -157,8 +174,12 @@ export function Dashboard() {
           </div>
         }
       >
-        <DashboardRoutes />
-      </Suspense>
-    </PhotoAlbumProvider>
+          <DashboardRoutes />
+        </Suspense>
+          <PhotoAlbumLightboxHost />
+        </PhotoAlbumProvider>
+        </NotificationsProvider>
+      </SavedPostsProvider>
+    </FeedPostsProvider>
   );
 }

@@ -2,11 +2,13 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { BookOpen, Gauge, Package } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { PropertyInventoryPanel } from "@/components/ar-farmhouse/property-inventory-panel";
+import { usePropertyData } from "@/contexts/property-data-context";
 import { PropertyResourcesPanel } from "@/components/ar-farmhouse/property-resources-panel";
 import { PropertyStatusPanel } from "@/components/ar-farmhouse/property-status-panel";
+import { SyncStatusBanner } from "@/components/ar-farmhouse/sync-status-banner";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
@@ -21,10 +23,23 @@ const tabs: { id: HubTab; label: string; icon: typeof Gauge }[] = [
 
 export function PropertyHubView() {
   const reduceMotion = useReducedMotion();
+  const { statusCards, resources, inventory, propertySyncError, calendarError, tasksError } =
+    usePropertyData();
+  const syncError = propertySyncError ?? calendarError ?? tasksError;
   const [tab, setTab] = useState<HubTab>("status");
+
+  const tabCounts = useMemo(
+    () => ({
+      status: statusCards.length,
+      resources: resources.length,
+      inventory: inventory.length,
+    }),
+    [statusCards.length, resources.length, inventory.length]
+  );
 
   return (
     <div className="space-y-6">
+      <SyncStatusBanner error={syncError} />
       <motion.section
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -52,6 +67,11 @@ export function PropertyHubView() {
               >
                 <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
                 {t.label}
+                {tabCounts[t.id] > 0 ? (
+                  <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] tabular-nums text-primary">
+                    {tabCounts[t.id]}
+                  </span>
+                ) : null}
               </button>
             );
           })}

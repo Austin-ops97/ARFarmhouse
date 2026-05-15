@@ -1,29 +1,20 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import dynamic from "next/dynamic";
 
-import { Dashboard } from "@/components/ar-farmhouse/dashboard";
+import { DashboardViewFallback } from "@/components/ar-farmhouse/dashboard-view-fallback";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 
-export function AppExperience() {
-  const reduceMotion = useReducedMotion();
+const Dashboard = dynamic(
+  () => import("@/components/ar-farmhouse/dashboard").then((m) => m.Dashboard),
+  { loading: () => <DashboardViewFallback /> }
+);
 
+export function AppExperience() {
   return (
     <ProtectedRoute>
-      <div className="relative min-h-dvh overflow-hidden bg-background">
-        <motion.div
-          key="dashboard-live"
-          className="relative z-10 min-h-dvh"
-          initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={
-            reduceMotion
-              ? { duration: 0.2 }
-              : { type: "spring", stiffness: 220, damping: 28, mass: 0.85 }
-          }
-        >
-          <Dashboard />
-        </motion.div>
+      <div className="relative z-10 min-h-dvh overflow-hidden bg-background ar-startup-fade-in">
+        <Dashboard />
       </div>
     </ProtectedRoute>
   );

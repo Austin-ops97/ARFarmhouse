@@ -1,11 +1,13 @@
 "use client";
 
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
-import { LogOut } from "lucide-react";
+import { LogOut, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
+import { NotificationBell } from "@/components/ar-farmhouse/notification-bell";
+import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { DashboardMobileDrawerTrigger } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { sidebarNav, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,6 +23,7 @@ const sectionSubtitle: Record<NavId, string> = {
   tasks: "Household rhythm · shared work",
   album: "Visual memory archive · feed-connected",
   property: "Status, binder, supplies",
+  profile: "Family, pets, and your photo",
   settings: "Preferences · calm control room",
 };
 
@@ -37,6 +40,7 @@ export function DashboardAppHeader({
 }: DashboardAppHeaderProps) {
   const reduceMotion = useReducedMotion();
   const router = useRouter();
+  const { goTo } = useEcosystem();
   const { user, signOut, displayName, avatarUrl } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
   const [elevated, setElevated] = useState(false);
@@ -74,9 +78,10 @@ export function DashboardAppHeader({
           <p className="truncate text-[10px] text-muted-foreground sm:text-xs">{sectionSubtitle[activeId]}</p>
         </div>
       </div>
-      <div className="relative shrink-0">
+      <div className="relative flex shrink-0 items-center gap-2">
         {user ? (
           <>
+            <NotificationBell />
             <button
               type="button"
               onClick={() => setAccountOpen((o) => !o)}
@@ -107,6 +112,18 @@ export function DashboardAppHeader({
                   role="menu"
                 >
                   <p className="truncate px-3 py-2 text-[11px] text-muted-foreground">{user.email}</p>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+                    onClick={() => {
+                      setAccountOpen(false);
+                      goTo("profile");
+                    }}
+                  >
+                    <UserRound className="size-4 shrink-0 opacity-80" aria-hidden />
+                    Profile
+                  </button>
                   <button
                     type="button"
                     role="menuitem"

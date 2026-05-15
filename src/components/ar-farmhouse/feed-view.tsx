@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { ImagePlus, PenLine } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, startTransition } from "react";
 
 import { CreatePostDialog } from "@/components/ar-farmhouse/create-post-dialog";
 import { FeedPostCard } from "@/components/ar-farmhouse/feed-post-card";
@@ -15,7 +15,9 @@ import { usePhotoAlbum } from "@/contexts/photo-album-context";
 import { FEED_LAYOUT_CLASS, FEED_RAIL_CLASS, FEED_STREAM_CLASS } from "@/lib/feed-layout";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { UiFeedPost } from "@/models/feed-post";
-import { createFeedPostWithMedia, subscribeFeedPosts } from "@/services/feed-posts";
+import { postsSignature, runMutation } from "@/lib/mutation-lifecycle";
+import { useFeedPosts } from "@/contexts/feed-posts-context";
+import { createFeedPostWithMedia } from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
 
 function FeedSkeleton() {
@@ -61,36 +63,29 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
   const [publishPhase, setPublishPhase] = useState<"idle" | "uploading" | "saving">("idle");
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const [livePosts, setLivePosts] = useState<UiFeedPost[]>([]);
-  const [liveLoading, setLiveLoading] = useState(true);
-  const [liveError, setLiveError] = useState<string | null>(null);
+  const { posts, loading: liveLoading, error: liveError } = useFeedPosts();
+  const publishEpochRef = useRef(0);
+  const feedPostsSigRef = useRef("");
 
   const meAvatar = avatarUrl ?? undefined;
   const meName = displayName;
 
-  const posts = livePosts;
   const { setFeedPosts } = usePhotoAlbum();
 
   useEffect(() => {
-    setFeedPosts(posts);
+    const sig = postsSignature(posts);
+    if (sig === feedPostsSigRef.current) return;
+    feedPostsSigRef.current = sig;
+    startTransition(() => setFeedPosts(posts));
   }, [posts, setFeedPosts]);
 
-  useEffect(() => {
-    const unsub = subscribeFeedPosts(
-      (p) => {
-        setLivePosts(p);
-        setLiveLoading(false);
-        setLiveError(null);
-      },
-      (e) => {
-        setLiveError(e.message);
-        setLiveLoading(false);
-      }
-    );
-    return unsub;
-  }, []);
-
   const canPublish = Boolean(configured && user && !authLoading);
+
+  const clearPublishState = useCallback(() => {
+    setPublishBusy(false);
+    setPublishPhase("idle");
+    setUploadProgress(null);
+  }, []);
 
   const handlePublishLive = useCallback(
     async (payload: {
@@ -101,34 +96,46 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
       attachedEvent: string | null;
     }) => {
       if (!user) throw new Error("Sign in to publish to the family feed.");
-      setPublishBusy(true);
-      setPublishPhase(payload.files.length > 0 ? "uploading" : "saving");
-      setUploadProgress(payload.files.length > 0 ? { done: 0, total: payload.files.length } : null);
-      try {
-        await createFeedPostWithMedia(
-          {
-            authorId: user.uid,
-            authorDisplayName: displayName,
-            authorPhotoUrl: avatarUrl,
-            category: payload.postType,
-            body: payload.caption,
-            location: payload.location,
-            linkedEvent: payload.attachedEvent,
-            files: payload.files,
+
+      const epoch = ++publishEpochRef.current;
+      const hasFiles = payload.files.length > 0;
+
+      await runMutation(
+        "feed",
+        "publish",
+        () =>
+          createFeedPostWithMedia(
+            {
+              authorId: user.uid,
+              authorDisplayName: displayName,
+              authorPhotoUrl: avatarUrl,
+              category: payload.postType,
+              body: payload.caption,
+              location: payload.location,
+              linkedEvent: payload.attachedEvent,
+              files: payload.files,
+            },
+            (done, total) => {
+              if (publishEpochRef.current !== epoch) return;
+              setPublishPhase("uploading");
+              setUploadProgress({ done, total });
+              if (done >= total) setPublishPhase("saving");
+            }
+          ),
+        {
+          onStart: () => {
+            setPublishBusy(true);
+            setPublishPhase(hasFiles ? "uploading" : "saving");
+            setUploadProgress(hasFiles ? { done: 0, total: payload.files.length } : null);
           },
-          (done, total) => {
-            setPublishPhase("uploading");
-            setUploadProgress({ done, total });
-            if (done >= total) setPublishPhase("saving");
-          }
-        );
-      } finally {
-        setPublishBusy(false);
-        setPublishPhase("idle");
-        setUploadProgress(null);
-      }
+          onFinally: () => {
+            if (publishEpochRef.current !== epoch) return;
+            clearPublishState();
+          },
+        }
+      );
     },
-    [avatarUrl, configured, displayName, user]
+    [avatarUrl, clearPublishState, displayName, user]
   );
 
   return (
@@ -193,12 +200,20 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         ) : (
           <>
             {posts.length === 0 && (
-              <div className="rounded-2xl border border-border/55 bg-card/80 px-5 py-12 text-center shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.03]">
-                <p className="font-heading text-lg font-semibold text-foreground">No family updates yet</p>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Be the first to post a memory. Photos stay in private storage and appear here for everyone who is
-                  signed in.
+              <div className="rounded-2xl border border-border/55 bg-card/80 px-6 py-14 text-center shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.03]">
+                <p className="font-heading text-xl font-semibold text-foreground">No family updates yet</p>
+                <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                  Share your first memory — a photo from the porch, a note from the weekend, or a quiet update from the
+                  property.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setComposeOpen(true)}
+                  className="mt-6 inline-flex items-center gap-2 rounded-xl border border-primary/35 bg-primary/12 px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-primary/18"
+                >
+                  <ImagePlus className="size-4 text-primary" aria-hidden />
+                  Share your first memory
+                </button>
               </div>
             )}
 
@@ -237,7 +252,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
           publishPhase={publishPhase}
           uploadProgress={uploadProgress}
           canPublish={canPublish}
-          onPublishLive={canPublish ? handlePublishLive : undefined}
+          onPublishLive={handlePublishLive}
         />
       </div>
 

@@ -3,16 +3,22 @@
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ChevronDown,
+  ChevronRight,
   Globe2,
+  LogOut,
   Monitor,
   Moon,
   Sparkles,
   Sun,
+  UserRound,
   Wifi,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
+import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/auth-context";
 import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
@@ -111,8 +117,10 @@ function Collapsible({
 
 export function SettingsView() {
   const reduceMotion = useReducedMotion();
+  const router = useRouter();
+  const { goTo } = useEcosystem();
   const { theme, setTheme, ready } = useTheme();
-  const { displayName, avatarUrl, user } = useAuth();
+  const { displayName, avatarUrl, user, signOut } = useAuth();
   const { prefs, patch } = useSettingsPrefs();
 
   const appearanceHint = useMemo(
@@ -189,22 +197,45 @@ export function SettingsView() {
           </div>
         </SettingsGroup>
 
-        <SettingsGroup title="Profile">
-          <div className="py-4">
-            <div className="flex items-start gap-4">
-              <Avatar className="size-14 shrink-0 rounded-2xl ring-2 ring-background">
-                <AvatarImage src={avatarUrl ?? undefined} alt="" className="object-cover" />
-                <AvatarFallback className="rounded-2xl text-lg font-semibold">{displayName.slice(0, 1)}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-medium text-foreground">{displayName}</p>
-                {user?.email && <p className="mt-1 text-[13px] text-muted-foreground">{user.email}</p>}
-                <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                  Name and photo come from your Firebase account. Update them in your identity provider or profile
-                  screen when your household enables shared Firestore profiles.
-                </p>
-              </div>
+        <SettingsGroup title="Account">
+          <div className="flex items-start gap-4 py-4">
+            <Avatar className="size-14 shrink-0 rounded-2xl ring-2 ring-background">
+              <AvatarImage src={avatarUrl ?? undefined} alt="" className="object-cover" />
+              <AvatarFallback className="rounded-2xl text-lg font-semibold">{displayName.slice(0, 1)}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-medium text-foreground">{displayName}</p>
+              {user?.email && <p className="mt-1 text-[13px] text-muted-foreground">{user.email}</p>}
+              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                Edit your photo, family members, and pets on the Profile tab — they sync to the feed and calendar.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-4 h-10 rounded-xl"
+                onClick={() => goTo("profile")}
+              >
+                <UserRound className="mr-2 size-4" aria-hidden />
+                Open profile
+                <ChevronRight className="ml-auto size-4 opacity-60" aria-hidden />
+              </Button>
             </div>
+          </div>
+          <div className="py-3">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 w-full justify-start rounded-xl text-foreground hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => {
+                void (async () => {
+                  await signOut();
+                  router.replace("/login");
+                })();
+              }}
+            >
+              <LogOut className="mr-2 size-4" aria-hidden />
+              Sign out
+            </Button>
           </div>
         </SettingsGroup>
 

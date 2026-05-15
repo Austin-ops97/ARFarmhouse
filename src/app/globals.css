@@ -434,3 +434,22 @@ html.ar-theme-transitioning .ar-app-shell {
     animation: none;
   }
 }
+
+@keyframes ar-startup-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ar-startup-fade-in {
+  animation: ar-startup-fade-in 0.28s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ar-startup-fade-in {
+    animation: none;
+  }
+}

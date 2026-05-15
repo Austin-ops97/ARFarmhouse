@@ -4,98 +4,107 @@ import {
   createContext,
   useCallback,
   useContext,
-  useLayoutEffect,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 
-import { extractAlbumMediaFromPosts, type AlbumMediaItem } from "@/lib/photo-album-media";
+import { useAuth } from "@/contexts/auth-context";
+import {
+  extractAlbumMediaFromPosts,
+  mergeAlbumCatalog,
+  type AlbumMediaItem,
+} from "@/lib/photo-album-media";
 import type { UiFeedPost } from "@/models/feed-post";
+import { subscribeAlbumMedia } from "@/services/album-media";
 
-const MANUAL_KEY = "ar-album-manual-v1";
-
-type StoredManual = Omit<AlbumMediaItem, "source"> & { source: "upload" };
-
-function readManual(): AlbumMediaItem[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(MANUAL_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as StoredManual[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((p) => ({ ...p, source: "upload" as const }));
-  } catch {
-    return [];
-  }
-}
-
-function writeManual(items: AlbumMediaItem[]) {
-  try {
-    const uploads = items.filter((i) => i.source === "upload");
-    localStorage.setItem(MANUAL_KEY, JSON.stringify(uploads));
-  } catch {
-    /* quota */
-  }
-}
+export type AlbumLightboxTarget = {
+  items: AlbumMediaItem[];
+  index: number;
+};
 
 type PhotoAlbumContextValue = {
-  /** Current feed-backed catalog (synced from FeedView) */
   allItems: AlbumMediaItem[];
+  loading: boolean;
+  error: string | null;
   setFeedPosts: (posts: readonly UiFeedPost[]) => void;
-  addUploadItems: (items: AlbumMediaItem[]) => void;
-  removeUpload: (id: string) => void;
+  refreshCloud: () => void;
+  openLightbox: (target: AlbumLightboxTarget) => void;
+  lightbox: AlbumLightboxTarget & { open: boolean };
+  closeLightbox: () => void;
 };
 
 const PhotoAlbumContext = createContext<PhotoAlbumContextValue | null>(null);
 
 export function PhotoAlbumProvider({ children }: { children: ReactNode }) {
+  const { configured } = useAuth();
   const [feedPosts, setFeedPostsState] = useState<readonly UiFeedPost[]>([]);
-  const [manual, setManual] = useState<AlbumMediaItem[]>([]);
+  const [cloudUploads, setCloudUploads] = useState<AlbumMediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<AlbumLightboxTarget & { open: boolean }>({
+    open: false,
+    items: [],
+    index: 0,
+  });
 
-  useLayoutEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate manual uploads from localStorage
-    setManual(readManual());
-  }, []);
+  useEffect(() => {
+    if (!configured) {
+      setCloudUploads([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const unsub = subscribeAlbumMedia(
+      (items) => {
+        setCloudUploads(items);
+        setLoading(false);
+        setError(null);
+      },
+      (e) => {
+        setError(e.message);
+        setLoading(false);
+      }
+    );
+    return () => unsub();
+  }, [configured]);
 
   const feedBacked = useMemo(() => extractAlbumMediaFromPosts(feedPosts), [feedPosts]);
 
-  const allItems = useMemo(() => {
-    const bySrc = new Map<string, AlbumMediaItem>();
-    for (const m of [...manual, ...feedBacked]) {
-      bySrc.set(m.src, m);
-    }
-    return [...bySrc.values()];
-  }, [manual, feedBacked]);
+  const allItems = useMemo(
+    () => mergeAlbumCatalog(cloudUploads, feedBacked),
+    [cloudUploads, feedBacked]
+  );
 
   const setFeedPosts = useCallback((posts: readonly UiFeedPost[]) => {
     setFeedPostsState(posts);
   }, []);
 
-  const addUploadItems = useCallback((items: AlbumMediaItem[]) => {
-    setManual((prev) => {
-      const next = [...items, ...prev];
-      writeManual(next);
-      return next;
-    });
+  const refreshCloud = useCallback(() => {
+    /* Realtime listener keeps cloud fresh; hook for post-upload UX */
   }, []);
 
-  const removeUpload = useCallback((id: string) => {
-    setManual((prev) => {
-      const next = prev.filter((p) => p.id !== id);
-      writeManual(next);
-      return next;
-    });
+  const openLightbox = useCallback((target: AlbumLightboxTarget) => {
+    setLightbox({ open: true, items: target.items, index: target.index });
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    setLightbox((s) => ({ ...s, open: false }));
   }, []);
 
   const value = useMemo(
     () => ({
       allItems,
+      loading,
+      error,
       setFeedPosts,
-      addUploadItems,
-      removeUpload,
+      refreshCloud,
+      openLightbox,
+      lightbox,
+      closeLightbox,
     }),
-    [allItems, setFeedPosts, addUploadItems, removeUpload]
+    [allItems, loading, error, setFeedPosts, refreshCloud, openLightbox, lightbox, closeLightbox]
   );
 
   return <PhotoAlbumContext.Provider value={value}>{children}</PhotoAlbumContext.Provider>;

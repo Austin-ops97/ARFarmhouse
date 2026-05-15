@@ -2,10 +2,13 @@
 
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageSquare, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import type { AlbumMediaItem } from "@/lib/photo-album-media";
+import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
+import { Button } from "@/components/ui/button";
+import { albumBucketLabel, type AlbumMediaItem } from "@/lib/photo-album-media";
 import { cn } from "@/lib/utils";
 
 type PhotoAlbumLightboxProps = {
@@ -17,9 +20,10 @@ type PhotoAlbumLightboxProps = {
 
 export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: PhotoAlbumLightboxProps) {
   const reduceMotion = useReducedMotion();
+  const { goTo } = useEcosystem();
+  const router = useRouter();
   const [index, setIndex] = useState(initialIndex);
 
-  // Reset position when opening or when the caller re-targets a tile.
   useEffect(() => {
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- align viewer with lightbox open target
@@ -53,6 +57,20 @@ export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: Photo
 
   if (!current || items.length === 0) return null;
 
+  const metaParts = [
+    current.authorName,
+    current.timeLabel,
+    current.linkedEvent,
+    current.source === "upload" ? albumBucketLabel(current.albumKey) : "From feed",
+  ].filter(Boolean);
+
+  const openFeedPost = () => {
+    if (!current.postId) return;
+    onClose();
+    goTo("feed");
+    router.replace(`/?post=${encodeURIComponent(current.postId)}`);
+  };
+
   return (
     <AnimatePresence>
       {open ? (
@@ -66,11 +84,9 @@ export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: Photo
           <header className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
             <div className="min-w-0 flex-1">
               <p className="truncate font-heading text-sm font-semibold tracking-tight text-foreground">
-                {current.postTitle ?? "Memory"}
+                {current.postTitle ?? (current.source === "upload" ? albumBucketLabel(current.albumKey) : "Memory")}
               </p>
-              <p className="truncate text-[11px] text-muted-foreground">
-                {[current.authorName, current.timeLabel, current.linkedEvent].filter(Boolean).join(" · ")}
-              </p>
+              <p className="truncate text-[11px] text-muted-foreground">{metaParts.join(" · ")}</p>
             </div>
             <button
               type="button"
@@ -133,11 +149,19 @@ export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: Photo
             </motion.div>
           </div>
 
-          <footer className="shrink-0 border-t border-border/50 bg-card/30 px-4 py-3 backdrop-blur-xl">
-            <p className="line-clamp-2 text-center text-[13px] leading-relaxed text-muted-foreground">{current.caption}</p>
-            <p className="mt-2 text-center text-[10px] tabular-nums text-muted-foreground/75">
-              {index + 1} / {items.length}
-            </p>
+          <footer className="shrink-0 space-y-3 border-t border-border/50 bg-card/30 px-4 py-3 backdrop-blur-xl">
+            <p className="line-clamp-3 text-center text-[13px] leading-relaxed text-muted-foreground">{current.caption}</p>
+            <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+              <p className="text-center text-[10px] tabular-nums text-muted-foreground/75">
+                {index + 1} / {items.length}
+              </p>
+              {current.postId ? (
+                <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={openFeedPost}>
+                  <MessageSquare className="opacity-80" data-icon="inline-start" aria-hidden />
+                  View original post
+                </Button>
+              ) : null}
+            </div>
           </footer>
         </motion.div>
       ) : null}

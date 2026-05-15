@@ -4,15 +4,17 @@ import { useEffect, useRef } from "react";
 
 import { useAuth } from "@/contexts/auth-context";
 import { useTheme } from "@/contexts/theme-context";
+import { useIdleReady } from "@/lib/use-idle-ready";
 
 /** Applies Firestore profile theme when the user has no explicit local override. */
 export function ProfileThemeSync() {
+  const idleReady = useIdleReady(2200);
   const { profile, loading } = useAuth();
   const { setTheme, ready } = useTheme();
   const appliedRef = useRef(false);
 
   useEffect(() => {
-    if (!ready || loading || appliedRef.current) return;
+    if (!idleReady || !ready || loading || appliedRef.current) return;
     const pref = profile?.themePreference;
     if (pref !== "light" && pref !== "dark") return;
     try {
@@ -23,7 +25,7 @@ export function ProfileThemeSync() {
     }
     setTheme(pref);
     appliedRef.current = true;
-  }, [loading, profile?.themePreference, ready, setTheme]);
+  }, [idleReady, loading, profile?.themePreference, ready, setTheme]);
 
   return null;
 }

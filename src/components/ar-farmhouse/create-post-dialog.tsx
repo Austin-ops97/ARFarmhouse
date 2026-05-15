@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarPlus, ImagePlus, Loader2, MapPin, X } from "lucide-react";
+import { CalendarPlus, ImagePlus, Loader2, MapPin, X, XCircle } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
@@ -50,6 +50,8 @@ export function CreatePostDialog({
   const reduceMotion = useReducedMotion();
   const titleId = useId();
   const publishingRef = useRef(false);
+  const closeAfterSuccessRef = useRef<number | null>(null);
+  const [localPublishing, setLocalPublishing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -83,15 +85,27 @@ export function CreatePostDialog({
 
   const addFiles = useCallback(
     (incoming: FileList | File[]) => {
-      const list = Array.from(incoming).filter((f) => f.type.startsWith("image/")).slice(0, 6);
-      setFiles(list);
-      setPreviews((prev) => {
-        revokeUrls(prev);
-        return list.map((f) => URL.createObjectURL(f));
+      const incomingList = Array.from(incoming).filter((f) => f.type.startsWith("image/"));
+      setFiles((prev) => {
+        const merged = [...prev, ...incomingList].slice(0, 6);
+        setPreviews((old) => {
+          revokeUrls(old);
+          return merged.map((f) => URL.createObjectURL(f));
+        });
+        return merged;
       });
     },
     [revokeUrls]
   );
+
+  const removeFileAt = useCallback((index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => {
+      const url = prev[index];
+      if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+      return prev.filter((_, i) => i !== index);
+    });
+  }, []);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -102,14 +116,16 @@ export function CreatePostDialog({
     [addFiles]
   );
 
+  const isPublishing = localPublishing || publishBusy;
+
   const closeDialog = useCallback(() => {
-    if (publishBusy) return;
+    if (isPublishing) return;
     resetForm();
     onOpenChange(false);
-  }, [onOpenChange, publishBusy, resetForm]);
+  }, [isPublishing, onOpenChange, resetForm]);
 
   const handlePublish = useCallback(async () => {
-    if (publishingRef.current || publishBusy) return;
+    if (publishingRef.current || isPublishing) return;
     setPublishError(null);
     setPublishSuccess(false);
 
@@ -127,6 +143,7 @@ export function CreatePostDialog({
     }
 
     publishingRef.current = true;
+    setLocalPublishing(true);
     try {
       const trimmedEvent = linkedEventLabel.trim();
       await onPublishLive({
@@ -137,25 +154,41 @@ export function CreatePostDialog({
         attachedEvent: trimmedEvent.length ? trimmedEvent : null,
       });
       setPublishSuccess(true);
-      window.setTimeout(() => {
+      closeAfterSuccessRef.current = window.setTimeout(() => {
+        closeAfterSuccessRef.current = null;
         resetForm();
         onOpenChange(false);
-      }, 400);
+      }, 320);
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : "Could not publish.");
     } finally {
       publishingRef.current = false;
+      setLocalPublishing(false);
     }
-  }, [canPublish, caption, files, linkedEventLabel, location, onOpenChange, onPublishLive, postType, publishBusy, resetForm]);
+  }, [canPublish, caption, files, isPublishing, linkedEventLabel, location, onOpenChange, onPublishLive, postType, resetForm]);
+
+  useEffect(() => {
+    if (open) return;
+    if (closeAfterSuccessRef.current != null) {
+      window.clearTimeout(closeAfterSuccessRef.current);
+      closeAfterSuccessRef.current = null;
+    }
+    queueMicrotask(() => {
+      publishingRef.current = false;
+      setLocalPublishing(false);
+      setPublishError(null);
+      setPublishSuccess(false);
+    });
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !publishBusy) closeDialog();
+      if (e.key === "Escape" && !isPublishing) closeDialog();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, closeDialog, publishBusy]);
+  }, [open, closeDialog, isPublishing]);
 
   const publishLabel =
     publishPhase === "uploading" && uploadProgress
@@ -179,7 +212,7 @@ export function CreatePostDialog({
             className="absolute inset-0 bg-background/70 backdrop-blur-xl"
             aria-label="Close"
             onClick={closeDialog}
-            disabled={publishBusy}
+            disabled={isPublishing}
           />
           <motion.div
             role="dialog"
@@ -208,7 +241,7 @@ export function CreatePostDialog({
                 variant="ghost"
                 size="icon"
                 onClick={closeDialog}
-                disabled={publishBusy}
+                disabled={isPublishing}
                 aria-label="Close"
               >
                 <X className="size-4" />
@@ -224,7 +257,7 @@ export function CreatePostDialog({
                     <button
                       key={t.id}
                       type="button"
-                      disabled={publishBusy}
+                      disabled={isPublishing}
                       onClick={() => setPostType(t.id)}
                       className={cn(
                         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
@@ -253,7 +286,7 @@ export function CreatePostDialog({
                 className={cn(
                   "mt-5 flex min-h-[160px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-8 text-center transition-colors",
                   dragOver ? "border-primary/50 bg-primary/10" : "border-white/15 bg-white/[0.03] hover:border-white/22",
-                  publishBusy && "pointer-events-none opacity-60"
+                  isPublishing && "pointer-events-none opacity-60"
                 )}
               >
                 <input
@@ -262,7 +295,7 @@ export function CreatePostDialog({
                   multiple
                   className="hidden"
                   id="ar-create-post-files"
-                  disabled={publishBusy}
+                  disabled={isPublishing}
                   onChange={(e) => e.target.files && addFiles(e.target.files)}
                 />
                 <label htmlFor="ar-create-post-files" className="flex cursor-pointer flex-col items-center gap-2">
@@ -276,18 +309,36 @@ export function CreatePostDialog({
 
               {previews.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {previews.map((src) => (
+                  {previews.map((src, i) => (
                     <div key={src} className="relative aspect-square overflow-hidden rounded-xl border border-white/10">
                       <Image src={src} alt="" fill className="object-cover" sizes="120px" />
+                      {!isPublishing && (
+                        <button
+                          type="button"
+                          className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5 text-foreground shadow"
+                          aria-label="Remove image"
+                          onClick={() => removeFileAt(i)}
+                        >
+                          <XCircle className="size-4" aria-hidden />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
 
               {publishPhase === "uploading" && uploadProgress && uploadProgress.total > 0 && (
-                <p className="mt-3 text-center text-xs text-muted-foreground">
-                  Uploading image {uploadProgress.done} of {uploadProgress.total}…
-                </p>
+                <div className="mt-4 space-y-2">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width] duration-300"
+                      style={{ width: `${Math.round((uploadProgress.done / uploadProgress.total) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-center text-xs text-muted-foreground">
+                    Uploading image {uploadProgress.done} of {uploadProgress.total}…
+                  </p>
+                </div>
               )}
 
               <div className="mt-5 space-y-2">
@@ -296,7 +347,7 @@ export function CreatePostDialog({
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
                   placeholder="What happened today?"
-                  disabled={publishBusy}
+                  disabled={isPublishing}
                   className="min-h-[100px] rounded-2xl border-white/10 bg-white/[0.03]"
                 />
               </div>
@@ -310,7 +361,7 @@ export function CreatePostDialog({
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="Optional — e.g. porch, north field, kitchen"
-                  disabled={publishBusy}
+                  disabled={isPublishing}
                   className="rounded-xl border-white/10 bg-white/[0.03]"
                 />
               </div>
@@ -324,7 +375,7 @@ export function CreatePostDialog({
                   value={linkedEventLabel}
                   onChange={(e) => setLinkedEventLabel(e.target.value)}
                   placeholder="e.g. Memorial Day weekend — ties this post to a hub when it matches"
-                  disabled={publishBusy}
+                  disabled={isPublishing}
                   className="rounded-xl border-white/10 bg-white/[0.03]"
                 />
               </div>
@@ -342,16 +393,16 @@ export function CreatePostDialog({
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-white/10 bg-background/80 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:pb-4">
-              <Button type="button" variant="outline" className="rounded-xl" onClick={closeDialog} disabled={publishBusy}>
+              <Button type="button" variant="outline" className="rounded-xl" onClick={closeDialog} disabled={isPublishing}>
                 Cancel
               </Button>
               <Button
                 type="button"
                 className="rounded-xl"
                 onClick={() => void handlePublish()}
-                disabled={publishBusy || !canPublish}
+                disabled={isPublishing || !canPublish}
               >
-                {publishBusy ? (
+                {isPublishing ? (
                   <>
                     <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
                     {publishLabel}

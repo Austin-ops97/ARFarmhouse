@@ -1,27 +1,5 @@
-import dynamic from "next/dynamic";
-
-const AppExperience = dynamic(
-  () => import("@/components/ar-farmhouse/app-experience").then((mod) => mod.AppExperience),
-  {
-    ssr: true,
-    loading: () => (
-      <div
-        className="relative min-h-dvh overflow-hidden bg-background"
-        role="status"
-        aria-busy="true"
-        aria-label="Loading app"
-      >
-        <div className="absolute inset-0 z-30 min-h-dvh bg-background">
-          <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6 pt-24">
-            <div className="h-12 w-64 max-w-full animate-pulse rounded-2xl bg-white/[0.06]" />
-            <div className="mt-8 h-[min(40vh,360px)] w-full animate-pulse rounded-[1.35rem] bg-white/[0.04]" />
-          </div>
-        </div>
-      </div>
-    ),
-  }
-);
+import { HomeClient } from "@/components/ar-farmhouse/home-client";
 
 export default function Home() {
-  return <AppExperience />;
+  return <HomeClient />;
 }

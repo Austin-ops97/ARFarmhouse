@@ -17,7 +17,7 @@ type WeekendHubAlbumStripProps = {
 export function WeekendHubAlbumStrip({ eventTitle }: WeekendHubAlbumStripProps) {
   const reduceMotion = useReducedMotion();
   const { goTo } = useEcosystem();
-  const { allItems } = usePhotoAlbum();
+  const { allItems, openLightbox } = usePhotoAlbum();
   const picks = useMemo(() => memoriesForWeekendHub(eventTitle, allItems).slice(0, 5), [eventTitle, allItems]);
 
   if (picks.length === 0) return null;
@@ -45,22 +45,17 @@ export function WeekendHubAlbumStrip({ eventTitle }: WeekendHubAlbumStripProps) 
       </div>
       <div className="mt-3 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {picks.map((item, idx) => (
-          <motion.div
+          <motion.button
             key={item.id}
+            type="button"
             initial={reduceMotion ? false : { opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: reduceMotion ? 0 : idx * 0.05 }}
+            onClick={() => openLightbox({ items: picks, index: idx })}
             className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg ring-1 ring-border/40 dark:ring-white/[0.06]"
           >
-            <Image
-              src={item.src}
-              alt=""
-              fill
-              className="object-cover"
-              sizes="112px"
-              unoptimized={item.src.startsWith("data:")}
-            />
-          </motion.div>
+            <Image src={item.src} alt="" fill className="object-cover" sizes="112px" />
+          </motion.button>
         ))}
       </div>
     </div>

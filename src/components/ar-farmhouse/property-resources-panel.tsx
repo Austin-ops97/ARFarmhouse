@@ -5,11 +5,25 @@ import { ChevronDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
-import type { PropertyResource } from "@/lib/property-operations";
+import type { PropertyResource, ResourceStatus } from "@/lib/property-operations";
 import { usePropertyData } from "@/contexts/property-data-context";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
+
+const statusLabel: Record<ResourceStatus, string> = {
+  available: "Available",
+  in_use: "In use",
+  maintenance: "Maintenance",
+  offline: "Offline",
+};
+
+const statusTone: Record<ResourceStatus, string> = {
+  available: "border-emerald-400/30 bg-emerald-500/10 text-emerald-100/95",
+  in_use: "border-amber-400/30 bg-amber-400/10 text-amber-50/95",
+  maintenance: "border-orange-400/30 bg-orange-400/10 text-orange-50/95",
+  offline: "border-border/50 bg-muted/40 text-muted-foreground",
+};
 
 function ResourceRow({ item, open, onToggle }: { item: PropertyResource; open: boolean; onToggle: () => void }) {
   const reduceMotion = useReducedMotion();
@@ -22,7 +36,19 @@ function ResourceRow({ item, open, onToggle }: { item: PropertyResource; open: b
       >
         <div className="min-w-0 space-y-1">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-primary/90">{item.category}</p>
-          <p className="font-heading text-lg font-semibold tracking-tight text-foreground">{item.title}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-heading text-lg font-semibold tracking-tight text-foreground">{item.title}</p>
+            {item.status && (
+              <span
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  statusTone[item.status]
+                )}
+              >
+                {statusLabel[item.status]}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">{item.summary}</p>
           <div className="flex flex-wrap gap-1 pt-1">
             {item.tags.map((tag) => (
@@ -102,10 +128,10 @@ export function PropertyResourcesPanel() {
 
       {resources.length === 0 ? (
         <div className={cn(surface, "px-6 py-12 text-center")}>
-          <p className="font-heading text-lg font-semibold text-foreground">House binder is empty</p>
+          <p className="font-heading text-lg font-semibold text-foreground">No property resources added yet</p>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Wi-Fi, gate codes, shutoffs, and vendor cards will live here when you add them. Nothing is prefilled — this
-            is your family&apos;s real runbook.
+            Cabins, boats, ATVs, and shared equipment notes will live here — availability, photos, and maintenance when
+            you add them to Firestore.
           </p>
         </div>
       ) : categories.length === 0 ? (

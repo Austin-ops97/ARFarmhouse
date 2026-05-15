@@ -108,16 +108,6 @@ export function TasksBoard({
   onToggleDone: (id: string) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  if (tasks.length === 0) {
-    return (
-      <div className="rounded-[1.35rem] border border-border/55 bg-muted/25 px-6 py-12 text-center dark:border-white/10 dark:bg-white/[0.02]">
-        <p className="font-heading text-lg font-semibold text-foreground">Board is clear</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Drag cards between columns when tasks exist — for now, nothing is in flight.
-        </p>
-      </div>
-    );
-  }
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 12 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } })
@@ -134,6 +124,17 @@ export function TasksBoard({
   }, [tasks]);
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
+
+  if (tasks.length === 0) {
+    return (
+      <div className="rounded-[1.35rem] border border-border/55 bg-muted/25 px-6 py-12 text-center dark:border-white/10 dark:bg-white/[0.02]">
+        <p className="font-heading text-lg font-semibold text-foreground">Board is clear</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Drag cards between columns when tasks exist — for now, nothing is in flight.
+        </p>
+      </div>
+    );
+  }
 
   const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
 

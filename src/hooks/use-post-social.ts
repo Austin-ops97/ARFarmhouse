@@ -2,16 +2,19 @@
 
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { notifyFeedComment, notifyFeedReaction } from "@/lib/notification-fanout";
+import { buildChipsFromCounts, computeReactionCountsUpdate } from "@/lib/reaction-counts";
 import {
   addFeedComment,
+  deleteFeedComment,
+  fetchMyReactionEmoji,
   type FeedComment,
   previewReactionAfterToggle,
   type ReactionChip,
   setPostReaction,
   setPostSaved,
   subscribePostComments,
-  subscribePostReactions,
-  subscribePostSaved,
+  updateFeedComment,
 } from "@/services/post-engagement";
 
 function chipsEqual(a: ReactionChip[], b: ReactionChip[]) {
@@ -29,9 +32,12 @@ type UsePostSocialOptions = {
   uid: string | undefined;
   displayName: string;
   avatarUrl: string | null;
+  reactionCounts: Record<string, number>;
   commentsOpen: boolean;
-  /** From auth context — avoids SSR/client drift from reading `process.env` in hooks. */
+  engagementActive: boolean;
   remoteEnabled: boolean;
+  saved: boolean;
+  onSavedChange: (saved: boolean) => Promise<void>;
 };
 
 const IDLE_REACTION_CHIPS: ReactionChip[] = [
@@ -45,43 +51,57 @@ export function usePostSocial({
   uid,
   displayName,
   avatarUrl,
+  reactionCounts,
   commentsOpen,
+  engagementActive,
   remoteEnabled,
+  saved,
+  onSavedChange,
 }: UsePostSocialOptions) {
-  const [serverChips, setServerChips] = useState<ReactionChip[]>(IDLE_REACTION_CHIPS);
-  const serverChipsRef = useRef(serverChips);
+  const countsFromFeed = useMemo(() => reactionCounts, [reactionCounts]);
+  const [mineEmoji, setMineEmoji] = useState<string | undefined>(undefined);
+  const [mineLoaded, setMineLoaded] = useState(false);
   const [optimisticChips, setOptimisticChips] = useState<ReactionChip[] | null>(null);
   const [comments, setComments] = useState<FeedComment[]>([]);
-  const [savedRemote, setSavedRemote] = useState(false);
+  const [pendingComments, setPendingComments] = useState<FeedComment[]>([]);
   const [savedPending, setSavedPending] = useState<boolean | null>(null);
   const [socialError, setSocialError] = useState<string | null>(null);
 
+  const serverChips = useMemo(
+    () => buildChipsFromCounts(countsFromFeed, mineEmoji),
+    [countsFromFeed, mineEmoji]
+  );
+  const serverChipsRef = useRef(serverChips);
   useEffect(() => {
     serverChipsRef.current = serverChips;
   }, [serverChips]);
 
   useEffect(() => {
-    if (remoteEnabled) return;
-    startTransition(() => {
-      setServerChips(IDLE_REACTION_CHIPS);
-      setSavedRemote(false);
-      setOptimisticChips(null);
-    });
+    if (!remoteEnabled) {
+      startTransition(() => {
+        setMineEmoji(undefined);
+        setMineLoaded(false);
+        setOptimisticChips(null);
+      });
+    }
   }, [remoteEnabled]);
 
   useEffect(() => {
-    if (!remoteEnabled || !postId) return;
-    return subscribePostReactions(postId, uid, setServerChips, (e) => setSocialError(e.message));
-  }, [postId, uid, remoteEnabled]);
-
-  useEffect(() => {
-    if (!remoteEnabled || !postId) return;
-    return subscribePostSaved(postId, uid, setSavedRemote, (e) => setSocialError(e.message));
-  }, [postId, uid, remoteEnabled]);
+    if (!remoteEnabled || !uid || !engagementActive || mineLoaded) return;
+    let cancelled = false;
+    void fetchMyReactionEmoji(postId, uid).then((emoji) => {
+      if (cancelled) return;
+      setMineEmoji(emoji);
+      setMineLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [engagementActive, mineLoaded, postId, remoteEnabled, uid]);
 
   useEffect(() => {
     if (!remoteEnabled || !postId || !commentsOpen) return;
-    return subscribePostComments(postId, 24, setComments, (e) => setSocialError(e.message));
+    return subscribePostComments(postId, 48, setComments, (e) => setSocialError(e.message));
   }, [postId, commentsOpen, remoteEnabled]);
 
   useEffect(() => {
@@ -92,9 +112,9 @@ export function usePostSocial({
 
   useEffect(() => {
     if (savedPending === null) return;
-    if (savedRemote !== savedPending) return;
+    if (saved !== savedPending) return;
     startTransition(() => setSavedPending(null));
-  }, [savedRemote, savedPending]);
+  }, [saved, savedPending]);
 
   const reactionChips = optimisticChips ?? serverChips;
 
@@ -102,43 +122,80 @@ export function usePostSocial({
     async (emoji: string) => {
       if (!remoteEnabled || !uid) return;
       setOptimisticChips((prev) => previewReactionAfterToggle(prev ?? serverChipsRef.current, emoji));
+      const prevMine = mineEmoji;
+      const { nextUserEmoji } = computeReactionCountsUpdate(countsFromFeed, prevMine, emoji);
+      setMineEmoji(nextUserEmoji);
       try {
-        await setPostReaction(postId, uid, emoji);
+        await setPostReaction(postId, uid, emoji, countsFromFeed);
+        if (nextUserEmoji) {
+          void notifyFeedReaction({
+            postId,
+            actorId: uid,
+            actorName: displayName,
+            actorAvatarUrl: avatarUrl,
+            emoji: nextUserEmoji,
+          });
+        }
         setSocialError(null);
       } catch (e) {
         setOptimisticChips(null);
+        setMineEmoji(prevMine);
         setSocialError(e instanceof Error ? e.message : "Could not update reaction.");
       }
     },
-    [postId, remoteEnabled, uid]
+    [avatarUrl, countsFromFeed, displayName, mineEmoji, postId, remoteEnabled, uid]
   );
 
   const toggleSaved = useCallback(async () => {
     if (!remoteEnabled || !uid) return;
-    const next = !(savedPending ?? savedRemote);
+    const next = !(savedPending ?? saved);
     setSavedPending(next);
     try {
-      await setPostSaved(postId, uid, next);
+      await onSavedChange(next);
       setSocialError(null);
     } catch (e) {
       setSavedPending(null);
       setSocialError(e instanceof Error ? e.message : "Could not save post.");
     }
-  }, [postId, remoteEnabled, savedPending, savedRemote, uid]);
+  }, [onSavedChange, remoteEnabled, saved, savedPending, uid]);
 
   const submitComment = useCallback(
-    async (text: string) => {
+    async (text: string, parentId?: string | null) => {
       if (!remoteEnabled || !uid) return;
+      const tempId = `pending_${Date.now()}`;
+      const optimistic: FeedComment = {
+        id: tempId,
+        authorId: uid,
+        author: displayName,
+        authorAvatarUrl: avatarUrl,
+        text: text.trim(),
+        parentId: parentId ?? null,
+        createdAtMs: Date.now(),
+        updatedAtMs: null,
+        edited: false,
+      };
+      setPendingComments((rows) => [...rows, optimistic]);
       try {
-        await addFeedComment({
+        const commentId = await addFeedComment({
           postId,
           uid,
           authorName: displayName,
           authorAvatarUrl: avatarUrl,
           text,
+          parentId,
         });
+        void notifyFeedComment({
+          postId,
+          commentId,
+          actorId: uid,
+          actorName: displayName,
+          actorAvatarUrl: avatarUrl,
+          parentId,
+        });
+        setPendingComments((rows) => rows.filter((r) => r.id !== tempId));
         setSocialError(null);
       } catch (e) {
+        setPendingComments((rows) => rows.filter((r) => r.id !== tempId));
         setSocialError(e instanceof Error ? e.message : "Could not post comment.");
         throw e;
       }
@@ -146,21 +203,63 @@ export function usePostSocial({
     [avatarUrl, displayName, postId, uid, remoteEnabled]
   );
 
-  const previewLines = useMemo(
-    () => comments.map((c) => ({ author: c.author, text: c.text })),
-    [comments]
+  const editComment = useCallback(
+    async (commentId: string, text: string) => {
+      if (!remoteEnabled || !uid) return;
+      setComments((rows) =>
+        rows.map((r) =>
+          r.id === commentId ? { ...r, text: text.trim(), edited: true, updatedAtMs: Date.now() } : r
+        )
+      );
+      try {
+        await updateFeedComment({ postId, commentId, uid, text });
+        setSocialError(null);
+      } catch (e) {
+        setSocialError(e instanceof Error ? e.message : "Could not update comment.");
+        throw e;
+      }
+    },
+    [postId, remoteEnabled, uid]
   );
 
-  const saved = savedPending ?? savedRemote;
+  const removeComment = useCallback(
+    async (commentId: string) => {
+      if (!remoteEnabled || !uid) return;
+      setComments((rows) => rows.filter((r) => r.id !== commentId));
+      try {
+        await deleteFeedComment(postId, commentId, uid);
+        setSocialError(null);
+      } catch (e) {
+        setSocialError(e instanceof Error ? e.message : "Could not delete comment.");
+        throw e;
+      }
+    },
+    [postId, remoteEnabled, uid]
+  );
+
+  const commentRows = useMemo(() => {
+    const confirmedIds = new Set(comments.map((c) => c.id));
+    const pending = pendingComments.filter((p) => !confirmedIds.has(p.id));
+    return [...comments, ...pending].sort((a, b) => a.createdAtMs - b.createdAtMs);
+  }, [comments, pendingComments]);
+
+  const previewLines = useMemo(
+    () => commentRows.slice(-2).map((c) => ({ author: c.author, text: c.text })),
+    [commentRows]
+  );
+
+  const savedDisplay = savedPending ?? saved;
 
   return {
     remoteEnabled,
-    reactionChips,
+    reactionChips: remoteEnabled ? reactionChips : IDLE_REACTION_CHIPS,
     toggleReaction,
-    commentRows: comments,
+    commentRows,
     commentsPreview: previewLines,
     submitComment,
-    saved,
+    editComment,
+    removeComment,
+    saved: savedDisplay,
     toggleSaved,
     socialError,
   };

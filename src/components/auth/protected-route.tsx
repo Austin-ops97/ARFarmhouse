@@ -30,7 +30,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <FirebaseSetupGate />;
   }
 
-  if (loading || !user) {
+  if (!user) {
     return (
       <div className="relative min-h-dvh overflow-hidden bg-background">
         <div className="absolute inset-0 z-30 min-h-dvh bg-background">

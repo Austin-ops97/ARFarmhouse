@@ -2,8 +2,11 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { Home, Users } from "lucide-react";
+import { useMemo } from "react";
 
+import { dayOccupancyHeat, eventsOnDay } from "@/lib/calendar-event-merge";
 import type { CalendarMonthMeta } from "@/lib/calendar-month-meta";
+import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
@@ -17,15 +20,37 @@ const heatClass: Record<0 | 1 | 2 | 3, string> = {
 
 type CalendarOccupancyPanelProps = {
   calendarMonth: CalendarMonthMeta;
+  events: PropertyCalendarEvent[];
 };
 
-export function CalendarOccupancyPanel({ calendarMonth }: CalendarOccupancyPanelProps) {
+export function CalendarOccupancyPanel({ calendarMonth, events }: CalendarOccupancyPanelProps) {
   const reduceMotion = useReducedMotion();
   const days = Array.from({ length: calendarMonth.daysInMonth }, (_, i) => i + 1);
   const today = calendarMonth.todayDay;
   const windowStart = Math.max(1, (today ?? 1) - 3);
   const windowDays = Array.from({ length: 7 }, (_, i) => windowStart + i).filter((d) => d <= calendarMonth.daysInMonth);
   const monthWord = calendarMonth.label.split(" ")[0] ?? "Month";
+
+  const nextArrival = useMemo(() => {
+    const fromDay = today ?? 1;
+    const upcoming = events
+      .filter((e) => (e.endDay ?? e.startDay) >= fromDay)
+      .sort((a, b) => a.startDay - b.startDay)[0];
+    if (!upcoming) return null;
+    return {
+      title: upcoming.title,
+      when: `${monthWord} ${upcoming.startDay}${upcoming.endDay !== upcoming.startDay ? `–${upcoming.endDay}` : ""}`,
+      who:
+        upcoming.attendeeLabels.length > 0
+          ? upcoming.attendeeLabels.slice(0, 3).join(", ")
+          : upcoming.requestedByName,
+    };
+  }, [events, monthWord, today]);
+
+  const onPropertyNow = useMemo(() => {
+    if (today === null) return [];
+    return eventsOnDay(today, events);
+  }, [events, today]);
 
   return (
     <div className="min-w-0 space-y-4">
@@ -37,20 +62,16 @@ export function CalendarOccupancyPanel({ calendarMonth }: CalendarOccupancyPanel
             </span>
             <div>
               <p className="text-sm font-semibold text-foreground">Occupancy pulse</p>
-              <p className="text-[11px] text-muted-foreground">Who&apos;s here · who&apos;s en route</p>
+              <p className="text-[11px] text-muted-foreground">Density for {calendarMonth.label}</p>
             </div>
           </div>
         </div>
 
         <div className="mt-5 min-w-0">
-          <p className="text-[11px] font-medium text-muted-foreground">{calendarMonth.label} · calm view</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/90">
-            Density heat will reflect real bookings. Until then, every day reads open — the rhythm you want before the
-            house fills.
-          </p>
+          <p className="text-[11px] font-medium text-muted-foreground">{calendarMonth.label}</p>
           <div className="mt-3 grid w-full min-w-0 grid-cols-[repeat(31,minmax(0,1fr))] gap-px">
             {days.map((d) => {
-              const level = 0 as 0 | 1 | 2 | 3;
+              const level = dayOccupancyHeat(d, events);
               const isToday = today !== null && d === today;
               return (
                 <motion.div
@@ -78,8 +99,9 @@ export function CalendarOccupancyPanel({ calendarMonth }: CalendarOccupancyPanel
           <p className="text-[11px] font-medium text-muted-foreground">Week window</p>
           <div className="mt-3 flex gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {windowDays.map((d) => {
-              const level = 0 as 0 | 1 | 2 | 3;
-              const label = "Open";
+              const level = dayOccupancyHeat(d, events);
+              const onDay = eventsOnDay(d, events);
+              const label = onDay.length === 0 ? "Open" : onDay[0]?.title.slice(0, 12) ?? "Booked";
               return (
                 <div
                   key={d}
@@ -103,17 +125,35 @@ export function CalendarOccupancyPanel({ calendarMonth }: CalendarOccupancyPanel
             <Users className="size-3.5 text-primary" aria-hidden />
             On property now
           </div>
-          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-            No one flagged as on-property yet. When guest lists sync from your calendar, faces and checkout times land
-            here quietly.
-          </p>
+          {onPropertyNow.length === 0 ? (
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              No stays on the calendar for today — the house reads open.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2 text-sm text-foreground/90">
+              {onPropertyNow.map((e) => (
+                <li key={e.id}>
+                  <span className="font-medium">{e.title}</span>
+                  <span className="text-muted-foreground"> · {e.guests} guests</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className={cn(surface, "min-w-0 p-4 sm:p-5")}>
           <p className="text-xs font-medium text-muted-foreground">Upcoming arrivals</p>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Staggered ETAs will appear when weekends are scheduled. Until then, the lane stays clear.
-          </p>
+          {nextArrival ? (
+            <div className="mt-3">
+              <p className="text-sm font-medium text-foreground">{nextArrival.title}</p>
+              <p className="text-[12px] text-muted-foreground">{nextArrival.when}</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">{nextArrival.who}</p>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              Book your next stay to see arrivals here.
+            </p>
+          )}
         </div>
       </div>
 

@@ -373,6 +373,9 @@ export function CalendarAgendaList({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-foreground">{ev.title}</p>
                 <p className="text-[11px] capitalize text-muted-foreground">{ev.kind.replace(/_/g, " ")}</p>
+                {ev.attendeeLabels.length > 0 && (
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{ev.attendeeLabels.join(", ")}</p>
+                )}
               </div>
               <span className={cn("mt-1 size-2 shrink-0 rounded-full", accentDot[ev.accent])} />
             </motion.div>

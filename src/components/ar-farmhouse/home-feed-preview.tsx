@@ -2,12 +2,12 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
-import { useEffect, useState } from "react";
 
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useInViewReady } from "@/lib/use-in-view-ready";
 import type { UiFeedPost } from "@/models/feed-post";
-import { subscribeFeedPosts } from "@/services/feed-posts";
+import { useFeedPosts } from "@/contexts/feed-posts-context";
 
 function previewLine(post: UiFeedPost) {
   const line = (post.title ? `${post.title} — ${post.body}` : post.body).trim();
@@ -18,27 +18,12 @@ function previewLine(post: UiFeedPost) {
 export function HomeFeedPreview() {
   const reduceMotion = useReducedMotion();
   const { goTo } = useEcosystem();
-  const [posts, setPosts] = useState<UiFeedPost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const unsub = subscribeFeedPosts(
-      (p) => {
-        setPosts(p.slice(0, 5));
-        setLoading(false);
-        setError(null);
-      },
-      (e) => {
-        setError(e.message);
-        setLoading(false);
-      }
-    );
-    return unsub;
-  }, []);
+  const { ref, inView } = useInViewReady("240px 0px");
+  const { posts: allPosts, loading, error } = useFeedPosts();
+  const posts = inView ? allPosts.slice(0, 5) : [];
 
   return (
-    <section className="relative">
+    <section ref={ref} className="relative">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground/80">Family feed</p>
@@ -66,7 +51,7 @@ export function HomeFeedPreview() {
       )}
 
       <div className="mt-8 divide-y divide-white/[0.06] rounded-3xl bg-white/[0.02] px-2 ring-1 ring-white/[0.05] backdrop-blur-sm sm:px-4">
-        {loading ? (
+        {!inView || loading ? (
           <div className="space-y-4 py-6">
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex flex-col gap-2 sm:flex-row sm:justify-between">
@@ -81,7 +66,7 @@ export function HomeFeedPreview() {
         ) : posts.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-sm font-medium text-foreground">No family updates yet</p>
-            <p className="mt-2 text-sm text-muted-foreground">Open the feed to share the first memory.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Post a photo from the property to start the thread.</p>
           </div>
         ) : (
           posts.map((post, idx) => (

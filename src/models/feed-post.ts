@@ -20,6 +20,7 @@ export type UiFeedPost = {
   video?: { poster: string; duration: string };
   linkedEvent?: string;
   reactions: { emoji: string; count: number; active?: boolean }[];
+  reactionCounts: Record<string, number>;
   commentsPreview: { author: string; text: string }[];
   commentCount: number;
 };
@@ -37,4 +38,5 @@ export type FirestorePost = {
   createdAt: Timestamp;
   updatedAt?: Timestamp | null;
   commentCount: number;
+  reactionCounts?: Record<string, number>;
 };

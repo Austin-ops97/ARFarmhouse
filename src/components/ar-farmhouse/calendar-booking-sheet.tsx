@@ -2,13 +2,22 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CalendarRange, Home, Loader2, Minus, Plus, Sparkles, Users, X } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, startTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { dayOccupancyHeat, findEventOverlappingRange } from "@/lib/calendar-event-merge";
 import { buildCalendarMonthMeta } from "@/lib/calendar-month-meta";
+import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
+import { BookingAttendeePicker } from "@/components/ar-farmhouse/booking-attendee-picker";
 import { useAuth } from "@/contexts/auth-context";
+import { runMutation } from "@/lib/mutation-lifecycle";
+import {
+  buildAttendeeLabels,
+  countBookingGuests,
+  type BookingAttendeeSelection,
+} from "@/models/family-profile";
 import { createBookingRequest } from "@/services/property-data";
 import { cn } from "@/lib/utils";
 
@@ -28,31 +37,161 @@ const ROOM_OPTIONS = [
 type CalendarBookingSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  viewDate?: Date;
+  existingEvents?: PropertyCalendarEvent[];
 };
 
-export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingSheetProps) {
+export function CalendarBookingSheet({
+  open,
+  onOpenChange,
+  viewDate,
+  existingEvents = [],
+}: CalendarBookingSheetProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
-  const { user, displayName, loading: authLoading, configured } = useAuth();
-  const submittingRef = useRef(false);
-  const calendarMonth = useMemo(() => buildCalendarMonthMeta(), []);
+  const { user, profile, displayName, avatarUrl, loading: authLoading, configured } = useAuth();
+  const submitEpochRef = useRef(0);
+  const calendarMonth = useMemo(
+    () => buildCalendarMonthMeta(viewDate ?? new Date()),
+    [viewDate]
+  );
   const [tripId, setTripId] = useState<string>(TRIP_TYPES[0].id);
   const [guests, setGuests] = useState(4);
+  const [attendees, setAttendees] = useState<BookingAttendeeSelection>({
+    includeSelf: true,
+    memberIds: [],
+    petIds: [],
+  });
   const [roomId, setRoomId] = useState<string>(ROOM_OPTIONS[0].id);
   const [startDay, setStartDay] = useState(1);
   const [endDay, setEndDay] = useState(1);
   const [notes, setNotes] = useState("");
   const [tripPurpose, setTripPurpose] = useState("");
+  const [tripTitle, setTripTitle] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const close = useCallback(() => {
     if (submitting) return;
-    setSubmitted(false);
-    setSubmitError(null);
     onOpenChange(false);
   }, [onOpenChange, submitting]);
+
+  useEffect(() => {
+    if (open) return;
+    submitEpochRef.current += 1;
+    queueMicrotask(() => {
+      setSubmitted(false);
+      setSubmitting(false);
+      setSubmitError(null);
+    });
+  }, [open]);
+
+  useEffect(() => {
+    if (!profile) return;
+    setAttendees({ includeSelf: true, memberIds: [], petIds: [] });
+  }, [open, profile?.uid]);
+
+  useEffect(() => {
+    if (!profile) return;
+    setGuests(countBookingGuests(attendees));
+  }, [attendees, profile]);
+
+  const handleSubmit = useCallback(async () => {
+    if (submitting) return;
+    if (authLoading || !configured) {
+      setSubmitError("Wait until sign-in finishes, then try again.");
+      return;
+    }
+    if (!user) {
+      setSubmitError("Sign in to send a booking request.");
+      return;
+    }
+    const lo = Math.min(startDay, endDay);
+    const hi = Math.max(startDay, endDay);
+    if (lo < 1 || hi > calendarMonth.daysInMonth) {
+      setSubmitError(`Choose dates within ${calendarMonth.label}.`);
+      return;
+    }
+    if (profile && !attendees.includeSelf && attendees.memberIds.length === 0) {
+      setSubmitError("Select at least one person for this stay.");
+      return;
+    }
+    const conflict = findEventOverlappingRange(existingEvents, lo, hi);
+    if (conflict) {
+      setSubmitError(`Those dates overlap "${conflict.title}". Pick different days.`);
+      return;
+    }
+
+    const guestCount = profile ? countBookingGuests(attendees) : guests;
+    const attendeeLabels = profile ? buildAttendeeLabels(profile, attendees) : [];
+
+    const epoch = ++submitEpochRef.current;
+    await runMutation(
+      "booking",
+      "submit",
+      () =>
+        createBookingRequest({
+          tripId,
+          guests: guestCount,
+          roomId,
+          startDay: lo,
+          endDay: hi,
+          notes: notes.trim(),
+          tripPurpose: tripPurpose.trim(),
+          tripTitle: tripTitle.trim() || undefined,
+          year: calendarMonth.year,
+          monthIndex: calendarMonth.monthIndex,
+          requestedBy: user.uid,
+          requestedByName: displayName,
+          requestedByAvatarUrl: avatarUrl,
+          ownerUid: user.uid,
+          includeSelf: profile ? attendees.includeSelf : true,
+          attendeeMemberIds: profile ? attendees.memberIds : [],
+          attendeePetIds: profile ? attendees.petIds : [],
+          attendeeLabels,
+        }),
+      {
+        onStart: () => {
+          setSubmitError(null);
+          setSubmitting(true);
+        },
+        onSuccess: () => {
+          if (submitEpochRef.current !== epoch) return;
+          startTransition(() => setSubmitted(true));
+        },
+        onError: (e) => {
+          if (submitEpochRef.current !== epoch) return;
+          setSubmitError(e instanceof Error ? e.message : "Could not send request.");
+        },
+        onFinally: () => {
+          if (submitEpochRef.current !== epoch) return;
+          startTransition(() => setSubmitting(false));
+        },
+      }
+    );
+  }, [
+    authLoading,
+    calendarMonth.daysInMonth,
+    calendarMonth.label,
+    calendarMonth.monthIndex,
+    calendarMonth.year,
+    configured,
+    displayName,
+    endDay,
+    attendees,
+    guests,
+    notes,
+    profile,
+    roomId,
+    startDay,
+    submitting,
+    tripId,
+    existingEvents,
+    tripPurpose,
+    tripTitle,
+    user,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -86,7 +225,15 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
     setEndDay(d);
   };
 
-  const heat = (_d: number) => 0;
+  const heat = (d: number) => dayOccupancyHeat(d, existingEvents);
+
+  const arrivalLabel = useMemo(() => {
+    const lo = Math.min(startDay, endDay);
+    const hi = Math.max(startDay, endDay);
+    const monthWord = calendarMonth.label.split(" ")[0] ?? "Month";
+    if (lo === hi) return `Arrival & departure · ${monthWord} ${lo}`;
+    return `Arrive ${monthWord} ${lo} · Depart ${monthWord} ${hi}`;
+  }, [calendarMonth.label, endDay, startDay]);
 
   return (
     <AnimatePresence>
@@ -228,35 +375,47 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                     </div>
                   </div>
 
-                  <div className="ar-nested-well flex min-h-12 flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Users className="size-4 text-primary" aria-hidden />
-                      Guests
+                  {profile ? (
+                    <div className="ar-nested-well rounded-2xl px-4 py-4">
+                      <BookingAttendeePicker profile={profile} value={attendees} onChange={setAttendees} />
+                      <p className="mt-3 text-center text-[12px] text-muted-foreground">
+                        {guests} guest{guests === 1 ? "" : "s"}
+                        {attendees.petIds.length > 0
+                          ? ` · ${attendees.petIds.length} pet${attendees.petIds.length === 1 ? "" : "s"}`
+                          : ""}
+                      </p>
                     </div>
-                    <div className="flex items-center justify-end gap-2 sm:justify-start">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        className="size-9 rounded-xl"
-                        onClick={() => setGuests((g) => Math.max(1, g - 1))}
-                        aria-label="Fewer guests"
-                      >
-                        <Minus className="size-4" />
-                      </Button>
-                      <span className="min-w-[2ch] text-center text-lg font-semibold tabular-nums">{guests}</span>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        className="size-9 rounded-xl"
-                        onClick={() => setGuests((g) => Math.min(16, g + 1))}
-                        aria-label="More guests"
-                      >
-                        <Plus className="size-4" />
-                      </Button>
+                  ) : (
+                    <div className="ar-nested-well flex min-h-12 flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Users className="size-4 text-primary" aria-hidden />
+                        Guests
+                      </div>
+                      <div className="flex items-center justify-end gap-2 sm:justify-start">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          className="size-9 rounded-xl"
+                          onClick={() => setGuests((g) => Math.max(1, g - 1))}
+                          aria-label="Fewer guests"
+                        >
+                          <Minus className="size-4" />
+                        </Button>
+                        <span className="min-w-[2ch] text-center text-lg font-semibold tabular-nums">{guests}</span>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          className="size-9 rounded-xl"
+                          onClick={() => setGuests((g) => Math.min(16, g + 1))}
+                          aria-label="More guests"
+                        >
+                          <Plus className="size-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Rooms & spaces</p>
@@ -286,6 +445,23 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                         );
                       })}
                     </div>
+                  </div>
+
+                  <p className="rounded-xl border border-primary/20 bg-primary/8 px-3 py-2 text-center text-[12px] text-muted-foreground">
+                    {arrivalLabel}
+                  </p>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground" htmlFor="trip-title">
+                      Trip name (optional)
+                    </label>
+                    <Input
+                      id="trip-title"
+                      value={tripTitle}
+                      onChange={(e) => setTripTitle(e.target.value)}
+                      placeholder="e.g. Memorial Day cousins weekend"
+                      className="h-11 rounded-2xl border border-border/60 bg-card/75 dark:border-white/10 dark:bg-white/[0.04]"
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -323,49 +499,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                     type="button"
                     className="h-12 w-full rounded-2xl text-[15px] font-medium"
                     disabled={submitting || !user || authLoading || !configured}
-                    onClick={() => {
-                      if (submittingRef.current || submitting) return;
-                      if (authLoading || !configured) {
-                        setSubmitError("Wait until sign-in finishes, then try again.");
-                        return;
-                      }
-                      if (!user) {
-                        setSubmitError("Sign in to send a booking request.");
-                        return;
-                      }
-                      const lo = Math.min(startDay, endDay);
-                      const hi = Math.max(startDay, endDay);
-                      if (lo < 1 || hi > calendarMonth.daysInMonth) {
-                        setSubmitError(`Choose dates within ${calendarMonth.label}.`);
-                        return;
-                      }
-                      setSubmitError(null);
-                      setSubmitting(true);
-                      submittingRef.current = true;
-                      void (async () => {
-                        try {
-                          await createBookingRequest({
-                            tripId,
-                            guests,
-                            roomId,
-                            startDay: lo,
-                            endDay: hi,
-                            notes: notes.trim(),
-                            tripPurpose: tripPurpose.trim(),
-                            year: calendarMonth.year,
-                            monthIndex: calendarMonth.monthIndex,
-                            requestedBy: user.uid,
-                            requestedByName: displayName,
-                          });
-                          setSubmitted(true);
-                        } catch (e) {
-                          setSubmitError(e instanceof Error ? e.message : "Could not send request.");
-                        } finally {
-                          submittingRef.current = false;
-                          setSubmitting(false);
-                        }
-                      })();
-                    }}
+                    onClick={() => void handleSubmit()}
                   >
                     {submitting ? (
                       <>

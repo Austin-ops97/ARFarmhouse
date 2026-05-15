@@ -1,9 +1,17 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
-import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import { buildCalendarMonthMeta } from "@/lib/calendar-month-meta";
+import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import type {
   HouseTask,
   PropertyInventoryItem,
@@ -29,18 +37,24 @@ type PropertyDataContextValue = {
   calendarEvents: PropertyCalendarEvent[];
   calendarLoading: boolean;
   calendarError: string | null;
+  calendarViewDate: Date;
+  setCalendarViewDate: (d: Date) => void;
+  shiftCalendarMonth: (delta: number) => void;
   statusCards: PropertyStatusCard[];
   mapPins: PropertyMapPin[];
   mapTrails: PropertyMapTrail[];
   resources: PropertyResource[];
   inventory: PropertyInventoryItem[];
+  propertySyncError: string | null;
   configured: boolean;
 };
 
 const PropertyDataContext = createContext<PropertyDataContextValue | null>(null);
 
+const LISTENER_STAGGER_MS = 48;
+
 export function PropertyDataProvider({ children }: { children: ReactNode }) {
-  const calendarMonth = useMemo(() => buildCalendarMonthMeta(), []);
+  const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
   const [tasks, setTasks] = useState<HouseTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -52,50 +66,89 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
   const [mapTrails, setMapTrails] = useState<PropertyMapTrail[]>([]);
   const [resources, setResources] = useState<PropertyResource[]>([]);
   const [inventory, setInventory] = useState<PropertyInventoryItem[]>([]);
+  const [propertySyncError, setPropertySyncError] = useState<string | null>(null);
   const [configured, setConfigured] = useState(false);
 
+  const viewYear = calendarViewDate.getFullYear();
+  const viewMonthIndex = calendarViewDate.getMonth();
+
+  const shiftCalendarMonth = useCallback((delta: number) => {
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  }, []);
+
   useEffect(() => {
-    const unsubTasks = subscribeHouseTasks(
-      (rows) => {
-        setTasks(rows);
-        setTasksLoading(false);
-        setTasksError(null);
-        setConfigured(true);
-      },
-      (e) => {
-        setTasksError(e.message);
-        setTasksLoading(false);
-      }
+    let cancelled = false;
+    const unsubs: (() => void)[] = [];
+    const timers: number[] = [];
+
+    const mount = (delay: number, subscribe: () => () => void) => {
+      const id = window.setTimeout(() => {
+        if (cancelled) return;
+        unsubs.push(subscribe());
+      }, delay);
+      timers.push(id);
+    };
+
+    setCalendarLoading(true);
+    setPropertySyncError(null);
+
+    const onSliceError = (label: string) => (e: Error) => {
+      setPropertySyncError((prev) => prev ?? `Could not sync ${label}. ${e.message}`);
+    };
+
+    mount(0, () =>
+      subscribeHouseTasks(
+        (rows) => {
+          setTasks(rows);
+          setTasksLoading(false);
+          setTasksError(null);
+          setConfigured(true);
+        },
+        (e) => {
+          setTasksError(e.message);
+          setTasksLoading(false);
+        }
+      )
     );
-    const unsubCalendar = subscribeCalendarEvents(
-      calendarMonth.year,
-      calendarMonth.monthIndex,
-      (rows) => {
-        setCalendarEvents(rows);
-        setCalendarLoading(false);
-        setCalendarError(null);
-      },
-      (e) => {
-        setCalendarError(e.message);
-        setCalendarLoading(false);
-      }
+
+    mount(LISTENER_STAGGER_MS, () =>
+      subscribeCalendarEvents(
+        viewYear,
+        viewMonthIndex,
+        (rows) => {
+          setCalendarEvents(rows);
+          setCalendarLoading(false);
+          setCalendarError(null);
+        },
+        (e) => {
+          setCalendarError(e.message);
+          setCalendarLoading(false);
+        }
+      )
     );
-    const unsubStatus = subscribePropertyStatus(setStatusCards);
-    const unsubPins = subscribePropertyMapPins(setMapPins);
-    const unsubTrails = subscribePropertyMapTrails(setMapTrails);
-    const unsubResources = subscribePropertyResources(setResources);
-    const unsubInventory = subscribePropertyInventory(setInventory);
+
+    mount(LISTENER_STAGGER_MS * 2, () =>
+      subscribePropertyStatus(setStatusCards, onSliceError("property status"))
+    );
+    mount(LISTENER_STAGGER_MS * 3, () =>
+      subscribePropertyMapPins(setMapPins, onSliceError("map pins"))
+    );
+    mount(LISTENER_STAGGER_MS * 4, () =>
+      subscribePropertyMapTrails(setMapTrails, onSliceError("trails"))
+    );
+    mount(LISTENER_STAGGER_MS * 5, () =>
+      subscribePropertyResources(setResources, onSliceError("resources"))
+    );
+    mount(LISTENER_STAGGER_MS * 6, () =>
+      subscribePropertyInventory(setInventory, onSliceError("inventory"))
+    );
 
     return () => {
-      unsubTasks();
-      unsubCalendar();
-      unsubStatus();
-      unsubPins();
-      unsubTrails();
-      unsubResources();
-      unsubInventory();
+      cancelled = true;
+      timers.forEach((t) => window.clearTimeout(t));
+      unsubs.forEach((u) => u());
     };
-  }, [calendarMonth.year, calendarMonth.monthIndex]);
+  }, [viewYear, viewMonthIndex]);
 
   const value = useMemo(
     () => ({
@@ -105,26 +158,33 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
       calendarEvents,
       calendarLoading,
       calendarError,
+      calendarViewDate,
+      setCalendarViewDate,
+      shiftCalendarMonth,
       statusCards,
       mapPins,
       mapTrails,
       resources,
       inventory,
+      propertySyncError,
       configured,
     }),
     [
-      tasks,
-      tasksLoading,
-      tasksError,
+      calendarViewDate,
+      calendarError,
       calendarEvents,
       calendarLoading,
-      calendarError,
-      statusCards,
+      configured,
+      inventory,
+      propertySyncError,
       mapPins,
       mapTrails,
       resources,
-      inventory,
-      configured,
+      shiftCalendarMonth,
+      statusCards,
+      tasks,
+      tasksError,
+      tasksLoading,
     ]
   );
 
@@ -135,4 +195,9 @@ export function usePropertyData(): PropertyDataContextValue {
   const v = useContext(PropertyDataContext);
   if (!v) throw new Error("usePropertyData must be used within PropertyDataProvider");
   return v;
+}
+
+export function useCalendarMonthMeta() {
+  const { calendarViewDate } = usePropertyData();
+  return useMemo(() => buildCalendarMonthMeta(calendarViewDate), [calendarViewDate]);
 }

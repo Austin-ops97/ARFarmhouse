@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CheckSquare, LayoutGrid, List, Plus } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
-import { TasksQuickAddDialog } from "@/components/ar-farmhouse/tasks-quick-add-dialog";
+import { TasksQuickAddDialog, type QuickAddTaskOptions } from "@/components/ar-farmhouse/tasks-quick-add-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskCard } from "@/components/ar-farmhouse/task-card";
@@ -12,8 +12,9 @@ import { TasksBoard } from "@/components/ar-farmhouse/tasks-board";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { useAuth } from "@/contexts/auth-context";
 import { usePropertyData } from "@/contexts/property-data-context";
-import { getWeekendHubBundle } from "@/lib/weekend-hub-bundle";
+import { resolveWeekendHubBundle } from "@/lib/weekend-hub-hydrate";
 import type { HouseTask, TaskListSection } from "@/lib/property-operations";
+import { SyncStatusBanner } from "@/components/ar-farmhouse/sync-status-banner";
 import { createHouseTask, persistHouseTasksBatch, updateHouseTask } from "@/services/property-data";
 import { cn } from "@/lib/utils";
 
@@ -33,11 +34,12 @@ export function TasksView() {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
   const { user, displayName, avatarUrl, configured } = useAuth();
-  const { tasks, tasksLoading, tasksError } = usePropertyData();
+  const { tasks, tasksLoading, tasksError, calendarEvents, statusCards, inventory } = usePropertyData();
   const [view, setView] = useState<"list" | "board">("list");
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddBusy, setQuickAddBusy] = useState(false);
   const [localTasks, setLocalTasks] = useState<HouseTask[] | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const displayTasks = localTasks ?? tasks;
 
@@ -56,8 +58,10 @@ export function TasksView() {
       try {
         await updateHouseTask(id, patch);
         setLocalTasks(null);
-      } catch {
+        setMutationError(null);
+      } catch (e) {
         setLocalTasks(null);
+        setMutationError(e instanceof Error ? e.message : "Could not update task.");
       }
     },
     [displayTasks, tasks]
@@ -69,23 +73,28 @@ export function TasksView() {
       try {
         await persistHouseTasksBatch(next);
         setLocalTasks(null);
-      } catch {
+        setMutationError(null);
+      } catch (e) {
         setLocalTasks(null);
+        setMutationError(e instanceof Error ? e.message : "Could not save task order.");
       }
     },
     []
   );
 
   const handleQuickAdd = useCallback(
-    async (title: string) => {
+    async (opts: QuickAddTaskOptions) => {
       if (!user) throw new Error("Sign in to add tasks.");
       setQuickAddBusy(true);
       try {
         await createHouseTask({
-          title,
+          title: opts.title,
           uid: user.uid,
           displayName,
           avatarUrl,
+          listSection: opts.listSection,
+          priority: opts.priority,
+          dueLabel: opts.dueLabel,
         });
       } finally {
         setQuickAddBusy(false);
@@ -111,7 +120,10 @@ export function TasksView() {
     return g;
   }, [displayTasks]);
 
-  const hubBundle = useMemo(() => getWeekendHubBundle("current"), []);
+  const hubBundle = useMemo(
+    () => resolveWeekendHubBundle("current", calendarEvents, new Date(), { statusCards, inventory }),
+    [calendarEvents, statusCards, inventory]
+  );
   const weekendTasksPreview = useMemo(() => displayTasks.filter((t) => t.listSection === "weekend").slice(0, 4), [displayTasks]);
 
   const quickAddDisabled = !configured || !user;
@@ -167,11 +179,7 @@ export function TasksView() {
         )}
       </motion.section>
 
-      {tasksError && (
-        <p className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100/95">
-          Tasks could not sync: {tasksError}
-        </p>
-      )}
+      <SyncStatusBanner error={mutationError ?? tasksError} />
 
       <motion.section
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}
@@ -256,9 +264,9 @@ export function TasksView() {
             >
               {displayTasks.length === 0 ? (
                 <div className={cn(surface, "px-6 py-12 text-center")}>
-                  <p className="font-heading text-lg font-semibold text-foreground">No shared tasks yet</p>
+                  <p className="font-heading text-lg font-semibold text-foreground">Upcoming maintenance tasks will appear here</p>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    Tap Quick add to create the first household job — everyone signed in will see it live.
+                    Tap Quick add for trip prep, cleanup, or property upkeep — everyone signed in sees updates live.
                   </p>
                 </div>
               ) : (

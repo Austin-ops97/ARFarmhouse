@@ -3,16 +3,23 @@
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { CalendarRange, Clock3, UtensilsCrossed } from "lucide-react";
+import { useMemo } from "react";
 
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
-import { getWeekendHubBundle } from "@/lib/weekend-hub-bundle";
+import { useHomeCalendarEvents } from "@/contexts/home-calendar-context";
+import { resolveWeekendHubBundle } from "@/lib/weekend-hub-hydrate";
 import { cn } from "@/lib/utils";
 
 export function HomeThisWeekend() {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
-  const bundle = getWeekendHubBundle("current");
+  const calendarEvents = useHomeCalendarEvents();
+  const bundle = useMemo(
+    () => resolveWeekendHubBundle("current", calendarEvents, new Date()),
+    [calendarEvents]
+  );
+  const hasStay = bundle.dateLabel !== "No weekends on the calendar yet";
 
   return (
     <section className="relative">
@@ -54,7 +61,9 @@ export function HomeThisWeekend() {
               </div>
               <div className="rounded-2xl bg-white/12 px-4 py-5 ring-1 ring-white/18 backdrop-blur-md">
                 <p className="text-sm leading-relaxed text-white/92">
-                  No countdown yet — when a stay has a start time, a quiet timer appears here for everyone signed in.
+                  {hasStay
+                    ? bundle.occupancySummary
+                    : "No countdown yet — when a stay has a start time, a quiet timer appears here for everyone signed in."}
                 </p>
               </div>
               <p className="text-sm font-medium text-white/92">{bundle.weather.label}</p>

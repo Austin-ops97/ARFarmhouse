@@ -72,8 +72,10 @@ export function SettingsPrefsProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setPrefs(loadPrefs());
-    setReady(true);
+    queueMicrotask(() => {
+      setPrefs(loadPrefs());
+      setReady(true);
+    });
   }, []);
 
   const patch = useCallback((partial: Partial<SettingsPrefs>) => {

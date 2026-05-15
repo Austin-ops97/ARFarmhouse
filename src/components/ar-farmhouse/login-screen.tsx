@@ -9,6 +9,7 @@ import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
+import { readRegistrationPolicy } from "@/lib/auth-gate";
 import { PROPERTY_HERO_IMAGE_URL } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +25,10 @@ type AuthView = "signIn" | "register" | "forgotPassword";
 
 export function LoginScreen() {
   const reduceMotion = useReducedMotion();
-  const { signInWithEmail, signUpWithEmail, sendPasswordResetForEmail, clearError } = useAuth();
+  const { signInWithEmail, signUpWithEmail, sendPasswordResetForEmail, clearError, registrationAvailable } =
+    useAuth();
+  const registrationPolicy = readRegistrationPolicy();
+  const showRegistrationCta = registrationAvailable;
   const [view, setView] = useState<AuthView>("signIn");
   const [pending, setPending] = useState<null | "auth" | "reset">(null);
   const [email, setEmail] = useState("");
@@ -40,6 +44,7 @@ export function LoginScreen() {
 
   const transitionTo = useCallback(
     (next: AuthView) => {
+      if (next === "register" && !registrationAvailable) return;
       setFormError(null);
       clearFieldErrors();
       clearError();
@@ -48,8 +53,10 @@ export function LoginScreen() {
       }
       setView(next);
     },
-    [clearError, clearFieldErrors]
+    [clearError, clearFieldErrors, registrationAvailable]
   );
+
+  const activeView: AuthView = view === "register" && !registrationAvailable ? "signIn" : view;
 
   function validateCredentials(forRegister: boolean): boolean {
     const next: typeof fieldErrors = {};
@@ -85,7 +92,7 @@ export function LoginScreen() {
     e.preventDefault();
     if (busy) return;
     setFormError(null);
-    const forRegister = view === "register";
+    const forRegister = activeView === "register";
     if (!validateCredentials(forRegister)) return;
 
     setPending("auth");
@@ -120,8 +127,8 @@ export function LoginScreen() {
     }
   }
 
-  const showRegisterFields = view === "register";
-  const showPassword = view === "signIn" || view === "register";
+  const showRegisterFields = activeView === "register";
+  const showPassword = activeView === "signIn" || activeView === "register";
 
   return (
     <div className="relative flex min-h-dvh items-center justify-center px-4 py-10 sm:px-6">
@@ -171,23 +178,23 @@ export function LoginScreen() {
               <ArFarmhouseLogo size={72} priority className="shadow-[0_12px_40px_-16px_rgba(0,0,0,0.35)]" />
             </motion.div>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-[2rem]">
-              {view === "forgotPassword" ? "Reset password" : "AR Farmhouse"}
+              {activeView === "forgotPassword" ? "Reset password" : "AR Farmhouse"}
             </h1>
             <p className="mt-2 max-w-[280px] text-sm leading-relaxed text-muted-foreground">
-              {view === "forgotPassword"
+              {activeView === "forgotPassword"
                 ? "We will email you a secure link to choose a new password."
                 : "Private family property network"}
             </p>
           </div>
 
-          {view !== "forgotPassword" && (
+          {activeView !== "forgotPassword" && (
             <p className="mb-4 rounded-2xl border border-primary/20 bg-primary/[0.08] px-3 py-2 text-center text-xs leading-relaxed text-muted-foreground">
               Secure sign-in · your session stays signed in on this device until you sign out.
             </p>
           )}
 
           <AnimatePresence mode="wait" initial={false}>
-            {view === "forgotPassword" ? (
+            {activeView === "forgotPassword" ? (
               <motion.form
                 key="forgot"
                 onSubmit={handleResetSubmit}
@@ -373,7 +380,7 @@ export function LoginScreen() {
                           id="password"
                           name="password"
                           type="password"
-                          autoComplete={view === "register" ? "new-password" : "current-password"}
+                          autoComplete={activeView === "register" ? "new-password" : "current-password"}
                           placeholder="Password"
                           value={password}
                           onChange={(ev) => {
@@ -390,7 +397,7 @@ export function LoginScreen() {
                           {fieldErrors.password}
                         </p>
                       )}
-                      {view === "register" && !fieldErrors.password && (
+                      {activeView === "register" && !fieldErrors.password && (
                         <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/80">
                           At least {MIN_PASSWORD_LEN} characters. Use a phrase only your family would guess.
                         </p>
@@ -399,7 +406,7 @@ export function LoginScreen() {
                   )}
                 </AnimatePresence>
 
-                {view === "signIn" && (
+                {activeView === "signIn" && (
                   <div className="flex justify-end pt-0.5">
                     <button
                       type="button"
@@ -427,23 +434,45 @@ export function LoginScreen() {
                   {pending === "auth" ? (
                     <>
                       <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
-                      {view === "register" ? "Creating account…" : "Signing in…"}
+                      {activeView === "register" ? "Creating account…" : "Signing in…"}
                     </>
-                  ) : view === "register" ? (
+                  ) : activeView === "register" ? (
                     "Create account"
                   ) : (
                     "Sign in"
                   )}
                 </Button>
 
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => transitionTo(view === "register" ? "signIn" : "register")}
-                  className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline disabled:opacity-50"
-                >
-                  {view === "register" ? "Already have access? Sign in" : "New to the property? Create an account"}
-                </button>
+                {showRegistrationCta ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => transitionTo(activeView === "register" ? "signIn" : "register")}
+                    className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline disabled:opacity-50"
+                  >
+                    {activeView === "register" ? "Already have access? Sign in" : "New to the property? Create an account"}
+                  </button>
+                ) : activeView === "register" ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => transitionTo("signIn")}
+                    className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline disabled:opacity-50"
+                  >
+                    Back to sign in
+                  </button>
+                ) : (
+                  <p className="rounded-2xl border border-border/40 bg-muted/20 px-3 py-2.5 text-center text-xs leading-relaxed text-muted-foreground">
+                    New accounts are invite-only. Sign in if you already have access, or contact your family admin for
+                    an invite.
+                  </p>
+                )}
+
+                {activeView === "register" && registrationAvailable && registrationPolicy.allowlistEmails.size > 0 && (
+                  <p className="text-center text-[11px] leading-relaxed text-muted-foreground/85">
+                    Registration is limited to invited family emails.
+                  </p>
+                )}
 
                 <p className="pt-2 text-center text-xs text-muted-foreground/90">
                   Encrypted session · family-only feed and storage

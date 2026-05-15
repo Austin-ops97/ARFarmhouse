@@ -8,12 +8,26 @@ import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
+const categoryLabel = {
+  consumables: "Consumables",
+  maintenance: "Maintenance",
+  outdoor: "Outdoor gear",
+  fuel: "Fuel & tools",
+  general: "General",
+} as const;
+
 export function PropertyInventoryPanel() {
   const reduceMotion = useReducedMotion();
   const { inventory } = usePropertyData();
+  const lowCount = inventory.filter((i) => i.low).length;
 
   return (
     <div className="space-y-4">
+      {lowCount > 0 && (
+        <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-50/95">
+          {lowCount} supply item{lowCount === 1 ? "" : "s"} running low — restock before the next weekend.
+        </div>
+      )}
       <div className={cn(surface, "flex items-start gap-3 p-4 sm:p-5")}>
         <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-border/55 bg-muted/50 dark:border-white/10 dark:bg-white/[0.05]">
           <Package className="size-5 text-primary" aria-hidden />
@@ -30,9 +44,9 @@ export function PropertyInventoryPanel() {
         {inventory.length === 0 ? (
           <div className={cn(surface, "col-span-full px-6 py-12 text-center sm:py-14")}>
             <p className="font-heading text-lg font-semibold text-foreground">No supply counts yet</p>
-            <p className="mt-2 max-w-md mx-auto text-sm leading-relaxed text-muted-foreground">
-              Propane, firewood, and pantry staples will list here when inventory syncs. For now, note what matters in
-              the feed or weekend hub.
+            <p className="mt-2 mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">
+              Categorized consumables, maintenance items, and outdoor gear will list here when your family tracks
+              inventory in the property hub.
             </p>
           </div>
         ) : (
@@ -47,7 +61,14 @@ export function PropertyInventoryPanel() {
               className={cn(surface, "p-4 sm:p-5", item.low && "border-amber-400/25 ring-1 ring-amber-400/15")}
             >
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                  {item.category && (
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {categoryLabel[item.category] ?? item.category}
+                    </p>
+                  )}
+                </div>
                 {item.low && <AlertTriangle className="size-4 shrink-0 text-amber-300/90" aria-hidden />}
               </div>
               <p className="mt-1 text-[11px] text-muted-foreground">Unit · {item.unit}</p>

@@ -25,8 +25,10 @@ import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { getWeekendHubBundle } from "@/lib/weekend-hub-bundle";
+import { useHubPropertyOps } from "@/hooks/use-hub-property-ops";
+import { resolveWeekendHubBundle } from "@/lib/weekend-hub-hydrate";
 import type { WeekendHubSlug } from "@/lib/weekend-hub-slug";
+import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised rounded-2xl");
@@ -52,10 +54,11 @@ function initials(name: string) {
 type WeekendHubSheetProps = {
   open: boolean;
   slug: WeekendHubSlug;
+  calendarEvents?: PropertyCalendarEvent[];
   onClose: () => void;
 };
 
-export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
+export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: WeekendHubSheetProps) {
   const reduceMotion = useReducedMotion();
   const { goTo } = useEcosystem();
   const [now, setNow] = useState(() => Date.now());
@@ -66,7 +69,11 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
     return () => window.clearInterval(id);
   }, [open]);
 
-  const bundle = useMemo(() => getWeekendHubBundle(slug), [slug]);
+  const { statusCards, inventory } = useHubPropertyOps(open);
+  const bundle = useMemo(
+    () => resolveWeekendHubBundle(slug, calendarEvents, new Date(), { statusCards, inventory }),
+    [slug, calendarEvents, statusCards, inventory]
+  );
 
   const cd = useMemo(() => {
     return countdownParts(Date.parse(bundle.startIso), now);

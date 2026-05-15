@@ -1,90 +1,193 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return isSignedIn() && userDoc().data.role;
+    }
+
+    function isPropertyOwner() {
+      return userRole() == 'owner';
+    }
+
+    function unchanged(field) {
+      return request.resource.data[field] == resource.data[field];
+    }
+
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow read: if isSignedIn();
+      allow create, update: if isSelf(userId);
       allow delete: if false;
 
       match /savedPosts/{postId} {
-        allow read: if request.auth != null && request.auth.uid == userId;
-        allow create, update, delete: if request.auth != null && request.auth.uid == userId;
+        allow read: if isSelf(userId);
+        allow create, update, delete: if isSelf(userId);
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if isSelf(userId);
+        allow create: if isSignedIn()
+          && request.resource.data.actorId == request.auth.uid;
+        allow update: if isSelf(userId)
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['readAt']);
+        allow delete: if isSelf(userId);
       }
     }
 
     match /posts/{postId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
         && request.resource.data.authorId == request.auth.uid;
 
-      allow update: if request.auth != null && (
+      allow update: if isSignedIn() && (
         resource.data.authorId == request.auth.uid
         || (
           request.resource.data.diff(resource.data).changedKeys()
             .hasOnly(["commentCount", "updatedAt"])
-          && request.resource.data.commentCount == resource.data.commentCount + 1
+          && (
+            request.resource.data.commentCount == resource.data.commentCount + 1
+            || request.resource.data.commentCount == resource.data.commentCount - 1
+          )
+        )
+        || (
+          request.resource.data.diff(resource.data).changedKeys()
+            .hasOnly(["reactionCounts", "updatedAt"])
+          && request.resource.data.reactionCounts is map
         )
       );
 
-      allow delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
 
       match /reactions/{uid} {
-        allow read: if request.auth != null;
-        allow create, update: if request.auth != null && request.auth.uid == uid
+        allow read: if isSignedIn();
+        allow create, update: if isSelf(uid)
           && request.resource.data.keys().hasOnly(["emoji", "updatedAt"]);
-        allow delete: if request.auth != null && request.auth.uid == uid;
+        allow delete: if isSelf(uid);
       }
 
       match /comments/{commentId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
           && request.resource.data.authorId == request.auth.uid;
-        allow update, delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+        allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
       }
     }
 
     match /houseTasks/{taskId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
-        && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 200;
+      allow update: if isSignedIn()
+        && resource.data.createdBy == request.resource.data.createdBy
+        && !request.resource.data.diff(resource.data).changedKeys().hasAny(['createdBy']);
+      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
     }
 
     match /calendarEvents/{eventId} {
-      allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.requestedByName is string
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 160
+        && request.resource.data.startDay is int
+        && request.resource.data.startDay >= 1
+        && request.resource.data.startDay <= 31
+        && request.resource.data.year is int
+        && request.resource.data.monthIndex is int
+        && request.resource.data.monthIndex >= 0
+        && request.resource.data.monthIndex <= 11
+        && request.resource.data.bookingRequestId is string
+        && request.resource.data.bookingRequestId.size() > 0
+        && (
+          !request.resource.data.keys().hasAll(['endDay'])
+          || (
+            request.resource.data.endDay is int
+            && request.resource.data.endDay >= request.resource.data.startDay
+            && request.resource.data.endDay <= 31
+          )
+        );
+      allow update: if isSignedIn()
+        && resource.data.requestedBy == request.auth.uid
+        && unchanged('requestedBy')
+        && unchanged('bookingRequestId')
+        && unchanged('year')
+        && unchanged('monthIndex');
+      allow delete: if isSignedIn() && resource.data.requestedBy == request.auth.uid;
+    }
+
+    match /albumMedia/{mediaId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.authorDisplayName is string
+        && request.resource.data.storageUrl is string
+        && request.resource.data.storagePath is string
+        && request.resource.data.caption is string
+        && request.resource.data.caption.size() <= 500
+        && request.resource.data.albumKey is string
+        && request.resource.data.albumKey.size() <= 40;
+      allow update: if isSignedIn()
+        && resource.data.authorId == request.auth.uid
+        && unchanged('authorId')
+        && unchanged('storageUrl')
+        && unchanged('storagePath');
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
     }
 
     match /bookingRequests/{requestId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
-        && request.resource.data.requestedBy == request.auth.uid;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.requestedByName is string
+        && request.resource.data.startDay is int
+        && request.resource.data.startDay >= 1
+        && request.resource.data.year is int
+        && request.resource.data.monthIndex is int
+        && request.resource.data.status == 'pending'
+        && request.resource.data.calendarEventId is string
+        && request.resource.data.calendarEventId.size() > 0;
       allow update, delete: if false;
     }
 
     match /propertyStatus/{cardId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create, update, delete: if isPropertyOwner();
     }
 
     match /propertyMapPins/{pinId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create, update, delete: if isPropertyOwner();
     }
 
     match /propertyMapTrails/{trailId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create, update, delete: if isPropertyOwner();
     }
 
     match /propertyResources/{resourceId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create, update, delete: if isPropertyOwner();
     }
 
     match /propertyInventory/{itemId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create, update, delete: if isPropertyOwner();
     }
   }
 }

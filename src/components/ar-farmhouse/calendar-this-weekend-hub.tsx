@@ -8,7 +8,8 @@ import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { getWeekendHubBundle } from "@/lib/weekend-hub-bundle";
+import { resolveWeekendHubBundle } from "@/lib/weekend-hub-hydrate";
+import { usePropertyData } from "@/contexts/property-data-context";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
@@ -24,7 +25,11 @@ function initials(name: string) {
 export function CalendarThisWeekendHub({ onOpenCommandCenter }: { onOpenCommandCenter?: () => void }) {
   const reduceMotion = useReducedMotion();
   const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const bundle = getWeekendHubBundle("current");
+  const { calendarEvents, statusCards, inventory } = usePropertyData();
+  const bundle = resolveWeekendHubBundle("current", calendarEvents, new Date(), {
+    statusCards,
+    inventory,
+  });
 
   return (
     <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden">
