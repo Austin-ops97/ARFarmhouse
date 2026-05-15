@@ -40,6 +40,16 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
   const cover = kind === "image" || kind === "event_recap" ? media[0] : undefined;
   const reactionCounts = normalizeReactionCounts(d.reactionCounts);
 
+  const mediaDimensions: UiFeedPost["mediaDimensions"] = media.map((_, i) => {
+    const m = Array.isArray(d.mediaMeta) ? d.mediaMeta[i] : undefined;
+    const width = typeof m?.width === "number" ? m.width : undefined;
+    const height = typeof m?.height === "number" ? m.height : undefined;
+    if (width === undefined || height === undefined || width <= 0 || height <= 0) return undefined;
+    return { width, height };
+  });
+
+  const hasDims = mediaDimensions.some((x) => x != null);
+
   return {
     id: snapshot.id,
     authorId: typeof d.authorId === "string" ? d.authorId : "",
@@ -66,6 +76,7 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
     reactionCounts,
     commentsPreview: [],
     commentCount: typeof d.commentCount === "number" ? d.commentCount : 0,
+    ...(hasDims ? { mediaDimensions } : {}),
   };
 }
 
@@ -92,20 +103,37 @@ export type FeedPublishProgress =
   | { phase: "preparing" | "optimizing"; done: number; total: number }
   | { phase: "uploading"; done: number; total: number; percent?: number };
 
-export async function createFeedPostWithMedia(
-  input: {
-    authorId: string;
-    authorDisplayName: string;
-    authorPhotoUrl: string | null;
-    category: FeedPostCategory;
-    title?: string;
-    body: string;
-    location?: string;
-    linkedEvent?: string | null;
-    files: File[];
-  },
-  onProgress?: (progress: FeedPublishProgress) => void
-): Promise<string> {
+export type CreateFeedPostInput = {
+  authorId: string;
+  authorDisplayName: string;
+  authorPhotoUrl: string | null;
+  category: FeedPostCategory;
+  title?: string;
+  body: string;
+  location?: string;
+  linkedEvent?: string | null;
+  files: File[];
+};
+
+/** Reserve a Firestore document id before optimistic UI so Storage paths and the final `setDoc` stay aligned. */
+export function allocateFeedPostDocId(): string {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
+  return doc(collection(db, POSTS)).id;
+}
+
+/**
+ * Runs validate → optimize → Storage (resumable) → Firestore for an existing post id.
+ * Used by optimistic publishing: UI appears immediately, then this finishes in the background.
+ */
+export async function finalizeFeedPostFromFiles(
+  postId: string,
+  input: CreateFeedPostInput,
+  options?: {
+    onProgress?: (progress: FeedPublishProgress) => void;
+    signal?: AbortSignal;
+  }
+): Promise<void> {
   if (!input.authorId?.trim()) throw new Error("You must be signed in to publish.");
 
   const db = tryGetFirestoreDb();
@@ -113,17 +141,18 @@ export async function createFeedPostWithMedia(
 
   validateFeedImageFiles(input.files);
 
-  const ref = doc(collection(db, POSTS));
-  const id = ref.id;
-  actionDebug("feed", "publish start", { postId: id, fileCount: input.files.length });
+  const ref = doc(db, POSTS, postId);
+  actionDebug("feed", "publish finalize start", { postId, fileCount: input.files.length });
 
   let mediaUrls: string[] = [];
   let mediaMeta: NonNullable<FirestorePost["mediaMeta"]> | undefined;
 
   if (input.files.length > 0) {
     const total = input.files.length;
+    const { onProgress, signal } = options ?? {};
     actionDebug("feed", "optimize begin");
     const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(input.files, "feed", {
+      signal,
       onProgress: (pipe) => {
         if (!onProgress) return;
         if (pipe.phase === "optimizing") {
@@ -144,9 +173,9 @@ export async function createFeedPostWithMedia(
       skippedOptimization: a.skippedOptimization,
     }));
     actionDebug("feed", "upload begin");
-    onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
-    mediaUrls = await uploadPostImages(id, optimized, (done, t, percent) =>
-      onProgress?.({ phase: "uploading", done, total: t, percent })
+    options?.onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
+    mediaUrls = await uploadPostImages(postId, optimized, (done, t, percent) =>
+      options?.onProgress?.({ phase: "uploading", done, total: t, percent })
     );
     actionDebug("feed", "upload complete", { count: mediaUrls.length });
   }
@@ -169,10 +198,9 @@ export async function createFeedPostWithMedia(
   };
 
   try {
-    actionDebug("feed", "firestore write begin", { postId: id });
+    actionDebug("feed", "firestore write begin", { postId });
     await setDoc(ref, payload);
-    actionDebug("feed", "firestore write complete", { postId: id });
-    return id;
+    actionDebug("feed", "firestore write complete", { postId });
   } catch (e) {
     actionDebug("feed", "publish failed", e);
     const msg = e instanceof Error ? e.message : String(e);
@@ -181,6 +209,15 @@ export async function createFeedPostWithMedia(
     }
     throw new Error(`Could not save the post. ${msg}`);
   }
+}
+
+export async function createFeedPostWithMedia(
+  input: CreateFeedPostInput,
+  onProgress?: (progress: FeedPublishProgress) => void
+): Promise<string> {
+  const id = allocateFeedPostDocId();
+  await finalizeFeedPostFromFiles(id, input, { onProgress });
+  return id;
 }
 
 export async function deleteFeedPost(

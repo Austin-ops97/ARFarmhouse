@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight, Images, Loader2, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -22,40 +21,71 @@ const cardSurface = cn("ar-surface-raised rounded-[1.35rem]");
 
 function MasonryTile({
   item,
-  tall,
   onOpen,
 }: {
   item: AlbumMediaItem;
-  tall?: boolean;
   onOpen: () => void;
 }) {
   const title =
     item.postTitle ??
     (item.source === "upload" ? item.caption.slice(0, 48) || "Family memory" : "Untitled moment");
 
+  const opt = item.optimisticUpload;
+  const showUploadChip =
+    item.optimistic && opt?.phase !== "Failed" && !opt?.error && (opt?.progress ?? 0) < 100;
+  const failed = item.optimistic && (opt?.phase === "Failed" || opt?.error);
+
+  const intrinsicRatio =
+    item.width && item.height && item.width > 0 && item.height > 0 ? item.width / item.height : undefined;
+
   return (
     <motion.button
       type="button"
       layout
-      whileHover={{ scale: 1.015 }}
-      whileTap={{ scale: 0.985 }}
+      whileHover={{ scale: 1.012 }}
+      whileTap={{ scale: 0.988 }}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       onClick={onOpen}
+      style={intrinsicRatio != null ? { aspectRatio: intrinsicRatio } : undefined}
       className={cn(
-        "group relative mb-3 w-full overflow-hidden rounded-2xl ring-1 ring-border/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-        "dark:ring-white/[0.06]",
-        tall ? "aspect-[3/5]" : "aspect-[4/5] sm:aspect-square"
+        "group relative mb-3 w-full overflow-hidden rounded-2xl bg-muted/25 ring-1 ring-border/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        "dark:bg-zinc-950/60 dark:ring-white/[0.06]",
+        intrinsicRatio == null && "min-h-[120px]"
       )}
     >
-      <Image
-        src={item.src}
-        alt=""
-        fill
-        className="object-cover transition duration-[480ms] ease-out group-hover:scale-[1.05]"
-        sizes="(max-width:640px) 50vw, 33vw"
-        loading="lazy"
-      />
+      {item.src ? (
+        /* Natural aspect — avoid forced masonry boxes that distort composition */
+        // eslint-disable-next-line @next/next/no-img-element -- intrinsic sizing beats Next/Image fill + fake ratios
+        <img
+          src={item.src}
+          alt=""
+          width={item.width}
+          height={item.height}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className={cn(
+            "block h-auto w-full bg-muted/15 transition duration-[480ms] ease-out group-hover:scale-[1.015] dark:bg-zinc-950/35"
+          )}
+        />
+      ) : (
+        <div className="min-h-[160px] w-full animate-pulse bg-muted/50" aria-hidden />
+      )}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/85 via-background/10 to-transparent opacity-80 transition duration-500 group-hover:opacity-95" />
+      {showUploadChip && opt ? (
+        <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1.5 rounded-full border border-white/18 bg-black/50 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-md">
+          <Loader2 className="size-3 animate-spin opacity-90" aria-hidden />
+          <span className="tabular-nums">{Math.min(100, opt.progress)}%</span>
+        </div>
+      ) : null}
+      {failed && opt?.error ? (
+        <div
+          role="alert"
+          className="pointer-events-none absolute left-2 right-2 top-2 rounded-lg border border-red-500/35 bg-red-950/75 px-2 py-1.5 text-[10px] leading-snug text-red-50 backdrop-blur-md"
+        >
+          {opt.error}
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3 text-left">
         <p className="line-clamp-1 font-heading text-[13px] font-semibold tracking-tight text-foreground drop-shadow-sm">
           {title}
@@ -104,7 +134,7 @@ function ShelfSection({
           viewport={{ once: true, margin: "-6%" }}
           className="break-inside-avoid"
         >
-          <MasonryTile item={hero} tall onOpen={() => onPick(hero, filtered)} />
+          <MasonryTile item={hero} onOpen={() => onPick(hero, filtered)} />
         </motion.div>
         {rest.map((item, idx) => (
           <motion.div
@@ -220,10 +250,20 @@ export function PhotoAlbumView() {
                     key={item.id}
                     type="button"
                     onClick={() => openAt(item, h.items)}
-                    className="relative h-28 w-40 shrink-0 overflow-hidden rounded-xl ring-1 ring-border/40 sm:h-32 sm:w-44 dark:ring-white/[0.06]"
+                    className="relative flex h-[7.25rem] max-w-[min(72vw,280px)] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/30 px-1 ring-1 ring-border/40 sm:h-32 dark:bg-zinc-950/70 dark:ring-white/[0.06]"
                   >
-                    <Image src={item.src} alt="" fill className="object-cover" sizes="176px" loading="lazy" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/85 to-transparent" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.src}
+                      alt=""
+                      width={item.width}
+                      height={item.height}
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                      className="max-h-full w-auto max-w-full object-contain"
+                    />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/85 to-transparent" />
                   </button>
                 ))}
               </div>
@@ -246,10 +286,20 @@ export function PhotoAlbumView() {
                 key={item.id}
                 type="button"
                 onClick={() => openAt(item, allItems)}
-                className="group relative h-28 w-40 shrink-0 overflow-hidden rounded-xl ring-1 ring-border/40 sm:h-32 sm:w-44 dark:ring-white/[0.06]"
+                className="group relative flex h-[7.25rem] max-w-[min(72vw,280px)] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/30 px-1 ring-1 ring-border/40 sm:h-32 dark:bg-zinc-950/70 dark:ring-white/[0.06]"
               >
-                <Image src={item.src} alt="" fill className="object-cover transition duration-500 group-hover:scale-[1.06]" sizes="176px" loading="lazy" />
-                <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-90" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.src}
+                  alt=""
+                  width={item.width}
+                  height={item.height}
+                  loading="lazy"
+                  decoding="async"
+                  draggable={false}
+                  className="max-h-full w-auto max-w-full object-contain transition duration-500 group-hover:scale-[1.02]"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-90" />
               </button>
             ))}
           </div>

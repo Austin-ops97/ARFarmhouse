@@ -51,6 +51,29 @@ describe("photo-album-media", () => {
     expect(merged[0]?.source).toBe("upload");
   });
 
+  it("fills dimensions from feed when upload row lacks meta", () => {
+    const cloud: AlbumMediaItem[] = [
+      {
+        id: "c1",
+        src: "https://cdn/shared.jpg",
+        caption: "Hi",
+        source: "upload",
+        albumKey: "general",
+        addedAt: 100,
+      },
+    ];
+    const feed = extractAlbumMediaFromPosts([
+      basePost({
+        cover: "https://cdn/shared.jpg",
+        mediaDimensions: [{ width: 1600, height: 900 }],
+      }),
+    ]);
+    const merged = mergeAlbumCatalog(cloud, feed);
+    expect(merged[0]?.width).toBe(1600);
+    expect(merged[0]?.height).toBe(900);
+    expect(merged[0]?.source).toBe("upload");
+  });
+
   it("places uploads on weekend shelf via albumKey", () => {
     const items: AlbumMediaItem[] = [
       {

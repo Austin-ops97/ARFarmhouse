@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Bookmark,
@@ -17,6 +16,8 @@ import {
   Sparkles,
   Trash2,
   X,
+  Loader2,
+  RotateCw,
 } from "lucide-react";
 import {
   useCallback,
@@ -29,11 +30,12 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { FeedMediaFrame } from "@/components/ar-farmhouse/feed-media-frame";
+import { FeedMediaLightbox, type FeedMediaLightboxState } from "@/components/ar-farmhouse/feed-media-lightbox";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { PostShareSheet } from "@/components/ar-farmhouse/post-share-sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { FeedCommentList } from "@/components/ar-farmhouse/feed-comment-list";
 import { usePostSocial } from "@/hooks/use-post-social";
@@ -42,11 +44,22 @@ import { reactionTotal } from "@/lib/reaction-counts";
 import { useSavedPosts } from "@/contexts/saved-posts-context";
 import { setPostSaved } from "@/services/post-engagement";
 import { buildPostDeepLink } from "@/lib/app-url";
+import type { FeedMediaDims } from "@/lib/feed-media-aspect";
 import { FEED_IMAGE_SIZES, FEED_MEDIA_BLEED } from "@/lib/feed-layout";
 import { hubSlugFromLinkedEventLabel } from "@/lib/linked-event-hub";
+import { isEphemeralLocalImageUrl } from "@/lib/image-display-url";
 import type { UiFeedPost } from "@/models/feed-post";
 import { deleteFeedPost } from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
+
+const FEED_BLUR_FALLBACK =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Crect fill='%231a1a1a' width='8' height='10'/%3E%3C/svg%3E";
+
+function ephemeralImageProps(src: string) {
+  return isEphemeralLocalImageUrl(src)
+    ? { unoptimized: true as const }
+    : { placeholder: "blur" as const, blurDataURL: FEED_BLUR_FALLBACK };
+}
 
 const categoryLabel: Record<UiFeedPost["category"], string> = {
   memory: "Memory",
@@ -72,128 +85,32 @@ function useAlbumIndex(length: number) {
   return { i, next, prev, setI };
 }
 
-type LightboxState = { urls: string[]; index: number } | null;
-
-function FeedLightbox({
-  state,
-  onClose,
-  onPrev,
-  onNext,
-  reduceMotion,
-}: {
-  state: LightboxState;
-  onClose: () => void;
-  onPrev: () => void;
-  onNext: () => void;
-  reduceMotion: boolean | null;
-}) {
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-
-  useEffect(() => {
-    if (!state) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") onPrev();
-      if (e.key === "ArrowRight") onNext();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [state, onClose, onPrev, onNext]);
-
-  if (!mounted) return null;
-
-  const activeSrc = state?.urls[state.index];
-
-  return createPortal(
-    <AnimatePresence>
-      {state && activeSrc ? (
-        <motion.div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Photo"
-          key="feed-lightbox"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: reduceMotion ? 0.12 : 0.22 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/88 p-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-md sm:p-4"
-          onClick={onClose}
-        >
-          <button
-            type="button"
-            className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-10 rounded-full border border-white/15 bg-white/10 p-2.5 text-white hover:bg-white/20 sm:right-4 sm:top-4"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-            aria-label="Close"
-          >
-            <X className="size-5" />
-          </button>
-          {state.urls.length > 1 && (
-            <>
-              <button
-                type="button"
-                className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-lg text-white hover:bg-white/20 sm:left-6"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPrev();
-                }}
-                aria-label="Previous"
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-lg text-white hover:bg-white/20 sm:right-6"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNext();
-                }}
-                aria-label="Next"
-              >
-                ›
-              </button>
-            </>
-          )}
-          <motion.div
-            key={activeSrc}
-            initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="relative max-h-[min(90dvh,900px)] w-full max-w-4xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="relative aspect-[4/5] w-full sm:aspect-auto sm:max-h-[85vh] sm:min-h-[320px]">
-              <Image src={activeSrc} alt="" fill className="object-contain" sizes="(max-width: 768px) 100vw, 1200px" priority />
-            </div>
-          </motion.div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>,
-    document.body
-  );
+function mediaDimsAt(post: UiFeedPost, idx: number): FeedMediaDims | null {
+  const slot = post.mediaDimensions?.[idx];
+  if (!slot?.width || !slot.height) return null;
+  if (slot.width <= 0 || slot.height <= 0) return null;
+  return { width: slot.width, height: slot.height };
 }
 
 export function FeedPostCard({
   post,
   highlightId,
   suppressMedia = false,
+  onRetryOptimisticFeed,
+  onDismissOptimisticFeed,
 }: {
   post: UiFeedPost;
   highlightId?: string | null;
   suppressMedia?: boolean;
+  onRetryOptimisticFeed?: () => void;
+  onDismissOptimisticFeed?: () => void;
 }) {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
   const { user, displayName, avatarUrl, configured } = useAuth();
   const { isSaved } = useSavedPosts();
   const { ref: inViewRef, inView: engagementActive } = useInViewReady("280px 0px");
-  const interactionsLive = configured && !!user?.uid;
+  const interactionsLive = configured && !!user?.uid && !post.optimistic;
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentBusy, setCommentBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -212,7 +129,7 @@ export function FeedPostCard({
       if (!user?.uid) return;
       await setPostSaved(post.id, user.uid, next);
     },
-    [post.id, user?.uid]
+    [post.id, user]
   );
 
   const social = usePostSocial({
@@ -238,7 +155,7 @@ export function FeedPostCard({
     [social.reactionChips]
   );
 
-  const [lightbox, setLightbox] = useState<LightboxState>(null);
+  const [lightbox, setLightbox] = useState<FeedMediaLightboxState>(null);
   const touchStart = useRef({ x: 0, y: 0 });
 
   const albumNav = useAlbumIndex(Math.max((post.album ?? []).length, 1));
@@ -311,11 +228,11 @@ export function FeedPostCard({
       (post.kind === "event_recap" && post.cover));
 
   const mediaShell = cn(
-    "relative overflow-hidden bg-muted/30 dark:bg-zinc-950/40",
+    "relative overflow-hidden bg-muted/25 dark:bg-zinc-950/45",
     FEED_MEDIA_BLEED,
-    "rounded-none sm:rounded-[1.35rem]",
-    "ring-1 ring-inset ring-border/55 dark:ring-white/[0.06]",
-    "shadow-[var(--ar-panel-elevate)] dark:shadow-[0_24px_80px_-40px_rgba(0,0,0,0.85)]"
+    "rounded-none sm:rounded-2xl",
+    "ring-1 ring-inset ring-border/50 dark:ring-white/[0.07]",
+    "shadow-[var(--ar-panel-elevate)] dark:shadow-[0_20px_70px_-38px_rgba(0,0,0,0.82)]"
   );
 
   const commentCountLabel = useMemo(() => {
@@ -354,6 +271,11 @@ export function FeedPostCard({
   }, [toast]);
 
   const copyPostLink = useCallback(async () => {
+    if (post.optimistic) {
+      setToast("Link is available after the post finishes syncing.");
+      closeMenu();
+      return;
+    }
     const url = buildPostDeepLink(post.id);
     if (!url) {
       setToast("Link unavailable in this environment.");
@@ -366,10 +288,15 @@ export function FeedPostCard({
     } catch {
       setToast("Could not copy link.");
     }
-  }, [closeMenu, post.id]);
+  }, [closeMenu, post.id, post.optimistic]);
 
   const onDeletePost = useCallback(async () => {
     if (!user?.uid) return;
+    if (post.optimistic) {
+      onDismissOptimisticFeed?.();
+      closeMenu();
+      return;
+    }
     setDeleteBusy(true);
     try {
       await deleteFeedPost(post.id, user.uid, post.authorId, albumUrls);
@@ -379,7 +306,7 @@ export function FeedPostCard({
     } finally {
       setDeleteBusy(false);
     }
-  }, [albumUrls, closeMenu, post.authorId, post.id, user]);
+  }, [albumUrls, closeMenu, onDismissOptimisticFeed, post.authorId, post.id, post.optimistic, user]);
 
   const shareSummary = useMemo(() => {
     const t = post.title ? `${post.title} — ${post.body}` : post.body;
@@ -412,19 +339,19 @@ export function FeedPostCard({
         viewport={{ once: true, margin: "-4% 0px" }}
         transition={{ duration: reduceMotion ? 0.2 : 0.55, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          "touch-manipulation scroll-mt-28 pb-10 sm:scroll-mt-32 sm:pb-12",
+          "touch-manipulation scroll-mt-28 pb-7 sm:scroll-mt-32 sm:pb-9",
           isHighlighted && "rounded-2xl ring-2 ring-primary/35 ring-offset-2 ring-offset-background sm:rounded-[1.35rem]"
         )}
       >
-        <header className="flex items-start gap-3 px-1 pb-3 sm:px-0">
-          <Avatar size="lg" className="ring-2 ring-border/60 dark:ring-white/10">
+        <header className="flex items-start gap-2.5 px-1 pb-2.5 sm:px-0">
+          <Avatar className="size-11 ring-2 ring-border/55 dark:ring-white/10 sm:size-12">
             <AvatarImage src={post.author.avatar} alt="" />
             <AvatarFallback>{initials(post.author.name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1 pt-0.5">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="text-[15px] font-semibold tracking-tight text-foreground">{post.author.name}</span>
-              <span className="text-[13px] text-muted-foreground">{post.timeLabel}</span>
+              <span className="text-[14px] font-semibold tracking-tight text-foreground sm:text-[15px]">{post.author.name}</span>
+              <span className="text-[12px] text-muted-foreground sm:text-[13px]">{post.timeLabel}</span>
               <span className="text-[11px] font-medium text-primary/90">· {categoryLabel[post.category]}</span>
             </div>
             {post.location && (
@@ -452,28 +379,70 @@ export function FeedPostCard({
           </div>
         </header>
 
-        {/* Media — dominant, immersive */}
+        {post.optimistic && post.optimisticUpload?.phase === "failed" && (
+          <div
+            role="alert"
+            className="mx-1 mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2.5 sm:mx-0"
+          >
+            <p className="min-w-0 flex-1 text-[12px] leading-snug text-red-100/95">
+              {post.optimisticUpload.error ?? "Could not finish uploading."}
+            </p>
+            {onRetryOptimisticFeed ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-full border-white/22 bg-background/55 text-xs"
+                onClick={() => onRetryOptimisticFeed()}
+              >
+                <RotateCw className="mr-1.5 size-3.5" aria-hidden />
+                Retry
+              </Button>
+            ) : null}
+            {onDismissOptimisticFeed ? (
+              <Button type="button" size="sm" variant="ghost" className="h-8 rounded-full text-xs text-muted-foreground" onClick={onDismissOptimisticFeed}>
+                Discard
+              </Button>
+            ) : null}
+          </div>
+        )}
+
+        {post.optimistic && post.optimisticUpload && post.optimisticUpload.phase !== "failed" && (
+          <div className="mx-1 mb-3 sm:mx-0">
+            <div className="flex items-center gap-2.5 rounded-full border border-white/14 bg-black/40 px-3.5 py-2 text-[11px] font-medium text-white shadow-sm backdrop-blur-md dark:bg-zinc-950/70 dark:text-white/90">
+              <Loader2 className="size-3.5 shrink-0 animate-spin opacity-90" aria-hidden />
+              <span className="min-w-0 flex-1 truncate">{post.optimisticUpload.message ?? "Working…"}</span>
+              <span className="shrink-0 tabular-nums opacity-85">{Math.min(100, post.optimisticUpload.progress)}%</span>
+            </div>
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10 dark:bg-white/[0.06]">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-300"
+                style={{ width: `${Math.min(100, post.optimisticUpload.progress)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Media — orientation-aware containment */}
         {post.kind === "image" && post.cover && (
           <button type="button" className={cn("group/media block w-full text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
-            <div className="relative aspect-[4/5] max-h-[min(88vh,720px)] w-full sm:aspect-[4/5] sm:max-h-[min(82vh,680px)]">
-              <motion.div
-                className="relative h-full w-full"
-                whileHover={reduceMotion ? undefined : { scale: 1.02 }}
-                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <Image
-                  src={post.cover}
-                  alt=""
-                  fill
-                  sizes={FEED_IMAGE_SIZES}
-                  className="object-cover"
-                  loading="lazy"
-                  placeholder="blur"
-                  blurDataURL="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Crect fill='%231a1a1a' width='8' height='10'/%3E%3C/svg%3E"
-                />
-              </motion.div>
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/50 via-transparent to-transparent opacity-80 sm:opacity-100" />
-            </div>
+            <motion.div
+              className="relative w-full"
+              whileHover={reduceMotion ? undefined : { scale: 1.006 }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <FeedMediaFrame
+                src={post.cover}
+                alt=""
+                sizes={FEED_IMAGE_SIZES}
+                dims={mediaDimsAt(post, 0)}
+                frameClassName="w-full"
+                imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(post.cover) }}
+                overlay={
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/42 via-transparent to-transparent opacity-[0.84] sm:opacity-100" />
+                }
+              />
+            </motion.div>
           </button>
         )}
 
@@ -487,28 +456,26 @@ export function FeedPostCard({
               }}
               onTouchEnd={onAlbumTouchEnd}
             >
-              <div className="relative aspect-[4/5] max-h-[min(88vh,720px)] w-full">
-                <motion.div
-                  key={albumNav.i}
-                  initial={reduceMotion ? false : { opacity: 0.85 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                  className="relative h-full w-full"
-                >
-                  <button type="button" className="relative block h-full w-full" onClick={() => openLightboxAt(albumNav.i)}>
-                    <Image
-                      src={album[albumNav.i] ?? album[0]}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="100vw"
-                      loading="lazy"
-                    />
-                  </button>
-                </motion.div>
-              </div>
+              <motion.div
+                key={albumNav.i}
+                initial={reduceMotion ? false : { opacity: 0.84 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.18 }}
+                className="relative w-full"
+              >
+                <button type="button" className="relative block w-full" onClick={() => openLightboxAt(albumNav.i)}>
+                  <FeedMediaFrame
+                    src={album[albumNav.i] ?? album[0]}
+                    alt=""
+                    sizes="100vw"
+                    dims={mediaDimsAt(post, albumNav.i)}
+                    frameClassName="w-full"
+                    imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(album[albumNav.i] ?? album[0]) }}
+                  />
+                </button>
+              </motion.div>
               {album.length > 1 && (
-                <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                <div className="pointer-events-auto absolute bottom-2.5 left-0 right-0 flex justify-center gap-1.5">
                   {album.map((_, idx) => (
                     <button
                       key={idx}
@@ -525,15 +492,23 @@ export function FeedPostCard({
               )}
             </div>
 
-            {/* Desktop: IG-style grid */}
+            {/* Desktop: album grid */}
             <div className="hidden sm:block">
               {album.length === 1 && (
                 <button type="button" className="relative block w-full" onClick={() => openLightboxAt(0)}>
-                  <div className="relative aspect-[4/5] max-h-[min(82vh,680px)] w-full">
-                    <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.02 }} transition={{ duration: 0.45 }}>
-                      <Image src={album[0]} alt="" fill className="object-cover" sizes={FEED_IMAGE_SIZES} loading="lazy" />
-                    </motion.div>
-                  </div>
+                  <motion.div
+                    whileHover={reduceMotion ? undefined : { scale: 1.006 }}
+                    transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <FeedMediaFrame
+                      src={album[0]}
+                      alt=""
+                      sizes={FEED_IMAGE_SIZES}
+                      dims={mediaDimsAt(post, 0)}
+                      frameClassName="w-full"
+                      imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(album[0]) }}
+                    />
+                  </motion.div>
                 </button>
               )}
               {album.length === 2 && (
@@ -542,23 +517,51 @@ export function FeedPostCard({
                     <button
                       key={src}
                       type="button"
-                      className="relative aspect-[4/5] overflow-hidden first:rounded-l-[1.25rem] last:rounded-r-[1.25rem]"
+                      className="relative aspect-[4/5] overflow-hidden first:rounded-l-[1.15rem] last:rounded-r-[1.15rem]"
                       onClick={() => openLightboxAt(idx)}
                     >
-                      <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.02 }} transition={{ duration: 0.4 }}>
-                        <Image src={src} alt="" fill className="object-cover" sizes="260px" loading="lazy" />
-                      </motion.div>
+                      <div className="absolute inset-0 min-h-0 min-w-0">
+                        <motion.div
+                          className="h-full w-full"
+                          whileHover={reduceMotion ? undefined : { scale: 1.01 }}
+                          transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                          <FeedMediaFrame
+                            src={src}
+                            alt=""
+                            sizes="260px"
+                            dims={mediaDimsAt(post, idx)}
+                            applyParentHeightCap
+                            frameClassName="absolute inset-0 h-full min-h-0 w-full min-w-0"
+                            imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(src) }}
+                          />
+                        </motion.div>
+                      </div>
                     </button>
                   ))}
                 </div>
               )}
               {album.length >= 3 && (
-                <div className="grid grid-cols-3 gap-1 overflow-hidden rounded-[1.25rem]">
+                <div className="grid grid-cols-3 gap-1 overflow-hidden rounded-[1.15rem]">
                   {album.slice(0, 3).map((src, idx) => (
                     <button key={src} type="button" className="relative aspect-square" onClick={() => openLightboxAt(idx)}>
-                      <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.03 }} transition={{ duration: 0.35 }}>
-                        <Image src={src} alt="" fill className="object-cover" sizes="180px" loading="lazy" />
-                      </motion.div>
+                      <div className="absolute inset-0 min-h-0 min-w-0">
+                        <motion.div
+                          className="h-full w-full"
+                          whileHover={reduceMotion ? undefined : { scale: 1.012 }}
+                          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                          <FeedMediaFrame
+                            src={src}
+                            alt=""
+                            sizes="180px"
+                            dims={mediaDimsAt(post, idx)}
+                            applyParentHeightCap
+                            frameClassName="absolute inset-0 h-full min-h-0 w-full min-w-0"
+                            imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(src) }}
+                          />
+                        </motion.div>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -570,32 +573,49 @@ export function FeedPostCard({
         {post.kind === "video" && post.video && (
           <div className={mediaShell}>
             <button type="button" className="relative block w-full" onClick={() => openLightboxAt(0)}>
-              <div className="relative aspect-[4/5] max-h-[min(88vh,720px)] w-full">
-                <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.02 }} transition={{ duration: 0.45 }}>
-                  <Image src={post.video.poster} alt="" fill className="object-cover" sizes={FEED_IMAGE_SIZES} loading="lazy" />
-                </motion.div>
-                <div className="absolute inset-0 flex items-center justify-center bg-black/25">
-                  <span className="flex size-16 items-center justify-center rounded-full border border-white/25 bg-background/50 text-white shadow-xl backdrop-blur-md">
-                    <Play className="size-7 translate-x-0.5" aria-hidden />
-                  </span>
-                </div>
-                <span className="absolute bottom-3 right-3 rounded-md bg-black/60 px-2 py-1 text-[11px] font-medium text-white">
-                  {post.video.duration}
+              <motion.div
+                whileHover={reduceMotion ? undefined : { scale: 1.006 }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <FeedMediaFrame
+                  src={post.video.poster}
+                  alt=""
+                  sizes={FEED_IMAGE_SIZES}
+                  dims={mediaDimsAt(post, 0)}
+                  frameClassName="w-full"
+                  imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(post.video.poster) }}
+                />
+              </motion.div>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/22">
+                <span className="flex size-[3.25rem] items-center justify-center rounded-full border border-white/25 bg-background/45 text-white shadow-lg backdrop-blur-md sm:size-14 sm:border-white/28">
+                  <Play className="size-6 translate-x-0.5 sm:size-7" aria-hidden />
                 </span>
               </div>
+              <span className="pointer-events-none absolute bottom-2.5 right-2.5 rounded-md bg-black/62 px-2 py-1 text-[10px] font-medium text-white sm:bottom-3 sm:right-3 sm:text-[11px]">
+                {post.video.duration}
+              </span>
             </button>
           </div>
         )}
 
         {post.kind === "event_recap" && post.cover && (
-          <button type="button" className={cn("block w-full text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
-            <div className="relative aspect-[4/5] max-h-[min(88vh,720px)] w-full">
-              <motion.div className="relative h-full w-full" whileHover={reduceMotion ? undefined : { scale: 1.02 }} transition={{ duration: 0.45 }}>
-                <Image src={post.cover} alt="" fill className="object-cover" sizes={FEED_IMAGE_SIZES} loading="lazy" />
-              </motion.div>
-              <div className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-card/80 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-md dark:border-white/15 dark:bg-background/55">
-                Event recap
-              </div>
+          <button type="button" className={cn("relative block w-full text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
+            <motion.div
+              className="relative w-full"
+              whileHover={reduceMotion ? undefined : { scale: 1.006 }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <FeedMediaFrame
+                src={post.cover}
+                alt=""
+                sizes={FEED_IMAGE_SIZES}
+                dims={mediaDimsAt(post, 0)}
+                frameClassName="w-full"
+                imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(post.cover) }}
+              />
+            </motion.div>
+            <div className="pointer-events-none absolute bottom-2.5 left-2.5 rounded-full border border-border/55 bg-card/82 px-2.5 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md dark:border-white/14 dark:bg-background/55 sm:bottom-3 sm:left-3 sm:text-[11px]">
+              Event recap
             </div>
           </button>
         )}
@@ -607,7 +627,7 @@ export function FeedPostCard({
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-0.5 px-1 pt-3 sm:px-0 sm:pt-4">
+        <div className="flex items-center gap-px px-1 pt-2.5 sm:px-0 sm:pt-3.5">
           <motion.button
             type="button"
             aria-label={heartActive ? "Unlike" : "Like"}
@@ -616,28 +636,38 @@ export function FeedPostCard({
             onClick={() => void toggleReaction(primaryKey)}
             whileTap={reduceMotion || !interactionsLive ? undefined : { scale: 0.86 }}
             className={cn(
-              "rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              "rounded-full p-2 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
               heartActive && "text-red-400",
               !interactionsLive && "pointer-events-none opacity-45"
             )}
           >
-            <Heart className={cn("size-7", heartActive && "fill-current")} strokeWidth={1.6} />
+            <Heart className={cn("size-6", heartActive && "fill-current")} strokeWidth={1.65} />
           </motion.button>
           <button
             type="button"
             onClick={() => setCommentsOpen(true)}
-            className="rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+            disabled={post.optimistic}
+            title={post.optimistic ? "Comments unlock after the post syncs." : undefined}
+            className={cn(
+              "rounded-full p-2 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              post.optimistic && "pointer-events-none opacity-45"
+            )}
             aria-label="Comment"
           >
-            <MessageCircle className="size-7" strokeWidth={1.6} />
+            <MessageCircle className="size-6" strokeWidth={1.65} />
           </button>
           <button
             type="button"
             onClick={() => setShareOpen(true)}
-            className="rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+            disabled={post.optimistic}
+            title={post.optimistic ? "Sharing unlocks after the post syncs." : undefined}
+            className={cn(
+              "rounded-full p-2 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              post.optimistic && "pointer-events-none opacity-45"
+            )}
             aria-label="Share"
           >
-            <Send className="size-7" strokeWidth={1.6} />
+            <Send className="size-6" strokeWidth={1.65} />
           </button>
           <span className="flex-1" />
           <motion.button
@@ -648,12 +678,12 @@ export function FeedPostCard({
             onClick={() => void toggleSaved()}
             whileTap={reduceMotion || !interactionsLive ? undefined : { scale: 0.86 }}
             className={cn(
-              "rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              "rounded-full p-2 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
               savedRemote && "text-primary",
               !interactionsLive && "pointer-events-none opacity-45"
             )}
           >
-            <Bookmark className={cn("size-7", savedRemote && "fill-current text-primary")} strokeWidth={1.6} />
+            <Bookmark className={cn("size-6", savedRemote && "fill-current text-primary")} strokeWidth={1.65} />
           </motion.button>
         </div>
 
@@ -667,8 +697,8 @@ export function FeedPostCard({
                 disabled={!interactionsLive}
                 onClick={() => void toggleReaction(r.emoji)}
                 whileTap={reduceMotion || !interactionsLive ? undefined : { scale: 0.88 }}
-                className={cn(
-                  "inline-flex min-h-11 min-w-11 items-center gap-1.5 rounded-full px-2.5 py-1 text-[14px] transition-colors sm:min-h-0 sm:min-w-0",
+                  className={cn(
+                    "inline-flex min-h-10 min-w-10 items-center gap-1.5 rounded-full px-2 py-1 text-[13px] transition-colors sm:min-h-0 sm:min-w-0",
                   state.on ? "bg-primary/15 text-foreground" : "hover:bg-muted/70 dark:hover:bg-white/[0.06]",
                   !interactionsLive && "pointer-events-none"
                 )}
@@ -720,8 +750,13 @@ export function FeedPostCard({
 
         <button
           type="button"
+          disabled={post.optimistic}
           onClick={() => setCommentsOpen((v) => !v)}
-          className="mt-2 flex w-full items-center justify-between gap-2 px-1 py-1 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:px-0"
+          title={post.optimistic ? "Comments unlock after the post syncs." : undefined}
+          className={cn(
+            "mt-2 flex w-full items-center justify-between gap-2 px-1 py-1 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:px-0",
+            post.optimistic && "pointer-events-none opacity-45"
+          )}
         >
           <span>
             {commentsOpen ? "Hide" : "View"} {commentCountLabel}{" "}
@@ -788,27 +823,31 @@ export function FeedPostCard({
               className="fixed z-[95] w-[min(18rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-border/60 bg-card/95 py-1.5 text-sm shadow-[var(--ar-modal-elevate)] backdrop-blur-xl dark:border-white/12 dark:bg-zinc-950/95"
               style={{ top: menuCoords.top, right: menuCoords.right }}
             >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left font-medium text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
-                  onClick={() => {
-                    void toggleSaved();
-                    closeMenu();
-                  }}
-                >
-                  <Bookmark className={cn("size-4", savedRemote && "fill-current text-primary")} aria-hidden />
-                  {savedRemote ? "Unsave post" : "Save post"}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left font-medium text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
-                  onClick={() => void copyPostLink()}
-                >
-                  <Link2 className="size-4 opacity-80" aria-hidden />
-                  Copy link
-                </button>
+                {!post.optimistic && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left font-medium text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+                    onClick={() => {
+                      void toggleSaved();
+                      closeMenu();
+                    }}
+                  >
+                    <Bookmark className={cn("size-4", savedRemote && "fill-current text-primary")} aria-hidden />
+                    {savedRemote ? "Unsave post" : "Save post"}
+                  </button>
+                )}
+                {!post.optimistic && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left font-medium text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+                    onClick={() => void copyPostLink()}
+                  >
+                    <Link2 className="size-4 opacity-80" aria-hidden />
+                    Copy link
+                  </button>
+                )}
                 <button
                   type="button"
                   role="menuitem"
@@ -836,7 +875,11 @@ export function FeedPostCard({
                     </button>
                     {deleteConfirm ? (
                       <div className="space-y-2 px-3 py-2">
-                        <p className="text-xs leading-relaxed text-muted-foreground">Remove this post for everyone? This cannot be undone.</p>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {post.optimistic
+                            ? "Remove this draft from your feed? The upload will stop."
+                            : "Remove this post for everyone? This cannot be undone."}
+                        </p>
                         <div className="flex gap-2">
                           <Button
                             type="button"
@@ -856,7 +899,7 @@ export function FeedPostCard({
                             disabled={deleteBusy}
                             onClick={() => void onDeletePost()}
                           >
-                            {deleteBusy ? "Deleting…" : "Delete"}
+                            {deleteBusy ? "Deleting…" : post.optimistic ? "Discard" : "Delete"}
                           </Button>
                         </div>
                       </div>
@@ -868,7 +911,7 @@ export function FeedPostCard({
                         onClick={() => setDeleteConfirm(true)}
                       >
                         <Trash2 className="size-4" aria-hidden />
-                        Delete post
+                        {post.optimistic ? "Discard draft" : "Delete post"}
                       </button>
                     )}
                   </>
@@ -893,7 +936,7 @@ export function FeedPostCard({
         ) : null}
       </AnimatePresence>
 
-      <FeedLightbox
+      <FeedMediaLightbox
         state={lightbox}
         onClose={() => setLightbox(null)}
         onPrev={lightboxPrev}

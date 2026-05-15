@@ -4,6 +4,18 @@ import type { FeedPostCategory } from "@/models/feed-post-category";
 
 export type { FeedPostCategory };
 
+export type OptimisticUploadPhase = "preparing" | "optimizing" | "uploading" | "saving" | "failed";
+
+/** Client-only state while a post finishes optimize → Storage → Firestore. */
+export type OptimisticFeedUpload = {
+  phase: OptimisticUploadPhase;
+  /** 0–100 overall perceptual progress for subtle UI. */
+  progress: number;
+  message?: string;
+  /** Set when phase is `"failed"` */
+  error?: string;
+};
+
 export type UiFeedPost = {
   id: string;
   authorId: string;
@@ -23,6 +35,14 @@ export type UiFeedPost = {
   reactionCounts: Record<string, number>;
   commentsPreview: { author: string; text: string }[];
   commentCount: number;
+  /**
+   * Pixel dimensions aligned with backing `mediaUrls` (Firestore order).
+   * Used for orientation-aware in-feed sizing when present (`mediaMeta` on write).
+   */
+  mediaDimensions?: ({ width: number; height: number } | undefined)[];
+  /** Local-only optimistic row merged above the realtime list */
+  optimistic?: boolean;
+  optimisticUpload?: OptimisticFeedUpload;
 };
 
 export type FeedMediaAttachmentMeta = {

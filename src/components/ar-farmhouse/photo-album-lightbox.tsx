@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, MessageSquare, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -126,26 +125,27 @@ export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: Photo
                 if (info.offset.x < -72) go(1);
                 else if (info.offset.x > 72) go(-1);
               }}
-              initial={reduceMotion ? false : { opacity: 0.85, scale: 0.985 }}
+              initial={reduceMotion ? false : { opacity: 0.88, scale: 0.99 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={reduceMotion ? undefined : { opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className="relative flex h-full max-h-[min(78dvh,820px)] w-full max-w-[min(96vw,1100px)] items-center justify-center"
+              exit={reduceMotion ? undefined : { opacity: 0, scale: 0.985 }}
+              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+              className="flex w-full max-w-[min(96vw,1240px)] flex-1 items-center justify-center px-1 sm:px-3"
             >
-              <div className="relative aspect-[4/5] w-full max-w-lg sm:aspect-[3/4] sm:max-w-2xl lg:max-w-4xl">
-                <Image
-                  src={current.src}
-                  alt=""
-                  fill
-                  className={cn(
-                    "rounded-[1.25rem] object-contain shadow-[0_40px_120px_-48px_rgba(0,0,0,0.55)] ring-1 ring-border/40",
-                    "dark:shadow-[0_40px_120px_-48px_rgba(0,0,0,0.72)]"
-                  )}
-                  sizes="(max-width:768px) 96vw, 1100px"
-                  priority
-                  unoptimized={current.src.startsWith("data:")}
-                />
-              </div>
+              {/* No fixed aspect-ratio wrapper — scale to viewport while preserving natural proportions */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={current.src}
+                alt=""
+                width={current.width}
+                height={current.height}
+                decoding="async"
+                draggable={false}
+                className={cn(
+                  "max-h-[min(calc(100dvh-11rem),900px)] max-w-full rounded-[min(18px,_4vw)] object-contain shadow-[0_38px_110px_-46px_rgba(0,0,0,0.52)] ring-1 ring-border/35 sm:max-h-[min(calc(100dvh-12rem),920px)]",
+                  "dark:shadow-[0_44px_120px_-42px_rgba(0,0,0,0.72)] dark:ring-white/[0.08]",
+                  "h-auto w-auto"
+                )}
+              />
             </motion.div>
           </div>
 

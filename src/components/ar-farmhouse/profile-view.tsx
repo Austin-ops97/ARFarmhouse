@@ -4,10 +4,12 @@ import { updateProfile } from "firebase/auth";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Camera, Heart, Loader2, PawPrint, Plus, Sparkles, Trash2, UserRound } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 
 import { MediaSourcePicker } from "@/components/ar-farmhouse/media-source-picker";
 import { validateRawImageFile } from "@/lib/image-input";
+import { deferMediaCpuWork } from "@/lib/image-scheduler";
+import { enqueueMediaUploadTask } from "@/lib/media-upload-queue";
 import {
   uploadOptimizedFamilyMemberPhoto,
   uploadOptimizedPetPhoto,
@@ -103,6 +105,8 @@ export function ProfileView() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [stagingMemberPhotoUrl, setStagingMemberPhotoUrl] = useState<Record<string, string>>({});
+  const [stagingPetPhotoUrl, setStagingPetPhotoUrl] = useState<Record<string, string>>({});
   const [cropOpen, setCropOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [cropFileName, setCropFileName] = useState<string | undefined>();
@@ -140,8 +144,10 @@ export function ProfileView() {
 
   useEffect(() => {
     if (authProfile) {
-      setProfile(authProfile);
-      syncForm(authProfile);
+      startTransition(() => {
+        setProfile(authProfile);
+        syncForm(authProfile);
+      });
     }
   }, [authProfile, syncForm]);
 
@@ -223,31 +229,33 @@ export function ProfileView() {
   );
 
   const onProfilePhotoCropped = useCallback(
-    async (file: File, previewUrl: string) => {
+    (file: File, previewUrl: string) => {
       if (!user) return;
       const previousAvatar = profile?.avatar ?? null;
-      setUploadingPhoto(true);
-      setUploadProgress(0);
       setSaveError(null);
       setProfile((prev) => (prev ? { ...prev, avatar: previewUrl } : prev));
-      try {
-        const url = await uploadProfilePhoto(user.uid, file, (pct) => setUploadProgress(pct));
-        await persist({ avatar: url });
-      } catch (e) {
-        setProfile((prev) => (prev ? { ...prev, avatar: previousAvatar } : prev));
-        setSaveError(e instanceof Error ? e.message : "Photo upload failed.");
-        throw e;
-      } finally {
-        URL.revokeObjectURL(previewUrl);
-        setUploadingPhoto(false);
-        setUploadProgress(null);
-      }
+      setUploadingPhoto(true);
+      setUploadProgress(0);
+      void enqueueMediaUploadTask(async () => {
+        await deferMediaCpuWork();
+        try {
+          const url = await uploadProfilePhoto(user.uid, file, (pct) => setUploadProgress(pct));
+          await persist({ avatar: url });
+        } catch (e) {
+          setProfile((prev) => (prev ? { ...prev, avatar: previousAvatar } : prev));
+          setSaveError(e instanceof Error ? e.message : "Photo upload failed.");
+        } finally {
+          URL.revokeObjectURL(previewUrl);
+          setUploadingPhoto(false);
+          setUploadProgress(null);
+        }
+      });
     },
     [persist, profile?.avatar, user]
   );
 
-  const members = profile?.familyMembers ?? [];
-  const pets = profile?.pets ?? [];
+  const members = useMemo(() => profile?.familyMembers ?? [], [profile?.familyMembers]);
+  const pets = useMemo(() => profile?.pets ?? [], [profile?.pets]);
   const handle = profile ? profileHandle(profile) : "";
 
   const addMember = (relationship: FamilyRelationship) => {
@@ -262,11 +270,14 @@ export function ProfileView() {
     void persist({ familyMembers: [...members, member] });
   };
 
-  const updateMember = (id: string, patch: Partial<FamilyMember>) => {
-    void persist({
-      familyMembers: members.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-    });
-  };
+  const updateMember = useCallback(
+    (id: string, patch: Partial<FamilyMember>) => {
+      void persist({
+        familyMembers: members.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      });
+    },
+    [members, persist]
+  );
 
   const removeMember = (id: string) => {
     void persist({ familyMembers: members.filter((m) => m.id !== id) });
@@ -284,9 +295,12 @@ export function ProfileView() {
     void persist({ pets: [...pets, pet] });
   };
 
-  const updatePet = (id: string, patch: Partial<FamilyPet>) => {
-    void persist({ pets: pets.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
-  };
+  const updatePet = useCallback(
+    (id: string, patch: Partial<FamilyPet>) => {
+      void persist({ pets: pets.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+    },
+    [pets, persist]
+  );
 
   const removePet = (id: string) => {
     void persist({ pets: pets.filter((p) => p.id !== id) });
@@ -295,7 +309,7 @@ export function ProfileView() {
   const photoPickerOpen = photoPickerTarget !== null;
 
   const onPhotoPickerFiles = useCallback(
-    async (files: File[]) => {
+    (files: File[]) => {
       const file = files[0];
       const target = photoPickerTarget;
       if (!file || !target || !user) return;
@@ -309,18 +323,61 @@ export function ProfileView() {
       setSaveError(null);
       try {
         validateRawImageFile(file);
-        if (target.kind === "member") {
-          const url = await uploadOptimizedFamilyMemberPhoto(user.uid, target.id, file);
-          updateMember(target.id, { photoUrl: url });
-        } else {
-          const url = await uploadOptimizedPetPhoto(user.uid, target.id, file);
-          updatePet(target.id, { photoUrl: url });
-        }
       } catch (err) {
-        setSaveError(err instanceof Error ? err.message : "Upload failed.");
+        setSaveError(err instanceof Error ? err.message : "That file is not supported.");
+        return;
       }
+
+      if (target.kind === "member") {
+        const memberId = target.id;
+        const previousPhoto = members.find((m) => m.id === memberId)?.photoUrl ?? null;
+        const localPreview = URL.createObjectURL(file);
+        setStagingMemberPhotoUrl((prev) => ({ ...prev, [memberId]: localPreview }));
+
+        void enqueueMediaUploadTask(async () => {
+          await deferMediaCpuWork();
+          try {
+            const url = await uploadOptimizedFamilyMemberPhoto(user.uid, memberId, file);
+            updateMember(memberId, { photoUrl: url });
+          } catch (err) {
+            setSaveError(err instanceof Error ? err.message : "Upload failed.");
+            updateMember(memberId, { photoUrl: previousPhoto ?? null });
+          } finally {
+            URL.revokeObjectURL(localPreview);
+            setStagingMemberPhotoUrl((prev) => {
+              const next = { ...prev };
+              delete next[memberId];
+              return next;
+            });
+          }
+        });
+        return;
+      }
+
+      const petId = target.id;
+      const previousPhoto = pets.find((p) => p.id === petId)?.photoUrl ?? null;
+      const localPreview = URL.createObjectURL(file);
+      setStagingPetPhotoUrl((prev) => ({ ...prev, [petId]: localPreview }));
+
+      void enqueueMediaUploadTask(async () => {
+        await deferMediaCpuWork();
+        try {
+          const url = await uploadOptimizedPetPhoto(user.uid, petId, file);
+          updatePet(petId, { photoUrl: url });
+        } catch (err) {
+          setSaveError(err instanceof Error ? err.message : "Upload failed.");
+          updatePet(petId, { photoUrl: previousPhoto ?? null });
+        } finally {
+          URL.revokeObjectURL(localPreview);
+          setStagingPetPhotoUrl((prev) => {
+            const next = { ...prev };
+            delete next[petId];
+            return next;
+          });
+        }
+      });
     },
-    [onProfilePhotoSelected, photoPickerTarget, updateMember, updatePet, user]
+    [members, pets, onProfilePhotoSelected, photoPickerTarget, updateMember, updatePet, user]
   );
 
   const photoPickerCopy =
@@ -564,7 +621,7 @@ export function ProfileView() {
                       aria-label={`Change photo for ${m.name}`}
                     >
                       <Avatar className="size-14 rounded-xl">
-                        <AvatarImage src={m.photoUrl ?? undefined} alt="" />
+                        <AvatarImage src={stagingMemberPhotoUrl[m.id] ?? m.photoUrl ?? undefined} alt="" />
                         <AvatarFallback className="rounded-xl">{m.name.slice(0, 1)}</AvatarFallback>
                       </Avatar>
                       <Camera className="absolute -bottom-0.5 -right-0.5 size-3.5 text-primary" aria-hidden />
@@ -643,7 +700,7 @@ export function ProfileView() {
                   aria-label={`Change photo for ${pet.name}`}
                 >
                   <Avatar className="size-14 rounded-xl">
-                    <AvatarImage src={pet.photoUrl ?? undefined} alt="" />
+                    <AvatarImage src={stagingPetPhotoUrl[pet.id] ?? pet.photoUrl ?? undefined} alt="" />
                     <AvatarFallback className="rounded-xl">{pet.name.slice(0, 1)}</AvatarFallback>
                   </Avatar>
                   <Camera className="absolute -bottom-0.5 -right-0.5 size-3.5 text-primary" aria-hidden />

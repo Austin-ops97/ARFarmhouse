@@ -15,7 +15,7 @@ import {
 import { actionDebug } from "@/lib/action-debug";
 import { formatFeedTimeLabel } from "@/lib/datetime/relative";
 import { validateRawImageFile } from "@/lib/image-input";
-import { getUploadMaxBytes } from "@/lib/image-process";
+import { getUploadMaxBytes, type ProcessedImageFile } from "@/lib/image-process";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import { tryGetFirestoreDb } from "@/lib/firebase";
@@ -28,9 +28,13 @@ function mapAlbumMediaDoc(snapshot: QueryDocumentSnapshot<DocumentData>): AlbumM
   const d = snapshot.data() as Partial<FirestoreAlbumMedia>;
   const created = d.createdAt?.toDate?.() ?? new Date();
   const albumKey = typeof d.albumKey === "string" ? d.albumKey : "general";
+  const width = typeof d.width === "number" && d.width > 0 ? d.width : undefined;
+  const height = typeof d.height === "number" && d.height > 0 ? d.height : undefined;
+
   return {
     id: snapshot.id,
     src: d.storageUrl ?? "",
+    ...(width != null && height != null ? { width, height } : {}),
     caption: d.caption ?? "",
     source: "upload",
     albumKey,
@@ -68,56 +72,40 @@ export type AlbumUploadProgress =
   | { phase: "preparing" | "optimizing"; done: number; total: number }
   | { phase: "uploading"; done: number; total: number; percent?: number };
 
-export async function createAlbumMediaItems(
-  input: {
-    authorId: string;
-    authorDisplayName: string;
-    authorPhotoUrl: string | null;
-    caption: string;
-    albumKey: string;
-    linkedEvent?: string | null;
-    files: File[];
-  },
-  onProgress?: (progress: AlbumUploadProgress) => void
-): Promise<string[]> {
-  if (!input.authorId?.trim()) throw new Error("You must be signed in to upload.");
+export type CreateAlbumArchiveInput = {
+  authorId: string;
+  authorDisplayName: string;
+  authorPhotoUrl: string | null;
+  caption: string;
+  albumKey: string;
+  linkedEvent?: string | null;
+  files: File[];
+};
+
+export function allocateAlbumMediaDocId(): string {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
-  if (input.files.length === 0) throw new Error("Choose at least one image.");
+  return doc(collection(db, COLLECTION)).id;
+}
 
-  for (const file of input.files) {
-    validateRawImageFile(file);
+async function finalizeAlbumMediaDocuments(
+  input: CreateAlbumArchiveInput,
+  optimizedArtifacts: ProcessedImageFile[],
+  mediaIds: string[],
+  onProgress?: (progress: AlbumUploadProgress) => void
+): Promise<void> {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
+  const total = optimizedArtifacts.length;
+
+  if (mediaIds.length !== total) {
+    throw new Error("Album upload ids must match the number of photos.");
   }
 
-  const total = input.files.length;
-  onProgress?.({ phase: "preparing", done: 0, total });
-  const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(input.files, "album", {
-    onProgress: (p) => {
-      if (!onProgress) return;
-      if (p.phase === "optimizing") {
-        onProgress({ phase: "optimizing", done: p.done, total });
-        return;
-      }
-      if (p.phase === "ready") return;
-      onProgress({ phase: "preparing", done: p.done, total });
-    },
-  });
-
-  const optimized = optimizedArtifacts.map((a) => a.file);
-
-  const albumMax = getUploadMaxBytes("album");
-  for (const file of optimized) {
-    if (file.size > albumMax) {
-      throw new Error(`"${file.name}" is still too large after optimization. Try fewer photos.`);
-    }
-  }
-
-  const ids: string[] = [];
-
-  for (let i = 0; i < optimized.length; i++) {
-    const file = optimized[i]!;
-    const ref = doc(collection(db, COLLECTION));
-    const id = ref.id;
+  for (let i = 0; i < total; i++) {
+    const file = optimizedArtifacts[i]!.file;
+    const id = mediaIds[i]!;
+    const ref = doc(db, COLLECTION, id);
     actionDebug("album", "upload begin", { id, index: i });
 
     const art = optimizedArtifacts[i]!;
@@ -143,11 +131,62 @@ export async function createAlbumMediaItems(
       updatedAt: serverTimestamp(),
     });
 
-    ids.push(id);
     onProgress?.({ phase: "uploading", done: i + 1, total });
     actionDebug("album", "item saved", { id });
   }
+}
 
+export async function createAlbumMediaItems(
+  input: CreateAlbumArchiveInput,
+  onProgress?: (progress: AlbumUploadProgress) => void,
+  opts?: {
+    /** When provided with same length as `files`, uploads merge into predetermined Firestore ids (optimistic UI). */
+    mediaIds?: string[];
+    signal?: AbortSignal;
+  }
+): Promise<string[]> {
+  if (!input.authorId?.trim()) throw new Error("You must be signed in to upload.");
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
+  if (input.files.length === 0) throw new Error("Choose at least one image.");
+
+  for (const file of input.files) {
+    validateRawImageFile(file);
+  }
+
+  const total = input.files.length;
+  const { signal, mediaIds: presetIds } = opts ?? {};
+
+  const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(input.files, "album", {
+    signal,
+    onProgress: (p) => {
+      if (!onProgress) return;
+      if (p.phase === "optimizing") {
+        onProgress({ phase: "optimizing", done: p.done, total });
+        return;
+      }
+      if (p.phase === "ready") return;
+      onProgress({ phase: "preparing", done: p.done, total });
+    },
+  });
+
+  const optimized = optimizedArtifacts.map((a) => a.file);
+
+  const albumMax = getUploadMaxBytes("album");
+  for (const file of optimized) {
+    if (file.size > albumMax) {
+      throw new Error(`"${file.name}" is still too large after optimization. Try fewer photos.`);
+    }
+  }
+
+  const ids =
+    presetIds && presetIds.length === optimizedArtifacts.length
+      ? presetIds
+      : optimizedArtifacts.map(() => allocateAlbumMediaDocId());
+
+  onProgress?.({ phase: "preparing", done: total, total });
+  onProgress?.({ phase: "uploading", done: 0, total: optimizedArtifacts.length, percent: 0 });
+  await finalizeAlbumMediaDocuments(input, optimizedArtifacts, ids, onProgress);
   return ids;
 }
 

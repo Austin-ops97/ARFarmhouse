@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { Images } from "lucide-react";
 import { useMemo } from "react";
@@ -52,9 +51,19 @@ export function WeekendHubAlbumStrip({ eventTitle }: WeekendHubAlbumStripProps) 
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: reduceMotion ? 0 : idx * 0.05 }}
             onClick={() => openLightbox({ items: picks, index: idx })}
-            className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg ring-1 ring-border/40 dark:ring-white/[0.06]"
+            className="relative flex h-20 max-w-[min(42vw,200px)] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted/30 px-1 ring-1 ring-border/40 dark:bg-zinc-950/70 dark:ring-white/[0.06]"
           >
-            <Image src={item.src} alt="" fill className="object-cover" sizes="112px" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.src}
+              alt=""
+              width={item.width}
+              height={item.height}
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+              className="max-h-full w-auto max-w-full object-contain"
+            />
           </motion.button>
         ))}
       </div>

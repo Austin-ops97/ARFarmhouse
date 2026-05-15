@@ -25,6 +25,8 @@ const postTypes: { id: FeedPostCategory; label: string }[] = [
 
 export type LivePostPayload = {
   files: File[];
+  /** Parallel to `files` — lightweight blob previews for instant optimistic feed rows */
+  imagePreviewUrls: (string | null)[];
   caption: string;
   location: string;
   postType: FeedPostCategory;
@@ -118,6 +120,7 @@ export function CreatePostDialog({
       const trimmedEvent = linkedEventLabel.trim();
       await onPublishLive({
         files,
+        imagePreviewUrls: attachments.map((a) => a.preview),
         caption: caption.trim(),
         location: location.trim(),
         postType,
@@ -135,7 +138,7 @@ export function CreatePostDialog({
       publishingRef.current = false;
       setLocalPublishing(false);
     }
-  }, [canPublish, caption, files, isPublishing, linkedEventLabel, location, onOpenChange, onPublishLive, postType, resetForm]);
+  }, [attachments, canPublish, caption, files, isPublishing, linkedEventLabel, location, onOpenChange, onPublishLive, postType, resetForm]);
 
   useEffect(() => {
     if (open) return;
@@ -290,7 +293,7 @@ export function CreatePostDialog({
                       className="relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]"
                     >
                       {item.preview ? (
-                        <Image src={item.preview} alt="" fill className="object-cover" sizes="120px" unoptimized />
+                        <Image src={item.preview} alt="" fill className="object-contain object-center" sizes="120px" unoptimized />
                       ) : (
                         <motion.div className="absolute inset-0 animate-pulse bg-white/[0.08]" aria-hidden />
                       )}

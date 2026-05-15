@@ -10,9 +10,18 @@ import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/auth-context";
-import { isLargeRawImage, validateRawImageFile } from "@/lib/image-input";
+import { usePhotoAlbum } from "@/contexts/photo-album-context";
+import { validateRawImageFile } from "@/lib/image-input";
+import { probeImageDimensions } from "@/lib/image-dimensions";
+import { deferMediaCpuWork } from "@/lib/image-scheduler";
+import { overlayFromAlbumProgress } from "@/lib/album-upload-status";
+import { enqueueMediaUploadTask } from "@/lib/media-upload-queue";
 import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
-import { createAlbumMediaItems } from "@/services/album-media";
+import type { AlbumMediaItem } from "@/lib/photo-album-media";
+import {
+  allocateAlbumMediaDocId,
+  createAlbumMediaItems,
+} from "@/services/album-media";
 import { cn } from "@/lib/utils";
 
 type PhotoAlbumUploadDialogProps = {
@@ -31,21 +40,15 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
   const [albumKey, setAlbumKey] = useState<string>(ALBUM_UPLOAD_BUCKETS[0].key);
   const [caption, setCaption] = useState("");
   const [eventLink, setEventLink] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<{
-    phase: "preparing" | "optimizing" | "uploading";
-    done: number;
-    total: number;
-    percent?: number;
-  } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const { patchOptimisticAlbumItem, setOptimisticAlbumItems } = usePhotoAlbum();
 
   const reset = useCallback(() => {
     clearAttachments();
     setCaption("");
     setEventLink("");
     setAlbumKey(ALBUM_UPLOAD_BUCKETS[0].key);
-    setProgress(null);
     setError(null);
   }, [clearAttachments]);
 
@@ -58,46 +61,105 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
   );
 
   const dismiss = useCallback(() => {
+    reset();
+    onOpenChange(false);
+  }, [onOpenChange, reset]);
+
+  const handleSubmit = () => {
+    if (files.length === 0 || !user) return;
+    setError(null);
+    try {
+      for (const file of files) validateRawImageFile(file);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Invalid image.");
+      return;
+    }
+
+    let mediaIds: string[];
+    try {
+      mediaIds = files.map(() => allocateAlbumMediaDocId());
+    } catch {
+      setError("Could not start upload. Check your connection and try again.");
+      return;
+    }
+
+    const now = Date.now();
+    const authorName = displayName || user.displayName || "Family member";
+    const filesSnapshot = [...files];
+    const optimisticRows: AlbumMediaItem[] = attachments.map((item, idx) => ({
+      id: mediaIds[idx]!,
+      src: item.preview ?? URL.createObjectURL(item.file),
+      caption: caption.trim() || "Family memory",
+      source: "upload",
+      albumKey,
+      linkedEvent: eventLink.trim() || undefined,
+      authorName,
+      timeLabel: "Uploading…",
+      addedAt: now,
+      uploadedBy: user.uid,
+      optimistic: true,
+      optimisticUpload: {
+        phase: "Preparing…",
+        progress: 4,
+      },
+    }));
+
+    setOptimisticAlbumItems((prev) => [...optimisticRows, ...prev]);
+
+    const snap = {
+      authorId: user.uid,
+      authorDisplayName: authorName,
+      authorPhotoUrl: avatarUrl ?? user.photoURL ?? null,
+      caption,
+      albumKey,
+      linkedEvent: eventLink.trim() || null,
+      files,
+    };
+
     clearAttachments();
     reset();
     onOpenChange(false);
-  }, [clearAttachments, onOpenChange, reset]);
+    onUploaded?.();
 
-  const handleSubmit = async () => {
-    if (files.length === 0 || !user) return;
-    setBusy(true);
-    setError(null);
-    setProgress({ phase: "preparing", done: 0, total: files.length });
-    try {
-      for (const file of files) validateRawImageFile(file);
-      await createAlbumMediaItems(
-        {
-          authorId: user.uid,
-          authorDisplayName: displayName || user.displayName || "Family member",
-          authorPhotoUrl: avatarUrl ?? user.photoURL ?? null,
-          caption,
-          albumKey,
-          linkedEvent: eventLink.trim() || null,
-          files,
-        },
-        (p) =>
-          setProgress({
-            phase: p.phase,
-            done: p.done,
-            total: p.total,
-            percent: p.phase === "uploading" ? p.percent : undefined,
-          })
+    void enqueueMediaUploadTask(async () => {
+      await deferMediaCpuWork();
+      void Promise.all(
+        filesSnapshot.map(async (file, idx) => {
+          const id = mediaIds[idx];
+          if (!id) return;
+          const dims = await probeImageDimensions(file);
+          if (dims?.width && dims.height) {
+            patchOptimisticAlbumItem(id, { width: dims.width, height: dims.height });
+          }
+        })
       );
-      clearAttachments();
-      reset();
-      onOpenChange(false);
-      onUploaded?.();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed. Try again.");
-    } finally {
-      setBusy(false);
-      setProgress(null);
-    }
+      try {
+        await createAlbumMediaItems(
+          snap,
+          (p) => {
+            const o = overlayFromAlbumProgress(p);
+            for (const id of mediaIds) {
+              patchOptimisticAlbumItem(id, {
+                optimisticUpload: {
+                  phase: o.phase,
+                  progress: o.progress,
+                },
+                timeLabel: o.phase.split("…")[0] ?? "Uploading…",
+              });
+            }
+          },
+          { mediaIds }
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Upload failed.";
+        for (const id of mediaIds) {
+          patchOptimisticAlbumItem(id, {
+            timeLabel: "Upload failed",
+            optimisticUpload: { phase: "Failed", progress: 0, error: msg },
+          });
+        }
+      }
+    });
   };
 
   return (
@@ -144,7 +206,6 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
               <MediaAttachZone
-                disabled={busy}
                 multiple
                 showDesktopDropHint
                 className="border-border/80 bg-muted/25 hover:border-primary/35 hover:bg-muted/40"
@@ -169,7 +230,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                       className="group relative aspect-square overflow-hidden rounded-xl bg-muted/30 ring-1 ring-border/50"
                     >
                       {item.preview ? (
-                        <Image src={item.preview} alt="" fill className="object-cover" sizes="120px" unoptimized />
+                        <Image src={item.preview} alt="" fill className="object-contain object-center" sizes="120px" unoptimized />
                       ) : (
                         <div className="absolute inset-0 animate-pulse bg-muted/50" aria-hidden />
                       )}
@@ -183,41 +244,6 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                       </button>
                     </motion.div>
                   ))}
-                </div>
-              )}
-
-              {progress && busy && (
-                <div className="mt-4">
-                  <div className="h-1.5 overflow-hidden rounded-full bg-muted/60">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all duration-300"
-                      style={{
-                        width: `${
-                          progress.phase === "uploading" && progress.percent != null
-                            ? Math.round(((progress.done + progress.percent / 100) / progress.total) * 100)
-                            : progress.phase === "preparing"
-                              ? Math.round((progress.done / Math.max(progress.total, 1)) * 26)
-                              : Math.round(
-                                  26 +
-                                    (progress.done / Math.max(progress.total, 1)) * 44
-                                )
-                        }%`,
-                      }}
-                    />
-                  </div>
-                  <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                    {progress.phase === "preparing"
-                      ? progress.total > 1
-                        ? `Preparing photos ${progress.done}/${progress.total}…`
-                        : "Preparing photo for upload…"
-                      : progress.phase === "optimizing"
-                        ? files.some(isLargeRawImage)
-                          ? `Optimizing large photo ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
-                          : `Optimizing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
-                        : progress.percent != null
-                          ? `Uploading… ${Math.round(((progress.done + progress.percent / 100) / progress.total) * 100)}%`
-                          : `Uploading ${progress.done} of ${progress.total}…`}
-                  </p>
                 </div>
               )}
 
@@ -268,23 +294,12 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
             </div>
 
             <div className="flex gap-2 border-t border-border/50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={dismiss} disabled={busy}>
+              <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={dismiss}>
                 Cancel
               </Button>
-              <Button
-                type="button"
-                className="flex-1 rounded-xl"
-                disabled={files.length === 0 || busy || !user}
-                onClick={() => void handleSubmit()}
-              >
+              <Button type="button" className="flex-1 rounded-xl" disabled={files.length === 0 || !user} onClick={handleSubmit}>
                 <Upload className="opacity-80" data-icon="inline-start" aria-hidden />
-                {busy
-                  ? progress?.phase === "optimizing"
-                    ? files.some(isLargeRawImage)
-                      ? "Optimizing large photo…"
-                      : "Optimizing…"
-                    : "Uploading…"
-                  : "Save to archive"}
+                Save to archive
               </Button>
             </div>
           </motion.div>

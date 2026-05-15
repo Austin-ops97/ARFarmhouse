@@ -59,3 +59,12 @@ export function imageProcessingConcurrency(): number {
     (navigator.maxTouchPoints > 1 && window.matchMedia("(max-width: 768px)").matches);
   return mobile ? 1 : 2;
 }
+
+/** Lets the compositor paint optimistic UI before a CPU-heavy image pipeline starts. */
+export async function deferMediaCpuWork(): Promise<void> {
+  await yieldWhenIdle();
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+  await yieldToMainThread();
+}

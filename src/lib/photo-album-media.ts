@@ -5,6 +5,9 @@ export type AlbumSource = "feed" | "upload";
 export type AlbumMediaItem = {
   id: string;
   src: string;
+  /** Optimized pixel dimensions when known (Firestore / feed meta) — drives natural aspect in the grid. */
+  width?: number;
+  height?: number;
   postId?: string;
   postTitle?: string;
   authorName?: string;
@@ -18,6 +21,12 @@ export type AlbumMediaItem = {
   addedAt?: number;
   storagePath?: string;
   uploadedBy?: string;
+  optimistic?: boolean;
+  optimisticUpload?: {
+    phase: string;
+    progress: number;
+    error?: string;
+  };
 };
 
 export function extractAlbumMediaFromPosts(posts: readonly UiFeedPost[]): AlbumMediaItem[] {
@@ -29,9 +38,13 @@ export function extractAlbumMediaFromPosts(posts: readonly UiFeedPost[]): AlbumM
     const push = (src: string, idx: number) => {
       if (!src || seen.has(src)) return;
       seen.add(src);
+      const dim = post.mediaDimensions?.[idx];
+      const width = dim?.width && dim.width > 0 ? dim.width : undefined;
+      const height = dim?.height && dim.height > 0 ? dim.height : undefined;
       items.push({
         id: `${post.id}-m-${idx}`,
         src,
+        ...(width != null && height != null ? { width, height } : {}),
         postId: post.id,
         postTitle: post.title,
         authorName: post.author.name,
@@ -279,7 +292,17 @@ export function mergeAlbumCatalog(
   }
   for (const m of feedBacked) {
     if (!m.src) continue;
-    if (!bySrc.has(m.src)) bySrc.set(m.src, m);
+    const existing = bySrc.get(m.src);
+    if (!existing) {
+      bySrc.set(m.src, m);
+      continue;
+    }
+    const w = existing.width ?? m.width;
+    const h = existing.height ?? m.height;
+    bySrc.set(m.src, {
+      ...existing,
+      ...(w != null && h != null ? { width: w, height: h } : {}),
+    });
   }
   return [...bySrc.values()].sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
 }

@@ -20,10 +20,10 @@ export type AvatarPhotoCropDialogProps = {
   fileName?: string;
   displayName?: string;
   onOpenChange: (open: boolean) => void;
-  onComplete: (file: File, previewUrl: string) => Promise<void>;
+  onComplete: (file: File, previewUrl: string) => void | Promise<void>;
 };
 
-type Phase = "idle" | "processing" | "uploading";
+type Phase = "idle" | "processing";
 
 export function AvatarPhotoCropDialog({
   open,
@@ -41,7 +41,6 @@ export function AvatarPhotoCropDialog({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<AvatarCropPixels | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const busy = phase !== "idle";
 
@@ -52,14 +51,12 @@ export function AvatarPhotoCropDialog({
     setCroppedAreaPixels(null);
     setError(null);
     setPhase("idle");
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
-  }, [previewUrl]);
+  }, []);
 
   useEffect(() => {
-    if (!open) resetEditor();
+    if (!open) {
+      queueMicrotask(() => resetEditor());
+    }
   }, [open, resetEditor]);
 
   useEffect(() => {
@@ -93,9 +90,7 @@ export function AvatarPhotoCropDialog({
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       const { file, blob } = await processAvatarFromCrop(imageSrc, croppedAreaPixels, rotation);
       const localPreview = URL.createObjectURL(blob);
-      setPreviewUrl(localPreview);
-      setPhase("uploading");
-      await onComplete(file, localPreview);
+      void onComplete(file, localPreview);
       onOpenChange(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not prepare that photo.");
@@ -177,9 +172,7 @@ export function AvatarPhotoCropDialog({
                   animate={{ opacity: 1 }}
                 >
                   <Loader2 className="size-8 animate-spin text-primary" aria-hidden />
-                  <p className="text-sm font-medium text-foreground">
-                    {phase === "uploading" ? "Uploading…" : "Preparing photo…"}
-                  </p>
+                  <p className="text-sm font-medium text-foreground">Preparing photo…</p>
                 </motion.div>
               ) : null}
             </div>
@@ -249,7 +242,7 @@ export function AvatarPhotoCropDialog({
                   {busy ? (
                     <>
                       <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
-                      {phase === "uploading" ? "Uploading" : "Processing"}
+                      Processing…
                     </>
                   ) : (
                     "Save photo"

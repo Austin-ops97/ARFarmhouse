@@ -1,3 +1,6 @@
+/** Max logical width for sizing math (`max-w-*` stays in Tailwind separately). */
+export const FEED_STREAM_MAX_WIDTH_PX = 520;
+
 /** Center stream — Instagram / Threads–like readable width (not stretched) */
 export const FEED_STREAM_CLASS =
   "w-full min-w-0 max-w-[min(100%,520px)] mx-auto shrink-0";

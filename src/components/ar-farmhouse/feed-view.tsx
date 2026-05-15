@@ -2,9 +2,9 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { ImagePlus, PenLine } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, startTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 
-import { CreatePostDialog } from "@/components/ar-farmhouse/create-post-dialog";
+import { CreatePostDialog, type LivePostPayload } from "@/components/ar-farmhouse/create-post-dialog";
 import { FeedPostCard } from "@/components/ar-farmhouse/feed-post-card";
 import { FeedRail } from "@/components/ar-farmhouse/feed-rail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,12 +12,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
 import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
 import { usePhotoAlbum } from "@/contexts/photo-album-context";
-import { FEED_LAYOUT_CLASS, FEED_RAIL_CLASS, FEED_STREAM_CLASS } from "@/lib/feed-layout";
-import type { FeedPostCategory } from "@/models/feed-post-category";
-import type { UiFeedPost } from "@/models/feed-post";
-import { postsSignature, runMutation } from "@/lib/mutation-lifecycle";
 import { useFeedPosts } from "@/contexts/feed-posts-context";
-import { createFeedPostWithMedia } from "@/services/feed-posts";
+import { FEED_LAYOUT_CLASS, FEED_RAIL_CLASS, FEED_STREAM_CLASS } from "@/lib/feed-layout";
+import { enqueueMediaUploadTask } from "@/lib/media-upload-queue";
+import { buildOptimisticFeedPost, mergeOptimisticUploadProgress } from "@/lib/optimistic-feed-post";
+import { postsSignature } from "@/lib/mutation-lifecycle";
+import { deferMediaCpuWork } from "@/lib/image-scheduler";
+import type { UiFeedPost } from "@/models/feed-post";
+import {
+  allocateFeedPostDocId,
+  finalizeFeedPostFromFiles,
+  type CreateFeedPostInput,
+} from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
 
 function FeedSkeleton() {
@@ -32,7 +38,7 @@ function FeedSkeleton() {
               <Skeleton className="h-2.5 w-40 rounded-full bg-muted/60 dark:bg-white/[0.06]" />
             </div>
           </div>
-          <Skeleton className="ar-skeleton-shimmer aspect-[4/5] w-full rounded-none bg-muted/50 sm:rounded-2xl dark:bg-white/[0.06]" />
+          <Skeleton className="ar-skeleton-shimmer relative min-h-[220px] w-full rounded-none bg-muted/50 sm:rounded-2xl dark:bg-white/[0.06]" />
           <div className="flex gap-2 px-1 pt-1">
             <Skeleton className="size-8 rounded-full bg-muted/55 dark:bg-white/[0.06]" />
             <Skeleton className="size-8 rounded-full bg-muted/55 dark:bg-white/[0.06]" />
@@ -59,24 +65,24 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
   const { user, displayName, avatarUrl, loading: authLoading, configured } = useAuth();
   const { prefs } = useSettingsPrefs();
   const [composeOpen, setComposeOpen] = useState(false);
-  const [publishBusy, setPublishBusy] = useState(false);
-  const [publishPhase, setPublishPhase] = useState<
-    "idle" | "preparing" | "optimizing" | "uploading" | "saving"
-  >("idle");
-  const [uploadProgress, setUploadProgress] = useState<{
-    done: number;
-    total: number;
-    percent?: number;
-  } | null>(null);
+  const [optimisticFeed, setOptimisticFeed] = useState<UiFeedPost[]>([]);
 
   const { posts, loading: liveLoading, error: liveError } = useFeedPosts();
-  const publishEpochRef = useRef(0);
   const feedPostsSigRef = useRef("");
+  const retryFeedPayloadsRef = useRef(new Map<string, CreateFeedPostInput>());
+  const abortFinalizeRef = useRef(new Map<string, AbortController>());
 
   const meAvatar = avatarUrl ?? undefined;
   const meName = displayName;
 
   const { setFeedPosts } = usePhotoAlbum();
+
+  useEffect(() => {
+    const remoteIds = new Set(posts.map((p) => p.id));
+    startTransition(() => {
+      setOptimisticFeed((prev) => prev.filter((o) => !remoteIds.has(o.id)));
+    });
+  }, [posts]);
 
   useEffect(() => {
     const sig = postsSignature(posts);
@@ -85,75 +91,143 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
     startTransition(() => setFeedPosts(posts));
   }, [posts, setFeedPosts]);
 
+  const mergedPosts = useMemo(() => {
+    const remoteIds = new Set(posts.map((p) => p.id));
+    const pending = optimisticFeed.filter((o) => !remoteIds.has(o.id));
+    return [...pending, ...posts];
+  }, [optimisticFeed, posts]);
+
   const canPublish = Boolean(configured && user && !authLoading);
 
-  const clearPublishState = useCallback(() => {
-    setPublishBusy(false);
-    setPublishPhase("idle");
-    setUploadProgress(null);
+  const runFinalizeFeedJob = useCallback((postId: string, input: CreateFeedPostInput) => {
+    abortFinalizeRef.current.get(postId)?.abort();
+    const ac = new AbortController();
+    abortFinalizeRef.current.set(postId, ac);
+    retryFeedPayloadsRef.current.set(postId, input);
+
+    void enqueueMediaUploadTask(async () => {
+      await deferMediaCpuWork();
+      try {
+        await finalizeFeedPostFromFiles(postId, input, {
+          signal: ac.signal,
+          onProgress: (p) => {
+            if (p.phase === "uploading" && p.done >= p.total && (p.percent ?? 100) >= 100) {
+              setOptimisticFeed((prev) =>
+                prev.map((row) =>
+                  row.id === postId
+                    ? {
+                        ...row,
+                        optimisticUpload: {
+                          phase: "saving",
+                          progress: 96,
+                          message: "Saving post…",
+                        },
+                      }
+                    : row
+                )
+              );
+              return;
+            }
+            const next = mergeOptimisticUploadProgress(p);
+            setOptimisticFeed((prev) =>
+              prev.map((row) => (row.id === postId ? { ...row, optimisticUpload: next } : row))
+            );
+          },
+        });
+        retryFeedPayloadsRef.current.delete(postId);
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        const msg = e instanceof Error ? e.message : "Could not publish.";
+        setOptimisticFeed((prev) =>
+          prev.map((row) =>
+            row.id === postId
+              ? {
+                  ...row,
+                  optimisticUpload: {
+                    phase: "failed",
+                    progress: row.optimisticUpload?.progress ?? 0,
+                    error: msg,
+                  },
+                }
+              : row
+          )
+        );
+      } finally {
+        abortFinalizeRef.current.delete(postId);
+      }
+    });
   }, []);
 
   const handlePublishLive = useCallback(
-    async (payload: {
-      files: File[];
-      caption: string;
-      location: string;
-      postType: FeedPostCategory;
-      attachedEvent: string | null;
-    }) => {
+    async (payload: LivePostPayload) => {
       if (!user) throw new Error("Sign in to publish to the family feed.");
 
-      const epoch = ++publishEpochRef.current;
-      const hasFiles = payload.files.length > 0;
+      let postId: string;
+      try {
+        postId = allocateFeedPostDocId();
+      } catch {
+        throw new Error("Firestore unavailable. Check your connection and try again.");
+      }
 
-      await runMutation(
-        "feed",
-        "publish",
-        () =>
-          createFeedPostWithMedia(
-            {
-              authorId: user.uid,
-              authorDisplayName: displayName,
-              authorPhotoUrl: avatarUrl,
-              category: payload.postType,
-              body: payload.caption,
-              location: payload.location,
-              linkedEvent: payload.attachedEvent,
-              files: payload.files,
-            },
-            (progress) => {
-              if (publishEpochRef.current !== epoch) return;
-              if (progress.phase === "uploading") {
-                setPublishPhase("uploading");
-                setUploadProgress({
-                  done: progress.done,
-                  total: progress.total,
-                  percent: progress.percent,
-                });
-                if (progress.done >= progress.total && (progress.percent ?? 100) >= 100) {
-                  setPublishPhase("saving");
-                }
-                return;
-              }
-              setPublishPhase(progress.phase === "optimizing" ? "optimizing" : "preparing");
-              setUploadProgress({ done: progress.done, total: progress.total });
-            }
-          ),
-        {
-          onStart: () => {
-            setPublishBusy(true);
-            setPublishPhase(hasFiles ? "preparing" : "saving");
-            setUploadProgress(hasFiles ? { done: 0, total: payload.files.length } : null);
-          },
-          onFinally: () => {
-            if (publishEpochRef.current !== epoch) return;
-            clearPublishState();
-          },
-        }
-      );
+      const baseRow = buildOptimisticFeedPost({
+        id: postId,
+        authorId: user.uid,
+        authorDisplayName: displayName || "Member",
+        authorPhotoUrl: avatarUrl ?? null,
+        caption: payload.caption,
+        location: payload.location,
+        postType: payload.postType,
+        attachedEvent: payload.attachedEvent,
+        imagePreviewUrls: payload.imagePreviewUrls ?? [],
+      });
+
+      const input: CreateFeedPostInput = {
+        authorId: user.uid,
+        authorDisplayName: displayName || "Member",
+        authorPhotoUrl: avatarUrl ?? null,
+        category: payload.postType,
+        body: payload.caption,
+        location: payload.location,
+        linkedEvent: payload.attachedEvent,
+        files: payload.files,
+      };
+
+      setOptimisticFeed((prev) => [baseRow, ...prev]);
+      runFinalizeFeedJob(postId, input);
     },
-    [avatarUrl, clearPublishState, displayName, user]
+    [avatarUrl, displayName, runFinalizeFeedJob, user]
   );
+
+  const handleRetryOptimistic = useCallback(
+    (postId: string) => {
+      const input = retryFeedPayloadsRef.current.get(postId);
+      if (!input) return;
+      abortFinalizeRef.current.get(postId)?.abort();
+      setOptimisticFeed((prev) =>
+        prev.map((row) =>
+          row.id === postId
+            ? {
+                ...row,
+                optimisticUpload: {
+                  phase: "preparing",
+                  progress: 4,
+                  message: "Retrying…",
+                },
+              }
+            : row
+        )
+      );
+      runFinalizeFeedJob(postId, input);
+    },
+    [runFinalizeFeedJob]
+  );
+
+  const handleDismissOptimistic = useCallback((postId: string) => {
+    abortFinalizeRef.current.get(postId)?.abort();
+    abortFinalizeRef.current.delete(postId);
+    retryFeedPayloadsRef.current.delete(postId);
+    setOptimisticFeed((prev) => prev.filter((r) => r.id !== postId));
+  }, []);
 
   return (
     <div className={cn(FEED_LAYOUT_CLASS, "pb-4")}>
@@ -216,7 +290,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
           <FeedSkeleton />
         ) : (
           <>
-            {posts.length === 0 && (
+            {mergedPosts.length === 0 && (
               <div className="rounded-2xl border border-border/55 bg-card/80 px-6 py-14 text-center shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.03]">
                 <p className="font-heading text-xl font-semibold text-foreground">No family updates yet</p>
                 <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -235,12 +309,14 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
             )}
 
             <div className="space-y-0">
-              {posts.map((post) => (
+              {mergedPosts.map((post) => (
                 <FeedPostCard
                   key={post.id}
                   post={post}
                   highlightId={highlightPostId}
                   suppressMedia={!prefs.feedRichMedia || prefs.behaviorDataSaver}
+                  onRetryOptimisticFeed={() => handleRetryOptimistic(post.id)}
+                  onDismissOptimisticFeed={() => handleDismissOptimistic(post.id)}
                 />
               ))}
             </div>
@@ -262,15 +338,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
           </motion.button>
         )}
 
-        <CreatePostDialog
-          open={composeOpen}
-          onOpenChange={setComposeOpen}
-          publishBusy={publishBusy}
-          publishPhase={publishPhase}
-          uploadProgress={uploadProgress}
-          canPublish={canPublish}
-          onPublishLive={handlePublishLive}
-        />
+        <CreatePostDialog open={composeOpen} onOpenChange={setComposeOpen} canPublish={canPublish} onPublishLive={handlePublishLive} />
       </div>
 
       <aside className={FEED_RAIL_CLASS}>
