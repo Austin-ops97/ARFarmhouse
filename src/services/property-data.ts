@@ -4,17 +4,16 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
-  runTransaction,
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
   type DocumentData,
-  type Query,
+  type DocumentReference,
   type QueryDocumentSnapshot,
-  type QuerySnapshot,
-  type Transaction,
 } from "firebase/firestore";
 
 import { notifyBookingCreated, notifyTaskCreated } from "@/lib/notification-fanout";
@@ -277,6 +276,18 @@ export type BookingSubmitResult = {
   calendarEventId: string;
 };
 
+function requireDocumentRef(ref: unknown, label: string): asserts ref is DocumentReference {
+  if (
+    !ref ||
+    typeof ref !== "object" ||
+    !("path" in ref) ||
+    typeof (ref as { path: unknown }).path !== "string" ||
+    !(ref as { path: string }).path.length
+  ) {
+    throw new Error(`Invalid Firestore reference for ${label}.`);
+  }
+}
+
 export async function createBookingRequest(input: BookingRequestPayload): Promise<BookingSubmitResult> {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
@@ -297,72 +308,68 @@ export async function createBookingRequest(input: BookingRequestPayload): Promis
 
   const bookingRef = doc(collection(db, "bookingRequests"));
   const eventRef = doc(collection(db, "calendarEvents"));
+  requireDocumentRef(bookingRef, "bookingRequests");
+  requireDocumentRef(eventRef, "calendarEvents");
 
   try {
-    await runTransaction(db, async (transaction) => {
-      const monthEventsQuery = query(
-        collection(db, "calendarEvents"),
-        where("year", "==", input.year),
-        where("monthIndex", "==", input.monthIndex)
+    const monthEventsQuery = query(
+      collection(db, "calendarEvents"),
+      where("year", "==", input.year),
+      where("monthIndex", "==", input.monthIndex)
+    );
+    const eventsSnap = await getDocs(monthEventsQuery);
+    const existing = eventsSnap.docs.map(mapCalendarEventRange);
+    actionDebug("booking", "overlap check", { existing: existing.length });
+    const conflict = findOverlappingCalendarEvent(
+      existing,
+      input.year,
+      input.monthIndex,
+      startDay,
+      endDay
+    );
+    if (conflict) {
+      throw new Error(
+        `Those dates overlap "${conflict.title}". Adjust your range or ask the family to confirm the existing stay.`
       );
-      type TransactionGetQuery = {
-        get: (q: Query<DocumentData>) => Promise<QuerySnapshot<DocumentData>>;
-      };
-      const eventsSnap = await (transaction as Transaction & TransactionGetQuery).get(
-        monthEventsQuery
-      );
-      const existing = eventsSnap.docs.map(mapCalendarEventRange);
-      actionDebug("booking", "overlap check", { existing: existing.length });
-      const conflict = findOverlappingCalendarEvent(
-        existing,
-        input.year,
-        input.monthIndex,
-        startDay,
-        endDay
-      );
-      if (conflict) {
-        throw new Error(
-          `Those dates overlap "${conflict.title}". Adjust your range or ask the family to confirm the existing stay.`
-        );
-      }
+    }
 
-      transaction.set(bookingRef, {
-        ...input,
-        startDay,
-        endDay,
-        status: "pending",
-        calendarEventId: eventRef.id,
-        createdAt: serverTimestamp(),
-      });
-
-      transaction.set(eventRef, {
-        title,
-        startDay,
-        endDay,
-        year: input.year,
-        monthIndex: input.monthIndex,
-        kind: meta.kind,
-        accent: meta.accent,
-        timeLabel,
-        status: "pending",
-        tripId: input.tripId,
-        roomId: input.roomId,
-        guests: input.guests,
-        ownerUid: input.ownerUid,
-        includeSelf: input.includeSelf,
-        attendeeMemberIds: input.attendeeMemberIds,
-        attendeePetIds: input.attendeePetIds,
-        attendeeLabels: input.attendeeLabels,
-        notes: input.notes,
-        tripPurpose: input.tripPurpose,
-        tripTitle: input.tripTitle?.trim() || null,
-        requestedBy: input.requestedBy,
-        requestedByName: input.requestedByName,
-        bookingRequestId: bookingRef.id,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+    const batch = writeBatch(db);
+    batch.set(bookingRef, {
+      ...input,
+      startDay,
+      endDay,
+      status: "pending",
+      calendarEventId: eventRef.id,
+      createdAt: serverTimestamp(),
     });
+    batch.set(eventRef, {
+      title,
+      startDay,
+      endDay,
+      year: input.year,
+      monthIndex: input.monthIndex,
+      kind: meta.kind,
+      accent: meta.accent,
+      timeLabel,
+      status: "pending",
+      tripId: input.tripId,
+      roomId: input.roomId,
+      guests: input.guests,
+      ownerUid: input.ownerUid,
+      includeSelf: input.includeSelf,
+      attendeeMemberIds: input.attendeeMemberIds,
+      attendeePetIds: input.attendeePetIds,
+      attendeeLabels: input.attendeeLabels,
+      notes: input.notes,
+      tripPurpose: input.tripPurpose,
+      tripTitle: input.tripTitle?.trim() || null,
+      requestedBy: input.requestedBy,
+      requestedByName: input.requestedByName,
+      bookingRequestId: bookingRef.id,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
 
     actionDebug("booking", "submit complete", {
       bookingRequestId: bookingRef.id,

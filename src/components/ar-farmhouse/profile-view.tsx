@@ -3,7 +3,10 @@
 import { updateProfile } from "firebase/auth";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Camera, Heart, Loader2, PawPrint, Plus, Sparkles, Trash2, UserRound } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+import { validateRawImageFile } from "@/lib/image-input";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,12 +25,21 @@ import {
 import type { AppUser } from "@/models/user";
 import { profileHandle } from "@/services/user-profile";
 import {
+  isProfilePhotoUploadAvailable,
   uploadFamilyMemberPhoto,
   uploadPetPhoto,
   uploadProfilePhoto,
 } from "@/services/profile-storage";
 import { saveUserProfile, subscribeUserProfile } from "@/services/user-profile";
 import { cn } from "@/lib/utils";
+
+const AvatarPhotoCropDialog = dynamic(
+  () =>
+    import("@/components/ar-farmhouse/avatar-photo-crop-dialog").then((m) => ({
+      default: m.AvatarPhotoCropDialog,
+    })),
+  { ssr: false }
+);
 
 const surface = "ar-surface-raised overflow-hidden rounded-[1.35rem]";
 
@@ -72,9 +84,12 @@ function SectionHeader({
 
 function EmptyHint({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-2xl border border-dashed border-border/60 bg-muted/20 px-4 py-5 text-center text-[13px] leading-relaxed text-muted-foreground dark:border-white/10 dark:bg-white/[0.02]">
+    <motion.div
+      role="status"
+      className="rounded-2xl border border-dashed border-border/60 bg-muted/20 px-4 py-5 text-center text-[13px] leading-relaxed text-muted-foreground dark:border-white/10 dark:bg-white/[0.02]"
+    >
       {children}
-    </p>
+    </motion.div>
   );
 }
 
@@ -88,6 +103,12 @@ export function ProfileView() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropFileName, setCropFileName] = useState<string | undefined>();
+  const cropObjectUrlRef = useRef<string | null>(null);
+  const photoUploadAvailable = isProfilePhotoUploadAvailable();
 
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
@@ -125,6 +146,10 @@ export function ProfileView() {
   const persist = useCallback(
     async (patch: Parameters<typeof saveUserProfile>[1]) => {
       if (!user) return;
+      if (!configured) {
+        setSaveError("Wait until sign-in finishes, then try again.");
+        return;
+      }
       setSaving(true);
       setSaveError(null);
       try {
@@ -145,24 +170,74 @@ export function ProfileView() {
         setSaving(false);
       }
     },
-    [refreshProfile, syncForm, user]
+    [configured, refreshProfile, syncForm, user]
   );
 
-  const onProfilePhoto = useCallback(
-    async (file: File) => {
+  const clearCropSource = useCallback(() => {
+    if (cropObjectUrlRef.current) {
+      URL.revokeObjectURL(cropObjectUrlRef.current);
+      cropObjectUrlRef.current = null;
+    }
+    setCropImageSrc(null);
+    setCropFileName(undefined);
+  }, []);
+
+  const onProfilePhotoSelected = useCallback(
+    (file: File) => {
       if (!user) return;
-      setUploadingPhoto(true);
-      setSaveError(null);
+      if (!photoUploadAvailable) {
+        setSaveError(
+          "Photo uploads are not available yet. Firebase Storage may still be setting up — you can save other profile details in the meantime."
+        );
+        return;
+      }
       try {
-        const url = await uploadProfilePhoto(user.uid, file);
+        validateRawImageFile(file);
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : "That file is not supported.");
+        return;
+      }
+      clearCropSource();
+      const url = URL.createObjectURL(file);
+      cropObjectUrlRef.current = url;
+      setCropImageSrc(url);
+      setCropFileName(file.name);
+      setSaveError(null);
+      setCropOpen(true);
+    },
+    [clearCropSource, photoUploadAvailable, user]
+  );
+
+  const onCropDialogOpenChange = useCallback(
+    (open: boolean) => {
+      setCropOpen(open);
+      if (!open) clearCropSource();
+    },
+    [clearCropSource]
+  );
+
+  const onProfilePhotoCropped = useCallback(
+    async (file: File, previewUrl: string) => {
+      if (!user) return;
+      const previousAvatar = profile?.avatar ?? null;
+      setUploadingPhoto(true);
+      setUploadProgress(0);
+      setSaveError(null);
+      setProfile((prev) => (prev ? { ...prev, avatar: previewUrl } : prev));
+      try {
+        const url = await uploadProfilePhoto(user.uid, file, (pct) => setUploadProgress(pct));
         await persist({ avatar: url });
       } catch (e) {
+        setProfile((prev) => (prev ? { ...prev, avatar: previousAvatar } : prev));
         setSaveError(e instanceof Error ? e.message : "Photo upload failed.");
+        throw e;
       } finally {
+        URL.revokeObjectURL(previewUrl);
         setUploadingPhoto(false);
+        setUploadProgress(null);
       }
     },
-    [persist, user]
+    [persist, profile?.avatar, user]
   );
 
   const members = profile?.familyMembers ?? [];
@@ -226,6 +301,15 @@ export function ProfileView() {
 
   return (
     <div className="pb-24 pt-1">
+      <AvatarPhotoCropDialog
+        open={cropOpen}
+        imageSrc={cropImageSrc}
+        fileName={cropFileName}
+        displayName={displayName}
+        onOpenChange={onCropDialogOpenChange}
+        onComplete={onProfilePhotoCropped}
+      />
+
       <motion.header
         initial={reduceMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -263,7 +347,10 @@ export function ProfileView() {
               </Avatar>
               <label
                 htmlFor={photoInputId}
-                className="absolute -bottom-1 -right-1 flex size-9 cursor-pointer items-center justify-center rounded-xl border border-border/60 bg-card shadow-sm dark:border-white/12 dark:bg-background"
+                className={cn(
+                  "absolute -bottom-1 -right-1 flex size-9 items-center justify-center rounded-xl border border-border/60 bg-card shadow-sm dark:border-white/12 dark:bg-background",
+                  photoUploadAvailable ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+                )}
               >
                 {uploadingPhoto ? (
                   <Loader2 className="size-4 animate-spin text-primary" aria-hidden />
@@ -277,11 +364,11 @@ export function ProfileView() {
                 type="file"
                 accept="image/*"
                 className="sr-only"
-                disabled={uploadingPhoto}
+                disabled={uploadingPhoto || !photoUploadAvailable}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   e.target.value = "";
-                  if (f) void onProfilePhoto(f);
+                  if (f) onProfilePhotoSelected(f);
                 }}
               />
             </div>
@@ -289,6 +376,13 @@ export function ProfileView() {
               <p className="font-heading text-xl font-semibold text-foreground">{displayName || "Member"}</p>
               {handle ? <p className="mt-0.5 text-sm text-muted-foreground">@{handle}</p> : null}
               {user.email ? <p className="mt-1 text-[13px] text-muted-foreground">{user.email}</p> : null}
+              {!photoUploadAvailable ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Photo uploads will work once Firebase Storage is enabled for this project.
+                </p>
+              ) : uploadProgress !== null ? (
+                <p className="mt-2 text-xs text-muted-foreground">Uploading… {uploadProgress}%</p>
+              ) : null}
             </div>
           </div>
         </section>

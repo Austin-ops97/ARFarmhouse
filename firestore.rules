@@ -9,30 +9,31 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function userDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    function userRole() {
-      return isSignedIn() && userDoc().data.role;
-    }
-
-    function isPropertyOwner() {
-      return userRole() == 'owner';
+    /** Signed-in family members (private beta). Property seed data may be empty. */
+    function isFamilyMember() {
+      return isSignedIn();
     }
 
     function unchanged(field) {
       return request.resource.data[field] == resource.data[field];
     }
 
+    function priorCommentCount() {
+      return resource.data.commentCount is int ? resource.data.commentCount : 0;
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create, update: if isSelf(userId);
+      allow create: if isSelf(userId)
+        && (!('role' in request.resource.data) || request.resource.data.role == 'member');
+      allow update: if isSelf(userId)
+        && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
       allow delete: if false;
 
       match /savedPosts/{postId} {
         allow read: if isSelf(userId);
-        allow create, update, delete: if isSelf(userId);
+        allow create, update, delete: if isSelf(userId)
+          && (!('postId' in request.resource.data) || request.resource.data.postId == postId);
       }
 
       match /notifications/{notificationId} {
@@ -48,21 +49,24 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
-        && request.resource.data.authorId == request.auth.uid;
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.authorDisplayName is string
+        && request.resource.data.body is string;
 
       allow update: if isSignedIn() && (
-        resource.data.authorId == request.auth.uid
+        (resource.data.authorId == request.auth.uid
+          && request.resource.data.authorId == request.auth.uid)
         || (
           request.resource.data.diff(resource.data).changedKeys()
-            .hasOnly(["commentCount", "updatedAt"])
+            .hasOnly(['commentCount', 'updatedAt'])
           && (
-            request.resource.data.commentCount == resource.data.commentCount + 1
-            || request.resource.data.commentCount == resource.data.commentCount - 1
+            request.resource.data.commentCount == priorCommentCount() + 1
+            || request.resource.data.commentCount == priorCommentCount() - 1
           )
         )
         || (
           request.resource.data.diff(resource.data).changedKeys()
-            .hasOnly(["reactionCounts", "updatedAt"])
+            .hasOnly(['reactionCounts', 'updatedAt'])
           && request.resource.data.reactionCounts is map
         )
       );
@@ -72,7 +76,9 @@ service cloud.firestore {
       match /reactions/{uid} {
         allow read: if isSignedIn();
         allow create, update: if isSelf(uid)
-          && request.resource.data.keys().hasOnly(["emoji", "updatedAt"]);
+          && request.resource.data.emoji is string
+          && request.resource.data.emoji.size() > 0
+          && request.resource.data.emoji.size() <= 16;
         allow delete: if isSelf(uid);
       }
 
@@ -115,7 +121,7 @@ service cloud.firestore {
         && request.resource.data.bookingRequestId is string
         && request.resource.data.bookingRequestId.size() > 0
         && (
-          !request.resource.data.keys().hasAll(['endDay'])
+          !('endDay' in request.resource.data)
           || (
             request.resource.data.endDay is int
             && request.resource.data.endDay >= request.resource.data.startDay
@@ -159,35 +165,44 @@ service cloud.firestore {
         && request.resource.data.startDay >= 1
         && request.resource.data.year is int
         && request.resource.data.monthIndex is int
+        && request.resource.data.monthIndex >= 0
+        && request.resource.data.monthIndex <= 11
         && request.resource.data.status == 'pending'
         && request.resource.data.calendarEventId is string
-        && request.resource.data.calendarEventId.size() > 0;
+        && request.resource.data.calendarEventId.size() > 0
+        && (
+          !('endDay' in request.resource.data)
+          || (
+            request.resource.data.endDay is int
+            && request.resource.data.endDay >= request.resource.data.startDay
+          )
+        );
       allow update, delete: if false;
     }
 
     match /propertyStatus/{cardId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isPropertyOwner();
+      allow read: if isFamilyMember();
+      allow create, update, delete: if isFamilyMember();
     }
 
     match /propertyMapPins/{pinId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isPropertyOwner();
+      allow read: if isFamilyMember();
+      allow create, update, delete: if isFamilyMember();
     }
 
     match /propertyMapTrails/{trailId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isPropertyOwner();
+      allow read: if isFamilyMember();
+      allow create, update, delete: if isFamilyMember();
     }
 
     match /propertyResources/{resourceId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isPropertyOwner();
+      allow read: if isFamilyMember();
+      allow create, update, delete: if isFamilyMember();
     }
 
     match /propertyInventory/{itemId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isPropertyOwner();
+      allow read: if isFamilyMember();
+      allow create, update, delete: if isFamilyMember();
     }
   }
 }

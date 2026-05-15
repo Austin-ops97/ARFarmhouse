@@ -68,5 +68,17 @@ export function getFirebaseStorage(): FirebaseStorage {
 
 export function tryGetFirebaseStorage(): FirebaseStorage | null {
   const app = resolveFirebaseApp();
-  return app ? getStorage(app) : null;
+  if (!app) return null;
+  const cfg = readPublicFirebaseConfig();
+  if (!cfg?.storageBucket) return null;
+  try {
+    return getStorage(app);
+  } catch {
+    return null;
+  }
+}
+
+/** True when Storage bucket is configured and the client SDK initialized successfully. */
+export function isFirebaseStorageAvailable(): boolean {
+  return tryGetFirebaseStorage() !== null;
 }

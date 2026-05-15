@@ -1,6 +1,7 @@
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, type Unsubscribe } from "firebase/firestore";
 import type { User } from "firebase/auth";
 
+import { actionDebug } from "@/lib/action-debug";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import { handleFromDisplayName } from "@/lib/datetime/relative";
 import type { FamilyMember, FamilyPet } from "@/models/family-profile";
@@ -147,7 +148,8 @@ export function subscribeUserProfile(
 
 export async function saveUserProfile(uid: string, patch: ProfilePatch): Promise<AppUser | null> {
   const db = tryGetFirestoreDb();
-  if (!db) throw new Error("Firestore unavailable");
+  if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
+  if (!uid.trim()) throw new Error("Sign in again to save your profile.");
 
   const data: Record<string, unknown> = { updatedAt: serverTimestamp() };
   if (patch.displayName !== undefined) data.displayName = patch.displayName.trim();
@@ -164,8 +166,85 @@ export async function saveUserProfile(uid: string, patch: ProfilePatch): Promise
   if (patch.pets !== undefined) data.pets = patch.pets;
   if (patch.themePreference !== undefined) data.themePreference = patch.themePreference;
 
-  await setDoc(doc(db, USERS, uid), data, { merge: true });
-  return loadUserProfile(uid);
+  if (Object.keys(data).length <= 1) {
+    return loadUserProfile(uid);
+  }
+
+  actionDebug("profile", "save start", { uid, keys: Object.keys(data) });
+  try {
+    await setDoc(doc(db, USERS, uid), data, { merge: true });
+    const next = await loadUserProfile(uid);
+    actionDebug("profile", "save complete", { uid });
+    return next;
+  } catch (e) {
+    actionDebug("profile", "save failed", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("permission") || msg.includes("PERMISSION_DENIED")) {
+      throw new Error("Could not save profile. Check that you are signed in and Firestore rules allow updates.");
+    }
+    throw new Error(`Could not save profile. ${msg}`);
+  }
+}
+
+/** Creates a new Firestore profile on first sign-up (does not overwrite existing docs). */
+export async function bootstrapUserProfileOnSignup(
+  user: User,
+  input: { displayName: string }
+): Promise<AppUser> {
+  const db = tryGetFirestoreDb();
+  if (!db) {
+    throw new Error("Your profile could not be created. Check your connection and try again.");
+  }
+
+  const ref = doc(db, USERS, user.uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    const existing = await loadUserProfile(user.uid);
+    if (!existing) {
+      throw new Error("Profile exists but could not be loaded. Try signing in again.");
+    }
+    return existing;
+  }
+
+  const displayName = input.displayName.trim() || user.email?.split("@")[0]?.trim() || "Member";
+  const email = user.email ?? null;
+
+  actionDebug("profile", "bootstrap signup", { uid: user.uid });
+  try {
+    await setDoc(ref, {
+      uid: user.uid,
+      email,
+      displayName,
+      avatarUrl: null,
+      profilePhotoUrl: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      role: "member" satisfies UserRole,
+      themePreference: readBootstrapThemePreference(),
+      favoriteWeekends: [],
+      bio: null,
+      hometown: null,
+      phone: null,
+      birthday: null,
+      username: null,
+      familyBranch: null,
+      familyMembers: [],
+      pets: [],
+    });
+  } catch (e) {
+    actionDebug("profile", "bootstrap signup failed", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("permission") || msg.includes("PERMISSION_DENIED")) {
+      throw new Error("Could not create your profile. Check that you are signed in and Firestore rules allow it.");
+    }
+    throw new Error("Could not create your profile. Try again in a moment.");
+  }
+
+  const loaded = await loadUserProfile(user.uid);
+  if (!loaded) {
+    throw new Error("Account created but profile setup failed. Try signing in again.");
+  }
+  return loaded;
 }
 
 /** One Firestore read; creates the profile doc when missing (startup-critical path). */
@@ -177,30 +256,26 @@ export async function syncUserProfile(user: User): Promise<AppUser | null> {
   const email = user.email ?? null;
   const existing = snap.exists() ? (snap.data() as Partial<FirestoreUserProfile>) : undefined;
   const displayName =
-    user.displayName?.trim() ||
     existing?.displayName?.trim() ||
+    user.displayName?.trim() ||
     email?.split("@")[0]?.trim() ||
     "Member";
   const avatarUrl =
-    user.photoURL ??
     existing?.profilePhotoUrl ??
     existing?.avatarUrl ??
     existing?.avatar ??
+    user.photoURL ??
     null;
-
-  const base: Record<string, unknown> = {
-    uid: user.uid,
-    email,
-    displayName,
-    avatarUrl,
-    profilePhotoUrl: avatarUrl,
-    updatedAt: serverTimestamp(),
-  };
 
   if (!snap.exists()) {
     await setDoc(ref, {
-      ...base,
+      uid: user.uid,
+      email,
+      displayName,
+      avatarUrl,
+      profilePhotoUrl: avatarUrl,
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
       role: "member" satisfies UserRole,
       themePreference: readBootstrapThemePreference(),
       favoriteWeekends: [],
@@ -214,7 +289,19 @@ export async function syncUserProfile(user: User): Promise<AppUser | null> {
       pets: [],
     });
   } else {
-    await setDoc(ref, base, { merge: true });
+    const patch: Record<string, unknown> = {
+      uid: user.uid,
+      email,
+      updatedAt: serverTimestamp(),
+    };
+    if (!existing?.displayName?.trim()) {
+      patch.displayName = displayName;
+    }
+    if (!existing?.profilePhotoUrl && !existing?.avatarUrl && !existing?.avatar) {
+      patch.avatarUrl = avatarUrl;
+      patch.profilePhotoUrl = avatarUrl;
+    }
+    await setDoc(ref, patch, { merge: true });
   }
 
   return loadUserProfile(user.uid);

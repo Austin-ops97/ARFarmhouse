@@ -1,9 +1,21 @@
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { deleteObject, getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
 
 import { actionDebug } from "@/lib/action-debug";
-import { tryGetFirebaseStorage } from "@/lib/firebase";
+import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
+import { isFirebaseStorageAvailable, tryGetFirebaseStorage } from "@/lib/firebase";
 
-const PROFILE_MAX_BYTES = 6 * 1024 * 1024;
+const STORAGE_UNAVAILABLE_MESSAGE =
+  "Photo uploads are not available yet. Firebase Storage may still be setting up — you can save other profile details in the meantime.";
+
+export function isProfilePhotoUploadAvailable(): boolean {
+  return isFirebaseStorageAvailable();
+}
+
+/** Optimized avatar uploads after client crop/compress. */
+const AVATAR_MAX_BYTES = AVATAR_UPLOAD_MAX_BYTES;
+
+/** Legacy direct uploads (family/pet) until those flows use the cropper. */
+const LEGACY_PHOTO_MAX_BYTES = 6 * 1024 * 1024;
 
 function extFromMime(mime: string) {
   if (mime === "image/jpeg") return "jpg";
@@ -13,45 +25,78 @@ function extFromMime(mime: string) {
   return "img";
 }
 
-function validateImage(file: File) {
+function validateImage(file: File, maxBytes: number) {
   if (!file.type.startsWith("image/")) {
     throw new Error(`"${file.name}" is not a supported image.`);
   }
-  if (file.size > PROFILE_MAX_BYTES) {
-    throw new Error(`"${file.name}" is too large. Keep profile photos under 6 MB.`);
+  if (file.size > maxBytes) {
+    const mb = Math.round(maxBytes / (1024 * 1024));
+    throw new Error(`"${file.name}" is too large. Keep photos under ${mb} MB.`);
+  }
+  if (file.size === 0) {
+    throw new Error(`"${file.name}" appears to be empty.`);
   }
 }
 
-async function uploadPath(path: string, file: File): Promise<string> {
+async function uploadPath(
+  path: string,
+  file: File,
+  maxBytes: number,
+  onProgress?: (percent: number) => void
+): Promise<string> {
   const storage = tryGetFirebaseStorage();
-  if (!storage) throw new Error("Storage unavailable. Check your connection and try again.");
-  validateImage(file);
+  if (!storage) throw new Error(STORAGE_UNAVAILABLE_MESSAGE);
+  validateImage(file, maxBytes);
   const ext = extFromMime(file.type || "image/jpeg");
   const objectRef = ref(storage, `${path}.${ext}`);
   try {
-    await uploadBytes(objectRef, file, { contentType: file.type || "image/jpeg" });
+    if (onProgress) {
+      await new Promise<void>((resolve, reject) => {
+        const task = uploadBytesResumable(objectRef, file, { contentType: file.type || "image/jpeg" });
+        task.on(
+          "state_changed",
+          (snap) => {
+            if (snap.totalBytes > 0) {
+              onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
+            }
+          },
+          (err) => reject(err),
+          () => resolve()
+        );
+      });
+    } else {
+      await uploadBytes(objectRef, file, { contentType: file.type || "image/jpeg" });
+    }
     const url = await getDownloadURL(objectRef);
     actionDebug("profile-upload", "complete", { path });
     return url;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("unauthorized") || msg.includes("permission")) {
-      throw new Error("Photo upload was denied. Sign in again and check Storage rules.");
+    actionDebug("profile-upload", "failed", { path, msg });
+    if (msg.includes("storage/unauthorized") || msg.includes("permission") || msg.includes("403")) {
+      throw new Error("Photo upload was denied. Sign in again and check Storage rules in Firebase Console.");
+    }
+    if (msg.includes("storage/unknown") || msg.includes("storage/object-not-found")) {
+      throw new Error(STORAGE_UNAVAILABLE_MESSAGE);
     }
     throw new Error("Could not upload that photo. Try again in a moment.");
   }
 }
 
-export async function uploadProfilePhoto(uid: string, file: File): Promise<string> {
-  return uploadPath(`users/${uid}/profile/avatar`, file);
+export async function uploadProfilePhoto(
+  uid: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  return uploadPath(`users/${uid}/profile/avatar`, file, AVATAR_MAX_BYTES, onProgress);
 }
 
 export async function uploadFamilyMemberPhoto(uid: string, memberId: string, file: File): Promise<string> {
-  return uploadPath(`users/${uid}/family/${memberId}/photo`, file);
+  return uploadPath(`users/${uid}/family/${memberId}/photo`, file, LEGACY_PHOTO_MAX_BYTES);
 }
 
 export async function uploadPetPhoto(uid: string, petId: string, file: File): Promise<string> {
-  return uploadPath(`users/${uid}/pets/${petId}/photo`, file);
+  return uploadPath(`users/${uid}/pets/${petId}/photo`, file, LEGACY_PHOTO_MAX_BYTES);
 }
 
 export async function removeStorageObject(pathPrefix: string): Promise<void> {

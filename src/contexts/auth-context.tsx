@@ -29,7 +29,7 @@ import { getFirebaseAuthErrorCode, getFirebaseAuthErrorMessage } from "@/lib/fir
 import { isFirebaseConfigured } from "@/lib/firebase/env";
 import { tryGetFirebaseAuth } from "@/lib/firebase";
 import type { AppUser } from "@/models/user";
-import { loadUserProfile, syncUserProfile } from "@/services/user-profile";
+import { bootstrapUserProfileOnSignup, loadUserProfile, syncUserProfile } from "@/services/user-profile";
 
 export type AuthContextValue = {
   /** False only after client mount when public env is incomplete. Before mount, treated as true to avoid SSR/client gate mismatch. */
@@ -95,9 +95,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const sessionRef = useRef<AuthSessionState>(initialSession);
+  const profileHydrationRef = useRef<Map<string, Promise<AppUser | null>>>(new Map());
+  /** Display name captured during sign-up before onAuthStateChanged may run sync. */
+  const pendingSignupDisplayNameRef = useRef<Map<string, string>>(new Map());
+
   useLayoutEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  const hydrateUserProfile = useCallback(async (user: User): Promise<AppUser | null> => {
+    const uid = user.uid;
+    const inflight = profileHydrationRef.current.get(uid);
+    if (inflight) return inflight;
+
+    const signupDisplayName = pendingSignupDisplayNameRef.current.get(uid);
+    const task = (async (): Promise<AppUser | null> => {
+      try {
+        if (signupDisplayName) {
+          pendingSignupDisplayNameRef.current.delete(uid);
+          return await bootstrapUserProfileOnSignup(user, { displayName: signupDisplayName });
+        }
+        return await syncUserProfile(user);
+      } finally {
+        profileHydrationRef.current.delete(uid);
+      }
+    })();
+
+    profileHydrationRef.current.set(uid, task);
+    return task;
+  }, []);
 
   /** Defer “real” env reads until after mount so SSR + first paint match (see `configured`). */
   useEffect(() => {
@@ -152,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       void (async () => {
         try {
-          const p = await syncUserProfile(next);
+          const p = await hydrateUserProfile(next);
           if (cancelled) return;
           if (auth.currentUser?.uid !== uid) return;
           dispatchSession({ type: "PROFILE_SETTLED", user: next, profile: p });
@@ -167,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       unsub();
     };
-  }, [clientHydrated]);
+  }, [clientHydrated, hydrateUserProfile]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -195,17 +221,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const auth = tryGetFirebaseAuth();
     if (!auth) throw new Error("Sign-in is not available. Check that this app is configured.");
+    const trimmedEmail = email.trim();
+    const name = displayName.trim() || trimmedEmail.split("@")[0] || "Member";
+
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      const name = displayName.trim() || cred.user.email?.split("@")[0] || "Member";
-      await updateProfile(cred.user, { displayName: name });
-      await syncUserProfile(cred.user);
+      const cred = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+      pendingSignupDisplayNameRef.current.set(cred.user.uid, name);
+      const profileTask = hydrateUserProfile(cred.user);
+
+      try {
+        await updateProfile(cred.user, { displayName: name });
+        const profile = await profileTask;
+        dispatchSession({ type: "PROFILE_SETTLED", user: cred.user, profile });
+      } catch (inner) {
+        pendingSignupDisplayNameRef.current.delete(cred.user.uid);
+        profileHydrationRef.current.delete(cred.user.uid);
+        await firebaseSignOut(auth).catch(() => {});
+        const msg =
+          inner instanceof Error && !getFirebaseAuthErrorCode(inner)
+            ? inner.message
+            : getFirebaseAuthErrorMessage(inner);
+        setError(msg);
+        throw new Error(msg);
+      }
     } catch (e) {
       const msg = getFirebaseAuthErrorMessage(e);
       setError(msg);
       throw new Error(msg);
     }
-  }, []);
+  }, [hydrateUserProfile]);
 
   const sendPasswordResetForEmail = useCallback(async (email: string) => {
     const auth = tryGetFirebaseAuth();

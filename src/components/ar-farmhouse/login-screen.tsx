@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, CheckCircle2, Loader2, Lock, Mail, UserPlus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, Lock, Mail, UserPlus } from "lucide-react";
 import { FormEvent, useCallback, useState } from "react";
 
 import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
@@ -33,9 +33,16 @@ export function LoginScreen() {
   const [pending, setPending] = useState<null | "auth" | "reset">(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [passwordRevealed, setPasswordRevealed] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; displayName?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+    displayName?: string;
+  }>({});
   const [resetSent, setResetSent] = useState(false);
 
   const busy = pending !== null;
@@ -50,6 +57,10 @@ export function LoginScreen() {
       clearError();
       if (next !== "forgotPassword") {
         setResetSent(false);
+        setConfirmPassword("");
+      }
+      if (next === "signIn") {
+        setConfirmPassword("");
       }
       setView(next);
     },
@@ -72,6 +83,9 @@ export function LoginScreen() {
     }
     if (forRegister && !displayName.trim()) {
       next.displayName = "Add a display name for your profile.";
+    }
+    if (forRegister && password !== confirmPassword) {
+      next.confirmPassword = "Passwords do not match.";
     }
     setFieldErrors(next);
     return Object.keys(next).length === 0;
@@ -128,7 +142,7 @@ export function LoginScreen() {
   }
 
   const showRegisterFields = activeView === "register";
-  const showPassword = activeView === "signIn" || activeView === "register";
+  const showPasswordField = activeView === "signIn" || activeView === "register";
 
   return (
     <div className="relative flex min-h-dvh items-center justify-center px-4 py-10 sm:px-6">
@@ -188,9 +202,45 @@ export function LoginScreen() {
           </div>
 
           {activeView !== "forgotPassword" && (
-            <p className="mb-4 rounded-2xl border border-primary/20 bg-primary/[0.08] px-3 py-2 text-center text-xs leading-relaxed text-muted-foreground">
-              Secure sign-in · your session stays signed in on this device until you sign out.
-            </p>
+            <>
+              {showRegistrationCta ? (
+                <motion.div
+                  className="mb-4 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-1"
+                  layout={!reduceMotion}
+                >
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => transitionTo("signIn")}
+                    className={cn(
+                      "rounded-[0.85rem] py-2 text-xs font-medium transition-colors",
+                      activeView === "signIn"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Sign in
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => transitionTo("register")}
+                    className={cn(
+                      "rounded-[0.85rem] py-2 text-xs font-medium transition-colors",
+                      activeView === "register"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Create account
+                  </button>
+                </motion.div>
+              ) : (
+                <p className="mb-4 rounded-2xl border border-primary/20 bg-primary/[0.08] px-3 py-2 text-center text-xs leading-relaxed text-muted-foreground">
+                  Secure sign-in · your session stays signed in on this device until you sign out.
+                </p>
+              )}
+            </>
           )}
 
           <AnimatePresence mode="wait" initial={false}>
@@ -363,7 +413,7 @@ export function LoginScreen() {
                 </div>
 
                 <AnimatePresence initial={false}>
-                  {showPassword && (
+                  {showPasswordField && (
                     <motion.div
                       className="space-y-2"
                       initial={reduceMotion ? false : { opacity: 0, height: 0 }}
@@ -379,18 +429,31 @@ export function LoginScreen() {
                         <Input
                           id="password"
                           name="password"
-                          type="password"
+                          type={passwordRevealed ? "text" : "password"}
                           autoComplete={activeView === "register" ? "new-password" : "current-password"}
                           placeholder="Password"
                           value={password}
                           onChange={(ev) => {
                             setPassword(ev.target.value);
                             if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined }));
+                            if (fieldErrors.confirmPassword) {
+                              setFieldErrors((f) => ({ ...f, confirmPassword: undefined }));
+                            }
                           }}
                           disabled={busy}
                           aria-invalid={Boolean(fieldErrors.password)}
-                          className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
+                          className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 pr-11 text-[15px] placeholder:text-muted-foreground/80"
                         />
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          disabled={busy}
+                          onClick={() => setPasswordRevealed((v) => !v)}
+                          className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-50"
+                          aria-label={passwordRevealed ? "Hide password" : "Show password"}
+                        >
+                          {passwordRevealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
                       </div>
                       {fieldErrors.password && (
                         <p className="px-1 text-xs text-amber-200/95" role="status">
@@ -400,6 +463,47 @@ export function LoginScreen() {
                       {activeView === "register" && !fieldErrors.password && (
                         <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/80">
                           At least {MIN_PASSWORD_LEN} characters. Use a phrase only your family would guess.
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <AnimatePresence initial={false}>
+                  {showRegisterFields && (
+                    <motion.div
+                      className="space-y-2"
+                      initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <label className="sr-only" htmlFor="confirmPassword">
+                        Confirm password
+                      </label>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="confirmPassword"
+                          name="confirmPassword"
+                          type={passwordRevealed ? "text" : "password"}
+                          autoComplete="new-password"
+                          placeholder="Confirm password"
+                          value={confirmPassword}
+                          onChange={(ev) => {
+                            setConfirmPassword(ev.target.value);
+                            if (fieldErrors.confirmPassword) {
+                              setFieldErrors((f) => ({ ...f, confirmPassword: undefined }));
+                            }
+                          }}
+                          disabled={busy}
+                          aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                          className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
+                        />
+                      </div>
+                      {fieldErrors.confirmPassword && (
+                        <p className="px-1 text-xs text-amber-200/95" role="status">
+                          {fieldErrors.confirmPassword}
                         </p>
                       )}
                     </motion.div>
@@ -443,30 +547,23 @@ export function LoginScreen() {
                   )}
                 </Button>
 
-                {showRegistrationCta ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => transitionTo(activeView === "register" ? "signIn" : "register")}
-                    className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline disabled:opacity-50"
-                  >
-                    {activeView === "register" ? "Already have access? Sign in" : "New to the property? Create an account"}
-                  </button>
-                ) : activeView === "register" ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => transitionTo("signIn")}
-                    className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline disabled:opacity-50"
-                  >
-                    Back to sign in
-                  </button>
-                ) : (
-                  <p className="rounded-2xl border border-border/40 bg-muted/20 px-3 py-2.5 text-center text-xs leading-relaxed text-muted-foreground">
-                    New accounts are invite-only. Sign in if you already have access, or contact your family admin for
-                    an invite.
-                  </p>
-                )}
+                {!showRegistrationCta ? (
+                  activeView === "register" ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => transitionTo("signIn")}
+                      className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline disabled:opacity-50"
+                    >
+                      Back to sign in
+                    </button>
+                  ) : (
+                    <p className="rounded-2xl border border-border/40 bg-muted/20 px-3 py-2.5 text-center text-xs leading-relaxed text-muted-foreground">
+                      New accounts are invite-only. Sign in if you already have access, or contact your family admin
+                      for an invite.
+                    </p>
+                  )
+                ) : null}
 
                 {activeView === "register" && registrationAvailable && registrationPolicy.allowlistEmails.size > 0 && (
                   <p className="text-center text-[11px] leading-relaxed text-muted-foreground/85">
