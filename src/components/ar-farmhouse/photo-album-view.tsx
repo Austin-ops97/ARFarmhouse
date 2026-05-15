@@ -8,13 +8,7 @@ import { PhotoAlbumUploadDialog } from "@/components/ar-farmhouse/photo-album-up
 import { Button } from "@/components/ui/button";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { usePhotoAlbum } from "@/contexts/photo-album-context";
-import {
-  ALBUM_SHELVES,
-  buildMemoryHighlights,
-  shelfItems,
-  type AlbumMediaItem,
-  type AlbumShelfId,
-} from "@/lib/photo-album-media";
+import { type AlbumMediaItem } from "@/lib/photo-album-media";
 import { cn } from "@/lib/utils";
 
 const cardSurface = cn("ar-surface-raised rounded-[1.35rem]");
@@ -54,7 +48,6 @@ function MasonryTile({
       )}
     >
       {item.src ? (
-        /* Natural aspect — avoid forced masonry boxes that distort composition */
         // eslint-disable-next-line @next/next/no-img-element -- intrinsic sizing beats Next/Image fill + fake ratios
         <img
           src={item.src}
@@ -98,76 +91,20 @@ function MasonryTile({
   );
 }
 
-function ShelfSection({
-  shelfId,
-  title,
-  subtitle,
-  items,
-  onPick,
-}: {
-  shelfId: AlbumShelfId;
-  title: string;
-  subtitle: string;
-  items: AlbumMediaItem[];
-  onPick: (item: AlbumMediaItem, list: AlbumMediaItem[]) => void;
-}) {
-  const reduceMotion = useReducedMotion();
-  const filtered = useMemo(() => shelfItems(shelfId, items), [shelfId, items]);
-  if (filtered.length === 0) return null;
-
-  const hero = filtered[0]!;
-  const rest = filtered.slice(1);
-
-  return (
-    <section className="mt-14 sm:mt-16">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{title}</h2>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">{subtitle}</p>
-        </div>
-      </div>
-
-      <div className="mt-6 columns-2 gap-3 sm:columns-3 sm:gap-4 lg:columns-4">
-        <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-6%" }}
-          className="break-inside-avoid"
-        >
-          <MasonryTile item={hero} onOpen={() => onPick(hero, filtered)} />
-        </motion.div>
-        {rest.map((item, idx) => (
-          <motion.div
-            key={item.id}
-            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-6%" }}
-            transition={{ delay: reduceMotion ? 0 : idx * 0.03 }}
-            className="break-inside-avoid"
-          >
-            <MasonryTile item={item} onOpen={() => onPick(item, filtered)} />
-          </motion.div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export function PhotoAlbumView() {
   const reduceMotion = useReducedMotion();
   const { goTo } = useEcosystem();
   const { allItems, loading, error, openLightbox } = usePhotoAlbum();
   const [uploadOpen, setUploadOpen] = useState(false);
 
-  const recentStrip = useMemo(() => allItems.slice(0, 6), [allItems]);
-  const highlights = useMemo(() => buildMemoryHighlights(allItems), [allItems]);
-
   const openAt = (item: AlbumMediaItem, list: AlbumMediaItem[]) => {
-    const index = list.findIndex((i) => i.id === item.id);
-    openLightbox({ items: list, index: Math.max(0, index) });
+    const idx = list.findIndex((i) => i.id === item.id);
+    openLightbox({ items: list, index: Math.max(0, idx) });
   };
 
   const isEmpty = !loading && allItems.length === 0;
+
+  const gridItems = useMemo(() => allItems, [allItems]);
 
   return (
     <div className="pb-16 pt-1 sm:pb-20">
@@ -184,7 +121,7 @@ export function PhotoAlbumView() {
           </div>
           <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Photo Album</h1>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
-            A private memory archive — feed photos flow here automatically, and uploads you add are preserved for the whole family.
+            One gallery for everything — feed moments and uploads flow together with natural proportions and fullscreen viewing.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -224,99 +161,31 @@ export function PhotoAlbumView() {
         </div>
       )}
 
-      {!isEmpty && highlights.length > 0 && (
-        <div className="mt-8 space-y-4">
-          {highlights.map((h) => (
-            <div key={h.id} className={cn(cardSurface, "overflow-hidden p-4 sm:p-5")}>
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Memory highlight</p>
-                  <h2 className="mt-1 font-heading text-lg font-semibold text-foreground sm:text-xl">{h.title}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">{h.subtitle}</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 rounded-xl sm:mt-0"
-                  onClick={() => openAt(h.items[0]!, h.items)}
-                >
-                  View all
-                </Button>
-              </div>
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {h.items.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => openAt(item, h.items)}
-                    className="relative flex h-[7.25rem] max-w-[min(72vw,280px)] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/30 px-1 ring-1 ring-border/40 sm:h-32 dark:bg-zinc-950/70 dark:ring-white/[0.06]"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.src}
-                      alt=""
-                      width={item.width}
-                      height={item.height}
-                      loading="lazy"
-                      decoding="async"
-                      draggable={false}
-                      className="max-h-full w-auto max-w-full object-contain"
-                    />
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/85 to-transparent" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!isEmpty && (
-        <div className={cn("mt-8 p-4 sm:p-5", cardSurface)}>
-          <div className="flex items-center justify-between gap-3">
+      {!isEmpty && gridItems.length > 0 ? (
+        <section className={cn("mt-10 p-4 sm:p-5", cardSurface)} aria-label="All memories">
+          <div className="flex flex-col gap-1 border-b border-border/45 pb-4 dark:border-white/[0.06] sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Recent memories</p>
-              <p className="mt-1 font-heading text-lg font-semibold text-foreground">From the last few scrolls</p>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Gallery</p>
+              <p className="mt-1 font-heading text-lg font-semibold text-foreground sm:text-xl">All memories</p>
+              <p className="mt-1 text-sm text-muted-foreground">Tap any photo for fullscreen viewing.</p>
             </div>
           </div>
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {recentStrip.map((item) => (
-              <button
+          <div className="mt-6 columns-2 gap-3 sm:columns-3 sm:gap-4 lg:columns-4">
+            {gridItems.map((item, idx) => (
+              <motion.div
                 key={item.id}
-                type="button"
-                onClick={() => openAt(item, allItems)}
-                className="group relative flex h-[7.25rem] max-w-[min(72vw,280px)] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/30 px-1 ring-1 ring-border/40 sm:h-32 dark:bg-zinc-950/70 dark:ring-white/[0.06]"
+                initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-6%" }}
+                transition={{ delay: reduceMotion ? 0 : Math.min(idx, 24) * 0.018 }}
+                className="break-inside-avoid"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.src}
-                  alt=""
-                  width={item.width}
-                  height={item.height}
-                  loading="lazy"
-                  decoding="async"
-                  draggable={false}
-                  className="max-h-full w-auto max-w-full object-contain transition duration-500 group-hover:scale-[1.02]"
-                />
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-90" />
-              </button>
+                <MasonryTile item={item} onOpen={() => openAt(item, gridItems)} />
+              </motion.div>
             ))}
           </div>
-        </div>
-      )}
-
-      {!isEmpty &&
-        ALBUM_SHELVES.filter((s) => s.id !== "recent").map((shelf) => (
-          <ShelfSection
-            key={shelf.id}
-            shelfId={shelf.id}
-            title={shelf.title}
-            subtitle={shelf.subtitle}
-            items={allItems}
-            onPick={openAt}
-          />
-        ))}
+        </section>
+      ) : null}
 
       <PhotoAlbumUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} />
     </div>

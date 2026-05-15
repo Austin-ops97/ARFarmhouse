@@ -18,6 +18,10 @@ import { enqueueMediaUploadTask } from "@/lib/media-upload-queue";
 import { buildOptimisticFeedPost, mergeOptimisticUploadProgress } from "@/lib/optimistic-feed-post";
 import { postsSignature } from "@/lib/mutation-lifecycle";
 import { deferMediaCpuWork } from "@/lib/image-scheduler";
+import {
+  handoffEphemeralImageUrlList,
+  revokeUiFeedPostHandoffMedia,
+} from "@/lib/ephemeral-media-handoff";
 import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
 import type { UiFeedPost } from "@/models/feed-post";
 import {
@@ -82,7 +86,15 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
   useEffect(() => {
     const remoteIds = new Set(posts.map((p) => p.id));
     startTransition(() => {
-      setOptimisticFeed((prev) => prev.filter((o) => !remoteIds.has(o.id)));
+      setOptimisticFeed((prev) => {
+        const next = prev.filter((o) => !remoteIds.has(o.id));
+        for (const dropped of prev) {
+          if (remoteIds.has(dropped.id)) {
+            revokeUiFeedPostHandoffMedia(dropped);
+          }
+        }
+        return next;
+      });
     });
   }, [posts]);
 
@@ -172,6 +184,8 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         throw new Error("Firestore unavailable. Check your connection and try again.");
       }
 
+      const previewHandoff = await handoffEphemeralImageUrlList(payload.imagePreviewUrls ?? []);
+
       const baseRow = buildOptimisticFeedPost({
         id: postId,
         authorId: user.uid,
@@ -181,7 +195,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         location: payload.location,
         postType: payload.postType,
         attachedEvent: payload.attachedEvent,
-        imagePreviewUrls: payload.imagePreviewUrls ?? [],
+        imagePreviewUrls: previewHandoff,
       });
 
       const input: CreateFeedPostInput = {
@@ -229,7 +243,11 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
     abortFinalizeRef.current.get(postId)?.abort();
     abortFinalizeRef.current.delete(postId);
     retryFeedPayloadsRef.current.delete(postId);
-    setOptimisticFeed((prev) => prev.filter((r) => r.id !== postId));
+    setOptimisticFeed((prev) => {
+      const row = prev.find((r) => r.id === postId);
+      if (row) revokeUiFeedPostHandoffMedia(row);
+      return prev.filter((r) => r.id !== postId);
+    });
   }, []);
 
   return (

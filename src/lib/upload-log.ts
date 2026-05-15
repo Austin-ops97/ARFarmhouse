@@ -12,12 +12,20 @@ export function isUploadDebugEnabled(): boolean {
   }
 }
 
-/** Logs `[upload] message` plus optional structured detail. */
+const ts = () => new Date().toISOString();
+
+/** Logs `[upload] <iso> message` plus optional structured detail (enable with `ar_upload_debug=1` in prod). */
 export function uploadLog(message: string, detail?: Record<string, unknown>): void {
   if (!isUploadDebugEnabled()) return;
+  const stamp = `${ts()} ${message}`;
   if (detail !== undefined) {
-    console.info("[upload]", message, detail);
+    console.info("[upload]", stamp, detail);
   } else {
-    console.info("[upload]", message);
+    console.info("[upload]", stamp);
   }
+}
+
+/** High-signal stage line for pipeline tracing (same guard as {@link uploadLog}). */
+export function uploadStage(stage: string, detail?: Record<string, unknown>): void {
+  uploadLog(stage, detail);
 }

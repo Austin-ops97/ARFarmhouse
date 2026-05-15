@@ -2,8 +2,29 @@ import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 
 import { getUploadMaxBytes, type ImageUploadPreset } from "@/lib/image-process";
 import { tryGetFirebaseStorage } from "@/lib/firebase";
-import { uploadLog } from "@/lib/upload-log";
+import { promiseWithTimeout } from "@/lib/promise-timeout";
+import { uploadLog, uploadStage } from "@/lib/upload-log";
 import { runFirebaseResumableUpload } from "@/lib/resumable-firebase-upload";
+
+const DOWNLOAD_URL_TIMEOUT_MS = 90_000;
+
+async function getDownloadURLWithTimeout(objectRef: ReturnType<typeof ref>, storagePath: string): Promise<string> {
+  uploadStage("download URL resolving", { path: storagePath });
+  try {
+    const url = await promiseWithTimeout(
+      getDownloadURL(objectRef),
+      DOWNLOAD_URL_TIMEOUT_MS,
+      () => {
+        uploadStage("stalled waiting for download URL", { path: storagePath });
+      }
+    );
+    uploadStage("download URL resolved", { path: storagePath });
+    return url;
+  } catch (e) {
+    uploadStage("download URL failed", { path: storagePath, error: String(e) });
+    throw e;
+  }
+}
 
 function extFromMime(mime: string) {
   if (mime === "image/jpeg") return "jpg";
@@ -66,7 +87,7 @@ export async function uploadAlbumImages(
         label: path,
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
-      const url = await getDownloadURL(objectRef);
+      const url = await getDownloadURLWithTimeout(objectRef, path);
       out.push({ url, path });
     } catch (e) {
       uploadLog("album_file_failed", { mediaId, index: i + 1, error: String(e) });
@@ -125,7 +146,7 @@ async function uploadImagesToPrefix(
         label: storagePath,
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
-      const url = await getDownloadURL(objectRef);
+      const url = await getDownloadURLWithTimeout(objectRef, storagePath);
       urls.push(url);
       uploadLog("post_file_complete", { index: i + 1, total });
     } catch (e) {

@@ -10,9 +10,18 @@ export function yieldToMainThread(): Promise<void> {
   }
 
   return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      setTimeout(resolve, 0);
-    });
+    const defer = () => {
+      if (typeof window !== "undefined") {
+        window.setTimeout(resolve, 0);
+      } else {
+        globalThis.setTimeout(resolve, 0);
+      }
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(defer);
+    } else {
+      defer();
+    }
   });
 }
 
@@ -64,7 +73,11 @@ export function imageProcessingConcurrency(): number {
 export async function deferMediaCpuWork(): Promise<void> {
   await yieldWhenIdle();
   await new Promise<void>((resolve) => {
-    requestAnimationFrame(() => resolve());
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => resolve());
+    } else {
+      resolve();
+    }
   });
   await yieldToMainThread();
 }

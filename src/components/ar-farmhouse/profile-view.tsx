@@ -386,7 +386,7 @@ export function ProfileView() {
           title: "Profile photo",
           subtitle: "Take a new shot or choose from your library",
           takePhotoLabel: "Take Photo",
-          uploadLabel: "Upload Photo",
+          uploadLabel: "Choose From Library",
         }
       : photoPickerTarget?.kind === "member"
         ? {

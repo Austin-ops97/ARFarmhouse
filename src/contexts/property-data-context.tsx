@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
+import type { BrowserTimeoutId } from "@/lib/browser-timer";
 import { buildCalendarMonthMeta } from "@/lib/calendar-month-meta";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import type {
@@ -92,7 +93,7 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     const unsubs: (() => void)[] = [];
-    const timers: number[] = [];
+    const timers: BrowserTimeoutId[] = [];
 
     const mount = (delay: number, subscribe: () => () => void) => {
       const id = window.setTimeout(() => {

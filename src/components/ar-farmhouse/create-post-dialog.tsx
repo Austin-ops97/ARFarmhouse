@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { isLargeRawImage } from "@/lib/image-input";
 import type { FeedPostCategory } from "@/models/feed-post-category";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 const postTypes: { id: FeedPostCategory; label: string }[] = [
@@ -54,8 +55,8 @@ export function CreatePostDialog({
 }: CreatePostDialogProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
+  useBodyScrollLock(open);
   const publishingRef = useRef(false);
-  const closeAfterSuccessRef = useRef<number | null>(null);
   const [localPublishing, setLocalPublishing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const { attachments, files, addFiles, removeAt, clear: clearAttachments } = useImageAttachments({
@@ -66,7 +67,6 @@ export function CreatePostDialog({
   const [postType, setPostType] = useState<FeedPostCategory>("memory");
   const [linkedEventLabel, setLinkedEventLabel] = useState("");
   const [publishError, setPublishError] = useState<string | null>(null);
-  const [publishSuccess, setPublishSuccess] = useState(false);
 
   const resetForm = useCallback(() => {
     clearAttachments();
@@ -76,7 +76,6 @@ export function CreatePostDialog({
     setPostType("memory");
     setDragOver(false);
     setPublishError(null);
-    setPublishSuccess(false);
   }, [clearAttachments]);
 
   const onDrop = useCallback(
@@ -99,7 +98,6 @@ export function CreatePostDialog({
   const handlePublish = useCallback(async () => {
     if (publishingRef.current || isPublishing) return;
     setPublishError(null);
-    setPublishSuccess(false);
 
     if (!canPublish) {
       setPublishError("Wait until sign-in finishes, then try again.");
@@ -114,10 +112,11 @@ export function CreatePostDialog({
       return;
     }
 
+    const trimmedEvent = linkedEventLabel.trim();
+
     publishingRef.current = true;
     setLocalPublishing(true);
     try {
-      const trimmedEvent = linkedEventLabel.trim();
       await onPublishLive({
         files,
         imagePreviewUrls: attachments.map((a) => a.preview),
@@ -126,12 +125,8 @@ export function CreatePostDialog({
         postType,
         attachedEvent: trimmedEvent.length ? trimmedEvent : null,
       });
-      setPublishSuccess(true);
-      closeAfterSuccessRef.current = window.setTimeout(() => {
-        closeAfterSuccessRef.current = null;
-        resetForm();
-        onOpenChange(false);
-      }, 320);
+      resetForm();
+      onOpenChange(false);
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : "Could not publish.");
     } finally {
@@ -142,15 +137,10 @@ export function CreatePostDialog({
 
   useEffect(() => {
     if (open) return;
-    if (closeAfterSuccessRef.current != null) {
-      window.clearTimeout(closeAfterSuccessRef.current);
-      closeAfterSuccessRef.current = null;
-    }
     queueMicrotask(() => {
       publishingRef.current = false;
       setLocalPublishing(false);
       setPublishError(null);
-      setPublishSuccess(false);
     });
   }, [open]);
 
@@ -393,11 +383,6 @@ export function CreatePostDialog({
               {publishError && (
                 <p className="mt-4 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-center text-xs text-red-100/95">
                   {publishError}
-                </p>
-              )}
-              {publishSuccess && (
-                <p className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-center text-xs text-emerald-100/95">
-                  Posted — syncing to the family feed…
                 </p>
               )}
             </div>

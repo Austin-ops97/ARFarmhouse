@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createPreviewObjectUrl, revokePreviewUrl } from "@/lib/image-preview";
 import { isImageFileName } from "@/lib/image-input";
+import { uploadStage } from "@/lib/upload-log";
 
 export type ImageAttachment = {
   id: string;
@@ -63,6 +64,11 @@ export function useImageAttachments({ maxCount }: UseImageAttachmentsOptions) {
       });
 
       if (!newItems.length) return;
+
+      uploadStage("file selected (attach pipeline)", {
+        count: newItems.length,
+        names: newItems.map((n) => n.file.name),
+      });
 
       void (async () => {
         for (const item of newItems) {

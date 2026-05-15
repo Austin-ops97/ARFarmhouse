@@ -5,7 +5,7 @@ import {
   type ProcessImagesProgress,
 } from "@/lib/image-process";
 import { isLargeRawImage, validateRawImageFile } from "@/lib/image-input";
-import { uploadLog } from "@/lib/upload-log";
+import { uploadLog, uploadStage } from "@/lib/upload-log";
 
 /**
  * Central client-side media pipeline: validate → prepare → GPU-friendly decode/resize → encode → upload.
@@ -53,6 +53,8 @@ export async function prepareOptimizedArtifactsForFirebase(
   const { onProgress, signal } = options ?? {};
   const total = files.length;
 
+  uploadStage("pipeline: batch received", { total, preset });
+  uploadStage("file validation start", { total, preset });
   uploadLog("validating", { total, preset });
   onProgress?.({ phase: "validating", done: 0, total, message: "Checking photos…" });
 
@@ -77,6 +79,7 @@ export async function prepareOptimizedArtifactsForFirebase(
   });
 
   assertNotAborted(signal);
+  uploadStage("optimization phase start", { total, preset });
   uploadLog("compressing", { total, preset });
   onProgress?.({
     phase: "optimizing",
@@ -95,6 +98,11 @@ export async function prepareOptimizedArtifactsForFirebase(
     });
   });
 
+  uploadStage("all artifacts optimized", {
+    preset,
+    fileCount: artifacts.length,
+    totalBytes: artifacts.reduce((n, a) => n + a.optimizedSizeBytes, 0),
+  });
   uploadLog("optimized", {
     total,
     preset,

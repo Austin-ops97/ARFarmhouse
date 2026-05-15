@@ -192,14 +192,27 @@
   body {
     @apply bg-background text-foreground antialiased;
     overflow-x: hidden;
-    overscroll-behavior-y: auto;
+    overscroll-behavior-y: none;
   }
   html {
     @apply font-sans;
     scroll-behavior: smooth;
     overflow-x: hidden;
+    overscroll-behavior-y: none;
     scroll-padding-top: calc(var(--ar-header-height) + 0.35rem);
   }
+}
+
+/** Mobile overlays — freeze page scroll without losing scroll position (iOS Safari). */
+html.ar-scroll-lock body {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(-1 * var(--ar-scroll-lock-y, 0px));
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .ar-app-shell {

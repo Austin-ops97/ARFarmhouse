@@ -22,6 +22,12 @@ service cloud.firestore {
       return resource.data.commentCount is int ? resource.data.commentCount : 0;
     }
 
+    /** Family owners may moderate album uploads (delete any albumMedia row). */
+    function familyOwner() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSelf(userId)
@@ -153,7 +159,8 @@ service cloud.firestore {
         && unchanged('authorId')
         && unchanged('storageUrl')
         && unchanged('storagePath');
-      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      allow delete: if isSignedIn()
+        && (resource.data.authorId == request.auth.uid || familyOwner());
     }
 
     match /bookingRequests/{requestId} {

@@ -17,9 +17,11 @@ import { formatFeedTimeLabel } from "@/lib/datetime/relative";
 import { validateRawImageFile } from "@/lib/image-input";
 import { getUploadMaxBytes, type ProcessedImageFile } from "@/lib/image-process";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
+import { uploadStage } from "@/lib/upload-log";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FirestoreAlbumMedia } from "@/models/album-media";
+import type { UserRole } from "@/models/user";
 import { uploadAlbumImages, deleteStoragePath } from "@/services/storage-upload";
 
 const COLLECTION = "albumMedia";
@@ -109,6 +111,7 @@ async function finalizeAlbumMediaDocuments(
     const id = mediaIds[i]!;
     const ref = doc(db, COLLECTION, id);
     actionDebug("album", "upload begin", { id, index: i });
+    uploadStage("album: Storage + Firestore pipeline item", { id, index: i, total });
 
     const art = optimizedArtifacts[i]!;
     const uploaded = await uploadAlbumImages(id, [file], (_done, _total, percent) => {
@@ -116,6 +119,7 @@ async function finalizeAlbumMediaDocuments(
     }, signal);
     const { url, path } = uploaded[0]!;
 
+    uploadStage("album: firestore sync started", { id, index: i });
     await setDoc(ref, {
       authorId: input.authorId,
       authorDisplayName: input.authorDisplayName,
@@ -133,6 +137,7 @@ async function finalizeAlbumMediaDocuments(
       updatedAt: serverTimestamp(),
     });
 
+    uploadStage("album: firestore sync complete", { id, index: i });
     onProgress?.({ phase: "uploading", done: i + 1, total });
     actionDebug("album", "item saved", { id });
   }
@@ -196,12 +201,16 @@ export async function deleteAlbumMediaItem(
   itemId: string,
   viewerUid: string,
   authorId: string,
-  storagePath?: string
+  storagePath?: string,
+  viewerRole?: UserRole | null
 ) {
-  if (viewerUid !== authorId) throw new Error("Only the uploader can remove this memory.");
+  const canModerate = viewerRole === "owner";
+  if (viewerUid !== authorId && !canModerate) {
+    throw new Error("You don't have permission to remove this photo.");
+  }
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable.");
-  await deleteDoc(doc(db, COLLECTION, itemId));
+  /* Storage rules still read albumMedia/{itemId} — delete objects before the Firestore doc. */
   if (storagePath) {
     try {
       await deleteStoragePath(storagePath);
@@ -209,4 +218,5 @@ export async function deleteAlbumMediaItem(
       actionDebug("album", "storage cleanup failed", e);
     }
   }
+  await deleteDoc(doc(db, COLLECTION, itemId));
 }

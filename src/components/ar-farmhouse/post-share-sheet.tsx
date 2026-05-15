@@ -6,6 +6,7 @@ import { startTransition, useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { buildPostDeepLink } from "@/lib/app-url";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ type PostShareSheetProps = {
 
 export function PostShareSheet({ open, onOpenChange, postId, title, summary }: PostShareSheetProps) {
   const reduceMotion = useReducedMotion();
+  useBodyScrollLock(open);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
   const url = buildPostDeepLink(postId);

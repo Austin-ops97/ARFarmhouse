@@ -8,6 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { LocalGuideMapPreview } from "@/components/ar-farmhouse/local-guide-map-preview";
 import type { LocalGuideRow } from "@/lib/local-guide-types";
 import { familyRecommendations, isVerifiedRow } from "@/lib/local-guide";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 type LocalGuideDetailSheetProps = {
@@ -18,6 +19,7 @@ type LocalGuideDetailSheetProps = {
 export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
+  useBodyScrollLock(Boolean(place));
 
   const close = useCallback(() => onClose(), [onClose]);
 

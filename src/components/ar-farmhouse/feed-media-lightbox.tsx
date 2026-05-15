@@ -13,6 +13,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 export type FeedMediaLightboxState = { urls: string[]; index: number } | null;
@@ -60,6 +61,8 @@ export function FeedMediaLightbox({
 
   const activeSrc = state?.urls[state.index];
   const multi = !!(state && state.urls.length > 1);
+
+  useBodyScrollLock(Boolean(state));
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);

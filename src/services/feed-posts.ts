@@ -19,6 +19,7 @@ import { buildChipsFromCounts, normalizeReactionCounts } from "@/lib/reaction-co
 import { validateFeedImageFiles, validateOptimizedFeedFiles } from "@/lib/feed-publish";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import { tryGetFirestoreDb } from "@/lib/firebase";
+import { uploadStage } from "@/lib/upload-log";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
 import { deletePostMediaStorage, uploadPostImages } from "@/services/storage-upload";
@@ -173,6 +174,7 @@ export async function finalizeFeedPostFromFiles(
       skippedOptimization: a.skippedOptimization,
     }));
     actionDebug("feed", "upload begin");
+    uploadStage("firestore sync — upload to Storage starting", { postId, fileCount: optimized.length });
     options?.onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
     mediaUrls = await uploadPostImages(
       postId,
@@ -181,6 +183,7 @@ export async function finalizeFeedPostFromFiles(
       signal
     );
     actionDebug("feed", "upload complete", { count: mediaUrls.length });
+    uploadStage("firestore sync — Storage complete, writing post document", { postId, mediaCount: mediaUrls.length });
   }
 
   const payload: Record<string, unknown> = {
@@ -203,7 +206,9 @@ export async function finalizeFeedPostFromFiles(
   try {
     if (options?.signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     actionDebug("feed", "firestore write begin", { postId });
+    uploadStage("firestore sync started", { postId });
     await setDoc(ref, payload);
+    uploadStage("firestore sync complete", { postId });
     actionDebug("feed", "firestore write complete", { postId });
   } catch (e) {
     actionDebug("feed", "publish failed", e);
@@ -213,6 +218,7 @@ export async function finalizeFeedPostFromFiles(
     }
     throw new Error(`Could not save the post. ${msg}`);
   }
+  uploadStage("finalize success — post published", { postId });
 }
 
 export async function createFeedPostWithMedia(

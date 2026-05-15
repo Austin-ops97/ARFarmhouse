@@ -20,6 +20,7 @@ import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useHubPropertyOps } from "@/hooks/use-hub-property-ops";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { resolveWeekendHubBundle } from "@/lib/weekend-hub-hydrate";
 import type { WeekendHubSlug } from "@/lib/weekend-hub-slug";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
@@ -54,6 +55,7 @@ type WeekendHubSheetProps = {
 
 export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: WeekendHubSheetProps) {
   const reduceMotion = useReducedMotion();
+  useBodyScrollLock(open);
   const { goTo } = useEcosystem();
   const [now, setNow] = useState(() => Date.now());
 

@@ -7,6 +7,8 @@ import {
   yieldToMainThread,
   yieldWhenIdle,
 } from "@/lib/image-scheduler";
+import { promiseWithTimeout } from "@/lib/promise-timeout";
+import { uploadLog, uploadStage } from "@/lib/upload-log";
 
 export type ImageUploadPreset = "feed" | "album" | "family" | "pet";
 
@@ -94,9 +96,19 @@ export function outputExtension(mime: string): string {
   return mime === "image/webp" ? "webp" : "jpg";
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, mime: string, quality: number): Promise<Blob | null> {
-  return new Promise((resolve) => {
-    canvas.toBlob((b) => resolve(b), mime, quality);
+const TO_BLOB_TIMEOUT_MS = 120_000;
+
+function canvasToBlob(canvas: HTMLCanvasElement, mime: string, quality: number, context: string): Promise<Blob | null> {
+  const inner = new Promise<Blob | null>((resolve) => {
+    try {
+      canvas.toBlob((b) => resolve(b), mime, quality);
+    } catch (e) {
+      uploadLog("canvas.toBlob threw", { context, message: e instanceof Error ? e.message : String(e) });
+      resolve(null);
+    }
+  });
+  return promiseWithTimeout(inner, TO_BLOB_TIMEOUT_MS, () => {
+    uploadStage("stalled during blob generation — canvas.toBlob did not resolve", { context, mime, quality });
   });
 }
 
@@ -168,7 +180,8 @@ async function encodeAdaptive(
 ): Promise<Blob> {
   const { quality: startQuality, minQuality, softTargetBytes, uploadMaxBytes } = config;
 
-  let blob = await canvasToBlob(canvas, mime, startQuality);
+  uploadStage("optimization encode pass", { mime, startQuality });
+  let blob = await canvasToBlob(canvas, mime, startQuality, "encodeAdaptive:start");
   if (!blob) {
     throw new Error("Could not compress that photo. Try a different image.");
   }
@@ -183,7 +196,7 @@ async function encodeAdaptive(
     await yieldWhenIdle();
     q = Math.max(minQuality, q - 0.04);
     attempts += 1;
-    const candidate = await canvasToBlob(canvas, mime, q);
+    const candidate = await canvasToBlob(canvas, mime, q, "encodeAdaptive:step");
     if (!candidate) break;
     blob = candidate;
     if (blob.size < best.size) best = blob;
@@ -309,11 +322,13 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
   validateRawImageFile(file);
   const config = IMAGE_PRESETS[preset];
   const originalMime = file.type || "application/octet-stream";
+  uploadStage("optimization start", { name: file.name, bytes: file.size, preset });
 
   if (file.type === "image/gif") {
     if (file.size > config.uploadMaxBytes) {
       throw new Error(`"${file.name}" is too large. Try a shorter GIF or smaller dimensions.`);
     }
+    uploadStage("optimization skipped (GIF pass-through)", { name: file.name, bytes: file.size });
     return {
       file,
       width: 0,
@@ -340,6 +355,11 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
     const longest = Math.max(probed.width, probed.height);
     const needsResize = longest > config.maxEdge;
     if (canPassThroughOriginal(file, probed.width, probed.height, config, needsResize)) {
+      uploadStage("optimization skipped (pass-through original)", {
+        name: file.name,
+        width: probed.width,
+        height: probed.height,
+      });
       return {
         file,
         width: probed.width,
@@ -358,10 +378,18 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
       await yieldWhenIdle();
       const mime = preferredOutputMime();
       const blob = await encodeAdaptive(canvas, mime, config);
+      uploadStage("blob generated", {
+        name: file.name,
+        mime,
+        blobSize: blob.size,
+        width,
+        height,
+      });
       const outFile = new File([blob], outputFileName(file.name, mime), {
         type: mime,
         lastModified: file.lastModified,
       });
+      uploadStage("optimization complete", { name: file.name, outBytes: outFile.size });
       return {
         file: outFile,
         width,

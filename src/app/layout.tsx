@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { Providers } from "@/components/providers";
@@ -24,6 +24,12 @@ const display = Newsreader({
 export const metadata: Metadata = {
   title: "AR Farmhouse",
   description: "Private family property network",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Camera, ImageIcon, X } from "lucide-react";
 import { useEffect, useId } from "react";
 
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 export type MediaSourcePickerSheetProps = {
@@ -31,6 +32,8 @@ export function MediaSourcePickerSheet({
 }: MediaSourcePickerSheetProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
+
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;

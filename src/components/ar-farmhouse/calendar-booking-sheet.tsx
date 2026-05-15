@@ -19,6 +19,7 @@ import {
   type BookingAttendeeSelection,
 } from "@/models/family-profile";
 import { createBookingRequest } from "@/services/property-data";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 const TRIP_TYPES = [
@@ -48,6 +49,7 @@ export function CalendarBookingSheet({
   existingEvents = [],
 }: CalendarBookingSheetProps) {
   const reduceMotion = useReducedMotion();
+  useBodyScrollLock(open);
   const titleId = useId();
   const { user, profile, displayName, avatarUrl, loading: authLoading, configured } = useAuth();
   const submitEpochRef = useRef(0);

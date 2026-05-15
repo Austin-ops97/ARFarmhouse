@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatCalendarEventRange } from "@/lib/home-upcoming";
 import { eventsOnCalendarDay } from "@/lib/calendar-event-merge";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 const EVENT_KIND_LABEL: Record<PropertyCalendarEvent["kind"], string> = {
@@ -41,6 +42,7 @@ export function CalendarDayEventsSheet({
 }: CalendarDayEventsSheetProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
+  useBodyScrollLock(open);
 
   const monthWord = useMemo(
     () => new Date(year, monthIndex, 1).toLocaleString("en-US", { month: "long" }),

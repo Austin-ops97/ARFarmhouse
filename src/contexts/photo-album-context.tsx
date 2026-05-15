@@ -14,6 +14,7 @@ import {
 } from "react";
 
 import { useAuth } from "@/contexts/auth-context";
+import { revokeAlbumItemHandoffSrc } from "@/lib/ephemeral-media-handoff";
 import {
   extractAlbumMediaFromPosts,
   mergeAlbumCatalog,
@@ -85,7 +86,13 @@ export function PhotoAlbumProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const ids = new Set(cloudUploads.map((c) => c.id));
     startTransition(() => {
-      setOptimisticAlbumItems((prev) => prev.filter((o) => !ids.has(o.id)));
+      setOptimisticAlbumItems((prev) => {
+        const dropped = prev.filter((o) => ids.has(o.id));
+        for (const o of dropped) {
+          revokeAlbumItemHandoffSrc(o);
+        }
+        return prev.filter((o) => !ids.has(o.id));
+      });
     });
   }, [cloudUploads]);
 

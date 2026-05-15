@@ -1,5 +1,7 @@
 import { dimensionsForLongestEdge, probeImageDimensions } from "@/lib/image-dimensions";
 import { yieldWhenIdle } from "@/lib/image-scheduler";
+import { promiseWithTimeout } from "@/lib/promise-timeout";
+import { uploadStage } from "@/lib/upload-log";
 
 /** Preview longest edge — small grid thumbs without decoding multi‑MP originals. */
 const PREVIEW_MAX_EDGE = 480;
@@ -14,25 +16,40 @@ function releaseCanvas(canvas: HTMLCanvasElement) {
   canvas.height = 0;
 }
 
+const PREVIEW_TO_BLOB_MS = 90_000;
+
 async function bitmapToJpegBlob(bitmap: ImageBitmap): Promise<Blob> {
   const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
+  try {
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      throw new Error("Could not create preview.");
+    }
+    ctx.drawImage(bitmap, 0, 0);
     bitmap.close();
-    throw new Error("Could not create preview.");
+
+    const inner = new Promise<Blob | null>((resolve) => {
+      try {
+        canvas.toBlob((b) => resolve(b), "image/jpeg", PREVIEW_JPEG_QUALITY);
+      } catch {
+        resolve(null);
+      }
+    });
+    const blob = await promiseWithTimeout(inner, PREVIEW_TO_BLOB_MS, () => {
+      uploadStage("stalled during preview blob generation (canvas.toBlob)", {
+        w: canvas.width,
+        h: canvas.height,
+      });
+    });
+
+    if (!blob) throw new Error("Could not create preview.");
+    return blob;
+  } finally {
+    releaseCanvas(canvas);
   }
-  ctx.drawImage(bitmap, 0, 0);
-  bitmap.close();
-
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((b) => resolve(b), "image/jpeg", PREVIEW_JPEG_QUALITY);
-  });
-  releaseCanvas(canvas);
-
-  if (!blob) throw new Error("Could not create preview.");
-  return blob;
 }
 
 /**
@@ -40,6 +57,7 @@ async function bitmapToJpegBlob(bitmap: ImageBitmap): Promise<Blob> {
  * Prefer this over pointing Next/Image at gigantic originals on iPhone Safari.
  */
 export async function createPreviewObjectUrl(file: File): Promise<string> {
+  uploadStage("preview generated (start)", { name: file.name, bytes: file.size, type: file.type });
   if (file.type === "image/gif") {
     return URL.createObjectURL(file);
   }
@@ -95,7 +113,9 @@ export async function createPreviewObjectUrl(file: File): Promise<string> {
 
     await yieldWhenIdle();
     const blob = await bitmapToJpegBlob(bitmap);
-    return URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    uploadStage("preview generated (complete)", { name: file.name, urlKind: "jpeg-blob" });
+    return url;
   } catch {
     /* Last resort: tiny originals only — large HEIC stays on optimize path instead of preview RAM bomb */
     if (file.size <= PREVIEW_FALLBACK_RAW_MAX_BYTES) {

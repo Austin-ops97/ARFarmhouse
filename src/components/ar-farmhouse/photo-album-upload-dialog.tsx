@@ -17,6 +17,10 @@ import { deferMediaCpuWork } from "@/lib/image-scheduler";
 import { overlayFromAlbumProgress } from "@/lib/album-upload-status";
 import { enqueueMediaUploadTask } from "@/lib/media-upload-queue";
 import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
+import {
+  handoffEphemeralImageUrl,
+} from "@/lib/ephemeral-media-handoff";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import {
@@ -34,6 +38,7 @@ type PhotoAlbumUploadDialogProps = {
 
 export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: PhotoAlbumUploadDialogProps) {
   const reduceMotion = useReducedMotion();
+  useBodyScrollLock(open);
   const inputId = useId();
   const { user, displayName, avatarUrl } = useAuth();
   const { attachments, files, addFiles, removeAt, clear: clearAttachments } = useImageAttachments({
@@ -67,7 +72,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     onOpenChange(false);
   }, [onOpenChange, reset]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (files.length === 0 || !user) return;
     setError(null);
     try {
@@ -88,23 +93,34 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     const now = Date.now();
     const authorName = displayName || user.displayName || "Family member";
     const filesSnapshot = [...files];
-    const optimisticRows: AlbumMediaItem[] = attachments.map((item, idx) => ({
-      id: mediaIds[idx]!,
-      src: item.preview ?? URL.createObjectURL(item.file),
-      caption: caption.trim() || "Family memory",
-      source: "upload",
-      albumKey,
-      linkedEvent: eventLink.trim() || undefined,
-      authorName,
-      timeLabel: "Uploading…",
-      addedAt: now,
-      uploadedBy: user.uid,
-      optimistic: true,
-      optimisticUpload: {
-        phase: "Preparing…",
-        progress: 4,
-      },
-    }));
+
+    const optimisticRows: AlbumMediaItem[] = [];
+    for (let idx = 0; idx < attachments.length; idx++) {
+      const item = attachments[idx]!;
+      let rawSrc = item.preview ?? URL.createObjectURL(item.file);
+      const handed = await handoffEphemeralImageUrl(rawSrc);
+      const src = handed ?? rawSrc;
+      if (handed && handed !== rawSrc && rawSrc.startsWith("blob:")) {
+        URL.revokeObjectURL(rawSrc);
+      }
+      optimisticRows.push({
+        id: mediaIds[idx]!,
+        src,
+        caption: caption.trim() || "Family memory",
+        source: "upload",
+        albumKey,
+        linkedEvent: eventLink.trim() || undefined,
+        authorName,
+        timeLabel: "Uploading…",
+        addedAt: now,
+        uploadedBy: user.uid,
+        optimistic: true,
+        optimisticUpload: {
+          phase: "Preparing…",
+          progress: 4,
+        },
+      });
+    }
 
     setOptimisticAlbumItems((prev) => [...optimisticRows, ...prev]);
 

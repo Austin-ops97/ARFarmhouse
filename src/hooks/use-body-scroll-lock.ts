@@ -1,25 +1,33 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 
-/** Prevents background scroll while a modal/sheet is open (iOS-friendly). */
+let lockDepth = 0;
+let savedScrollY = 0;
+
+/**
+ * Locks document scroll (iOS-safe) while overlays are open — background no longer
+ * scrolls or rubber-bands under modals. Reference-counted for nested overlays.
+ */
 export function useBodyScrollLock(locked: boolean) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!locked || typeof document === "undefined") return;
 
-    const body = document.body;
-    const prevOverflow = body.style.overflow;
-    const prevPaddingRight = body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-    body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) {
-      body.style.paddingRight = `${scrollbarWidth}px`;
+    lockDepth += 1;
+    if (lockDepth === 1) {
+      savedScrollY = window.scrollY;
+      document.documentElement.style.setProperty("--ar-scroll-lock-y", `${savedScrollY}px`);
+      document.documentElement.classList.add("ar-scroll-lock");
     }
 
     return () => {
-      body.style.overflow = prevOverflow;
-      body.style.paddingRight = prevPaddingRight;
+      lockDepth -= 1;
+      if (lockDepth <= 0) {
+        lockDepth = 0;
+        document.documentElement.classList.remove("ar-scroll-lock");
+        document.documentElement.style.removeProperty("--ar-scroll-lock-y");
+        window.scrollTo(0, savedScrollY);
+      }
     };
   }, [locked]);
 }

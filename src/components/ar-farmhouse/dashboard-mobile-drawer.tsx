@@ -7,6 +7,7 @@ import { useCallback, useEffect, useId, useRef } from "react";
 import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/auth-context";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 import { mobileDrawerLabel, sidebarNav, type NavId } from "./dashboard-nav";
@@ -58,6 +59,8 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
   const panelRef = useRef<HTMLElement>(null);
   const { displayName, avatarUrl, user } = useAuth();
 
+  useBodyScrollLock(open);
+
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
   const pick = useCallback(
@@ -67,15 +70,6 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
     },
     [onSelect, onOpenChange]
   );
-
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
 
   useEffect(() => {
     if (!open) return;

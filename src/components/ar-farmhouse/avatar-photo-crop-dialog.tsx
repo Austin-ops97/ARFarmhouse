@@ -12,6 +12,7 @@ import {
   processAvatarFromCrop,
   type AvatarCropPixels,
 } from "@/lib/image-avatar-process";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 export type AvatarPhotoCropDialogProps = {
@@ -41,6 +42,8 @@ export function AvatarPhotoCropDialog({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<AvatarCropPixels | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
+
+  useBodyScrollLock(open && Boolean(imageSrc));
 
   const busy = phase !== "idle";
 

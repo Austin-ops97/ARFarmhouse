@@ -1,13 +1,17 @@
 import type { StorageReference } from "firebase/storage";
 import { uploadBytesResumable } from "firebase/storage";
 
-import { uploadLog } from "@/lib/upload-log";
+import type { BrowserIntervalId, BrowserTimeoutId } from "@/lib/browser-timer";
+import { uploadLog, uploadStage } from "@/lib/upload-log";
 
 /** Hard ceiling — slow networks + large albums should still finish or hit stall watchdog first. */
 const ABSOLUTE_MAX_MS = 50 * 60 * 1000;
 
 /** No byte progress while state is `running` → cancel as stuck (Firebase retries transient errors internally). */
-const DEFAULT_STALL_MS = 95_000;
+const DEFAULT_STALL_MS = 135_000;
+
+/** iOS Safari + cold tunnels can legitimately spend a long time at 0 bytes before first chunk — avoids false stalls. */
+const ZERO_BYTE_GRACE_MS = 75_000;
 
 function cancelUploadTask(task: { cancel?: () => boolean }) {
   try {
@@ -36,23 +40,33 @@ export async function runFirebaseResumableUpload(
   const label = opts?.label ?? objectRef.fullPath;
   const stallMs = opts?.stallMs ?? DEFAULT_STALL_MS;
 
+  if (typeof window === "undefined") {
+    throw new Error("Firebase resumable uploads must run in a browser environment.");
+  }
+
   if (opts?.signal?.aborted) {
     throw new DOMException("Upload cancelled.", "AbortError");
   }
 
-  uploadLog("uploading", { label, bytes: data.size });
+  uploadStage("upload blob ready", {
+    label,
+    bytes: data.size,
+    type: opts?.contentType ?? data.type,
+  });
 
   const metadata = opts?.contentType ? { contentType: opts.contentType } : undefined;
+  uploadStage("upload task created", { label });
   const task = uploadBytesResumable(objectRef, data, metadata);
+  const uploadStartedAt = Date.now();
 
   let lastBytes = -1;
   let lastProgressAt = Date.now();
   let lastLoggedPct = -10;
 
   let unsubscribe: (() => void) | undefined;
-  /** Browser timer ids — `@types/node` makes `ReturnType<typeof setTimeout>` a `Timeout`, but `window.*` uses numbers. */
-  let stallInterval: number | undefined;
-  let deadlineTimer: number | undefined;
+  let stallInterval: BrowserIntervalId | undefined;
+  let deadlineTimer: BrowserTimeoutId | undefined;
+  let loggedUploadRunning = false;
 
   const cleanupTimers = () => {
     if (stallInterval !== undefined) {
@@ -99,8 +113,19 @@ export async function runFirebaseResumableUpload(
         if (!snap || snap.state !== "running") return;
         if (snap.totalBytes > 0 && snap.bytesTransferred >= snap.totalBytes) return;
 
+        const zeroByteWarmup =
+          snap.bytesTransferred === 0 && Date.now() - uploadStartedAt < ZERO_BYTE_GRACE_MS;
+        if (zeroByteWarmup && lastBytes <= 0) return;
+
         const idleMs = Date.now() - lastProgressAt;
         if (idleMs >= stallMs && snap.bytesTransferred === lastBytes && lastBytes >= 0) {
+          uploadStage("stalled during upload bytes — no snapshot progress", {
+            label,
+            idleMs,
+            bytesTransferred: snap.bytesTransferred,
+            totalBytes: snap.totalBytes,
+            state: snap.state,
+          });
           uploadLog("stalled", { label, idleMs, bytesTransferred: snap.bytesTransferred });
           cancelUploadTask(task);
           settle(() =>
@@ -112,6 +137,10 @@ export async function runFirebaseResumableUpload(
       unsubscribe = task.on(
         "state_changed",
         (snap) => {
+          if (snap.state === "running" && !loggedUploadRunning) {
+            loggedUploadRunning = true;
+            uploadStage("upload started", { label, totalBytes: snap.totalBytes });
+          }
           if (snap.bytesTransferred !== lastBytes) {
             lastBytes = snap.bytesTransferred;
             lastProgressAt = Date.now();
@@ -139,6 +168,7 @@ export async function runFirebaseResumableUpload(
         },
         () => {
           settle(() => {
+            uploadStage("finalize success — Storage bytes complete", { label });
             uploadLog("complete", { label });
             resolve();
           });
