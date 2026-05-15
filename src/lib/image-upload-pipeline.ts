@@ -5,7 +5,7 @@ import {
 } from "@/lib/image-process";
 import { validateRawImageFile } from "@/lib/image-input";
 
-export type ImagePipelinePhase = "validating" | "processing" | "ready";
+export type ImagePipelinePhase = "validating" | "optimizing" | "ready";
 
 export type ImagePipelineProgress = {
   phase: ImagePipelinePhase;
@@ -50,22 +50,22 @@ export async function prepareImagesForUpload(
   }
 
   onProgress?.({
-    phase: "processing",
+    phase: "optimizing",
     done: 0,
     total,
-    message: total > 1 ? "Preparing photos…" : "Preparing photo…",
+    message: total > 1 ? "Optimizing photos…" : "Optimizing…",
   });
 
   return processImageFiles(files, preset, (p: ProcessImagesProgress) => {
     assertNotAborted(signal);
     onProgress?.({
-      phase: "processing",
+      phase: "optimizing",
       done: p.done,
       total: p.total,
       message:
         p.total > 1
-          ? `Preparing ${Math.min(p.done + 1, p.total)} of ${p.total}…`
-          : "Preparing photo…",
+          ? `Optimizing ${Math.min(p.done + 1, p.total)} of ${p.total}…`
+          : "Optimizing…",
     });
   });
 }

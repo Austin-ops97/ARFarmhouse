@@ -1,4 +1,4 @@
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { deleteObject, getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
 
 import { actionDebug } from "@/lib/action-debug";
 import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
@@ -29,7 +29,7 @@ function validateOptimizedUpload(file: File, maxBytes: number) {
 export async function uploadPostImages(
   postId: string,
   files: File[],
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number, filePercent?: number) => void
 ) {
   return uploadImagesToPrefix(`posts/${postId}`, files, "feed", onProgress);
 }
@@ -39,7 +39,7 @@ export type UploadedObject = { url: string; path: string };
 export async function uploadAlbumImages(
   mediaId: string,
   files: File[],
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number, filePercent?: number) => void
 ): Promise<UploadedObject[]> {
   const storage = tryGetFirebaseStorage();
   if (!storage) throw new Error("Firebase Storage unavailable. Check your connection and try again.");
@@ -56,24 +56,45 @@ export async function uploadAlbumImages(
     const path = `albums/${mediaId}/${Date.now()}-${i}.${ext}`;
     const objectRef = ref(storage, path);
     try {
-      await uploadBytes(objectRef, file, { contentType: file.type || "image/jpeg" });
+      onProgress?.(i, total, 0);
+      await uploadFileResumable(objectRef, file, (filePercent) => onProgress?.(i, total, filePercent));
       const url = await getDownloadURL(objectRef);
       out.push({ url, path });
     } catch (e) {
       actionDebug("upload", `album file ${i + 1}/${total} failed`, e);
       throw storageUploadError(file.name, e);
     }
-    onProgress?.(i + 1, total);
+    onProgress?.(i + 1, total, 100);
   }
 
   return out;
+}
+
+async function uploadFileResumable(
+  objectRef: ReturnType<typeof ref>,
+  file: File,
+  onFilePercent?: (percent: number) => void
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const task = uploadBytesResumable(objectRef, file, { contentType: file.type || "image/jpeg" });
+    task.on(
+      "state_changed",
+      (snap) => {
+        if (snap.totalBytes > 0 && onFilePercent) {
+          onFilePercent(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
+        }
+      },
+      (err) => reject(err),
+      () => resolve()
+    );
+  });
 }
 
 async function uploadImagesToPrefix(
   pathPrefix: string,
   files: File[],
   preset: ImageUploadPreset,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number, filePercent?: number) => void
 ): Promise<string[]> {
   const storage = tryGetFirebaseStorage();
   if (!storage) throw new Error("Firebase Storage unavailable. Check your connection and try again.");
@@ -89,7 +110,8 @@ async function uploadImagesToPrefix(
     const ext = extFromMime(file.type || "image/jpeg");
     const objectRef = ref(storage, `${pathPrefix}/${Date.now()}-${i}.${ext}`);
     try {
-      await uploadBytes(objectRef, file, { contentType: file.type || "image/jpeg" });
+      onProgress?.(i, total, 0);
+      await uploadFileResumable(objectRef, file, (filePercent) => onProgress?.(i, total, filePercent));
       const url = await getDownloadURL(objectRef);
       urls.push(url);
       actionDebug("upload", `file ${i + 1}/${total} complete`);
@@ -97,7 +119,7 @@ async function uploadImagesToPrefix(
       actionDebug("upload", `file ${i + 1}/${total} failed`, e);
       throw storageUploadError(file.name, e);
     }
-    onProgress?.(i + 1, total);
+    onProgress?.(i + 1, total, 100);
   }
 
   actionDebug("upload", "complete", { count: urls.length });

@@ -6,6 +6,7 @@ import { AlertCircle, Upload, X } from "lucide-react";
 import { useCallback, useId, useState } from "react";
 
 import { MediaAttachZone } from "@/components/ar-farmhouse/media-attach-zone";
+import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/auth-context";
@@ -24,70 +25,51 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
   const reduceMotion = useReducedMotion();
   const inputId = useId();
   const { user, displayName, avatarUrl } = useAuth();
-  const [files, setFiles] = useState<{ file: File; preview: string }[]>([]);
+  const { attachments, files, addFiles, removeAt, clear: clearAttachments } = useImageAttachments({
+    maxCount: 12,
+  });
   const [albumKey, setAlbumKey] = useState<string>(ALBUM_UPLOAD_BUCKETS[0].key);
   const [caption, setCaption] = useState("");
   const [eventLink, setEventLink] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{
-    phase: "processing" | "uploading";
+    phase: "optimizing" | "uploading";
     done: number;
     total: number;
+    percent?: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reset = useCallback(() => {
-    setFiles([]);
+    clearAttachments();
     setCaption("");
     setEventLink("");
     setAlbumKey(ALBUM_UPLOAD_BUCKETS[0].key);
     setProgress(null);
     setError(null);
-  }, []);
-
-  const onFiles = useCallback((incoming: File[]) => {
-    if (!incoming.length) return;
-    const next: { file: File; preview: string }[] = [];
-    incoming.forEach((file) => {
-      if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif|avif|gif)$/i.test(file.name)) {
-        return;
-      }
-      next.push({ file, preview: URL.createObjectURL(file) });
-    });
-    setFiles((prev) => [...prev, ...next].slice(0, 12));
-    setError(null);
-  }, []);
+  }, [clearAttachments]);
 
   const onDropFiles = useCallback(
     (list: FileList) => {
-      onFiles(Array.from(list));
+      addFiles(list);
+      setError(null);
     },
-    [onFiles]
+    [addFiles]
   );
 
-  const removeAt = (idx: number) => {
-    setFiles((prev) => {
-      const copy = [...prev];
-      const [gone] = copy.splice(idx, 1);
-      if (gone) URL.revokeObjectURL(gone.preview);
-      return copy;
-    });
-  };
-
   const dismiss = useCallback(() => {
-    files.forEach((f) => URL.revokeObjectURL(f.preview));
+    clearAttachments();
     reset();
     onOpenChange(false);
-  }, [files, onOpenChange, reset]);
+  }, [clearAttachments, onOpenChange, reset]);
 
   const handleSubmit = async () => {
     if (files.length === 0 || !user) return;
     setBusy(true);
     setError(null);
-    setProgress({ phase: "processing", done: 0, total: files.length });
+    setProgress({ phase: "optimizing", done: 0, total: files.length });
     try {
-      const raw = files.map((f) => f.file);
-      for (const file of raw) validateRawImageFile(file);
+      for (const file of files) validateRawImageFile(file);
       await createAlbumMediaItems(
         {
           authorId: user.uid,
@@ -96,11 +78,17 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
           caption,
           albumKey,
           linkedEvent: eventLink.trim() || null,
-          files: raw,
+          files,
         },
-        (p) => setProgress({ phase: p.phase, done: p.done, total: p.total })
+        (p) =>
+          setProgress({
+            phase: p.phase,
+            done: p.done,
+            total: p.total,
+            percent: p.phase === "uploading" ? p.percent : undefined,
+          })
       );
-      files.forEach((f) => URL.revokeObjectURL(f.preview));
+      clearAttachments();
       reset();
       onOpenChange(false);
       onUploaded?.();
@@ -162,7 +150,10 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                 className="border-border/80 bg-muted/25 hover:border-primary/35 hover:bg-muted/40"
                 title="Add to family archive"
                 hint="Take a memory on the spot or upload from your library — high quality preserved"
-                onFiles={onFiles}
+                onFiles={(list) => {
+                  addFiles(list);
+                  setError(null);
+                }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -170,14 +161,18 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                 }}
               />
 
-              {files.length > 0 && (
+              {attachments.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {files.map((f, idx) => (
-                    <div
-                      key={`${f.preview}-${idx}`}
-                      className="group relative aspect-square overflow-hidden rounded-xl ring-1 ring-border/50"
+                  {attachments.map((item, idx) => (
+                    <motion.div
+                      key={item.id}
+                      className="group relative aspect-square overflow-hidden rounded-xl bg-muted/30 ring-1 ring-border/50"
                     >
-                      <Image src={f.preview} alt="" fill className="object-cover" sizes="120px" />
+                      {item.preview ? (
+                        <Image src={item.preview} alt="" fill className="object-cover" sizes="120px" unoptimized />
+                      ) : (
+                        <div className="absolute inset-0 animate-pulse bg-muted/50" aria-hidden />
+                      )}
                       <button
                         type="button"
                         onClick={() => removeAt(idx)}
@@ -186,7 +181,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                       >
                         <X className="size-3.5" />
                       </button>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               )}
@@ -196,13 +191,23 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                   <div className="h-1.5 overflow-hidden rounded-full bg-muted/60">
                     <div
                       className="h-full rounded-full bg-primary transition-all duration-300"
-                      style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+                      style={{
+                        width: `${
+                          progress.phase === "uploading" && progress.percent != null
+                            ? Math.round(
+                                ((progress.done + progress.percent / 100) / progress.total) * 100
+                              )
+                            : Math.round((progress.done / progress.total) * 100)
+                        }%`,
+                      }}
                     />
                   </div>
                   <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                    {progress.phase === "processing"
-                      ? `Preparing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
-                      : `Uploading ${progress.done} of ${progress.total}…`}
+                    {progress.phase === "optimizing"
+                      ? `Optimizing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
+                      : progress.percent != null
+                        ? `Uploading… ${Math.round(((progress.done + progress.percent / 100) / progress.total) * 100)}%`
+                        : `Uploading ${progress.done} of ${progress.total}…`}
                   </p>
                 </div>
               )}
@@ -265,8 +270,8 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
               >
                 <Upload className="opacity-80" data-icon="inline-start" aria-hidden />
                 {busy
-                  ? progress?.phase === "processing"
-                    ? "Preparing…"
+                  ? progress?.phase === "optimizing"
+                    ? "Optimizing…"
                     : "Uploading…"
                   : "Save to archive"}
               </Button>

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { MediaAttachZone } from "@/components/ar-farmhouse/media-attach-zone";
+import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,8 +34,8 @@ type CreatePostDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   publishBusy?: boolean;
-  publishPhase?: "idle" | "processing" | "uploading" | "saving";
-  uploadProgress?: { done: number; total: number } | null;
+  publishPhase?: "idle" | "optimizing" | "uploading" | "saving";
+  uploadProgress?: { done: number; total: number; percent?: number } | null;
   canPublish?: boolean;
   onPublishLive?: (payload: LivePostPayload) => Promise<void>;
 };
@@ -54,8 +55,9 @@ export function CreatePostDialog({
   const closeAfterSuccessRef = useRef<number | null>(null);
   const [localPublishing, setLocalPublishing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
+  const { attachments, files, addFiles, removeAt, clear: clearAttachments } = useImageAttachments({
+    maxCount: 6,
+  });
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState("");
   const [postType, setPostType] = useState<FeedPostCategory>("memory");
@@ -63,18 +65,8 @@ export function CreatePostDialog({
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishSuccess, setPublishSuccess] = useState(false);
 
-  const revokeUrls = useCallback((urls: string[]) => {
-    urls.forEach((u) => {
-      if (u.startsWith("blob:")) URL.revokeObjectURL(u);
-    });
-  }, []);
-
   const resetForm = useCallback(() => {
-    setPreviews((prev) => {
-      revokeUrls(prev);
-      return [];
-    });
-    setFiles([]);
+    clearAttachments();
     setCaption("");
     setLocation("");
     setLinkedEventLabel("");
@@ -82,33 +74,7 @@ export function CreatePostDialog({
     setDragOver(false);
     setPublishError(null);
     setPublishSuccess(false);
-  }, [revokeUrls]);
-
-  const addFiles = useCallback(
-    (incoming: FileList | File[]) => {
-      const incomingList = Array.from(incoming).filter(
-        (f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif|avif|gif)$/i.test(f.name)
-      );
-      setFiles((prev) => {
-        const merged = [...prev, ...incomingList].slice(0, 6);
-        setPreviews((old) => {
-          revokeUrls(old);
-          return merged.map((f) => URL.createObjectURL(f));
-        });
-        return merged;
-      });
-    },
-    [revokeUrls]
-  );
-
-  const removeFileAt = useCallback((index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-    setPreviews((prev) => {
-      const url = prev[index];
-      if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
-      return prev.filter((_, i) => i !== index);
-    });
-  }, []);
+  }, [clearAttachments]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -193,11 +159,20 @@ export function CreatePostDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, closeDialog, isPublishing]);
 
+  const uploadPercent =
+    uploadProgress && uploadProgress.total > 0
+      ? Math.round(
+          ((uploadProgress.done + (uploadProgress.percent ?? 0) / 100) / uploadProgress.total) * 100
+        )
+      : 0;
+
   const publishLabel =
-    publishPhase === "processing" && uploadProgress
-      ? `Preparing ${uploadProgress.done}/${uploadProgress.total}`
+    publishPhase === "optimizing" && uploadProgress
+      ? `Optimizing ${uploadProgress.done}/${uploadProgress.total}`
       : publishPhase === "uploading" && uploadProgress
-        ? `Uploading ${uploadProgress.done}/${uploadProgress.total}`
+        ? uploadProgress.percent != null
+          ? `Uploading ${uploadPercent}%`
+          : `Uploading ${uploadProgress.done}/${uploadProgress.total}`
         : publishPhase === "saving"
           ? "Saving post"
           : "Publish";
@@ -298,40 +273,55 @@ export function CreatePostDialog({
                 onFiles={addFiles}
               />
 
-              {previews.length > 0 && (
-                <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {previews.map((src, i) => (
-                    <div key={src} className="relative aspect-square overflow-hidden rounded-xl border border-white/10">
-                      <Image src={src} alt="" fill className="object-cover" sizes="120px" />
+              {attachments.length > 0 && (
+                <motion.div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {attachments.map((item, i) => (
+                    <motion.div
+                      key={item.id}
+                      className="relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]"
+                    >
+                      {item.preview ? (
+                        <Image src={item.preview} alt="" fill className="object-cover" sizes="120px" unoptimized />
+                      ) : (
+                        <motion.div className="absolute inset-0 animate-pulse bg-white/[0.08]" aria-hidden />
+                      )}
                       {!isPublishing && (
                         <button
                           type="button"
                           className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5 text-foreground shadow"
                           aria-label="Remove image"
-                          onClick={() => removeFileAt(i)}
+                          onClick={() => removeAt(i)}
                         >
                           <XCircle className="size-4" aria-hidden />
                         </button>
                       )}
-                    </div>
+                    </motion.div>
                   ))}
-                </div>
+                </motion.div>
               )}
 
-              {(publishPhase === "processing" || publishPhase === "uploading") &&
+              {(publishPhase === "optimizing" || publishPhase === "uploading") &&
                 uploadProgress &&
                 uploadProgress.total > 0 && (
                 <div className="mt-4 space-y-2">
                   <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                     <div
                       className="h-full rounded-full bg-primary transition-[width] duration-300"
-                      style={{ width: `${Math.round((uploadProgress.done / uploadProgress.total) * 100)}%` }}
+                      style={{
+                        width: `${
+                          publishPhase === "uploading"
+                            ? uploadPercent
+                            : Math.round((uploadProgress.done / uploadProgress.total) * 100)
+                        }%`,
+                      }}
                     />
                   </div>
                   <p className="text-center text-xs text-muted-foreground">
-                    {publishPhase === "processing"
-                      ? `Preparing photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
-                      : `Uploading image ${uploadProgress.done} of ${uploadProgress.total}…`}
+                    {publishPhase === "optimizing"
+                      ? `Optimizing photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
+                      : uploadProgress.percent != null
+                        ? `Uploading… ${uploadPercent}%`
+                        : `Uploading image ${uploadProgress.done} of ${uploadProgress.total}…`}
                   </p>
                 </div>
               )}

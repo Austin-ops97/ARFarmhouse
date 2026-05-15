@@ -1,4 +1,9 @@
 import { validateRawImageFile } from "@/lib/image-input";
+import {
+  imageProcessingConcurrency,
+  mapWithConcurrency,
+  yieldToMainThread,
+} from "@/lib/image-scheduler";
 
 export type ImageUploadPreset = "feed" | "album" | "family" | "pet";
 
@@ -21,7 +26,7 @@ export type ImagePresetConfig = {
  */
 export const IMAGE_PRESETS: Record<ImageUploadPreset, ImagePresetConfig> = {
   feed: {
-    maxEdge: 2048,
+    maxEdge: 2200,
     quality: 0.88,
     minQuality: 0.78,
     softTargetBytes: 2 * 1024 * 1024,
@@ -31,7 +36,7 @@ export const IMAGE_PRESETS: Record<ImageUploadPreset, ImagePresetConfig> = {
     maxEdge: 3000,
     quality: 0.9,
     minQuality: 0.8,
-    softTargetBytes: 4 * 1024 * 1024,
+    softTargetBytes: 5 * 1024 * 1024,
     uploadMaxBytes: 8 * 1024 * 1024,
   },
   family: {
@@ -193,6 +198,8 @@ function canPassThroughOriginal(
 /**
  * Adaptive encode: start high quality, only step down when needed for upload limits.
  */
+const MAX_ENCODE_ATTEMPTS = 6;
+
 async function encodeAdaptive(
   canvas: HTMLCanvasElement,
   mime: string,
@@ -206,39 +213,32 @@ async function encodeAdaptive(
   }
 
   if (blob.size <= softTargetBytes) return blob;
-  if (blob.size <= uploadMaxBytes) {
-    // Gently nudge size down without crushing quality (social-app style).
-    let q = startQuality - 0.03;
-    let best = blob;
-    while (q >= minQuality) {
-      const candidate = await canvasToBlob(canvas, mime, q);
-      if (!candidate) break;
-      if (candidate.size <= softTargetBytes) return candidate;
-      if (candidate.size < best.size * 0.94) best = candidate;
-      else break;
-      q -= 0.03;
-    }
-    if (best.size <= uploadMaxBytes) return best;
-    blob = best;
-  }
 
-  // Must fit Storage hard cap — step down in small increments, never below minQuality.
-  let q = Math.max(minQuality, startQuality - 0.06);
-  while (q >= minQuality) {
+  let best = blob;
+  let q = startQuality;
+  let attempts = 1;
+
+  while (attempts < MAX_ENCODE_ATTEMPTS && q > minQuality) {
+    await yieldToMainThread();
+    q = Math.max(minQuality, q - 0.04);
+    attempts += 1;
     const candidate = await canvasToBlob(canvas, mime, q);
     if (!candidate) break;
     blob = candidate;
-    if (blob.size <= uploadMaxBytes) return blob;
-    q -= 0.04;
+    if (blob.size < best.size) best = blob;
+    if (blob.size <= softTargetBytes) return blob;
+    if (blob.size <= uploadMaxBytes && attempts >= 3) return blob;
   }
 
-  if (blob.size > uploadMaxBytes) {
+  if (best.size <= uploadMaxBytes) return best;
+
+  if (best.size > uploadMaxBytes) {
     throw new Error(
       "That photo is still too large after optimization. Try a simpler image or upload fewer photos at once."
     );
   }
 
-  return blob;
+  return best;
 }
 
 function outputFileName(originalName: string, mime: string): string {
@@ -275,6 +275,7 @@ export async function processImageFile(
     throw new Error(`"${file.name}" is not a supported image.`);
   }
 
+  await yieldToMainThread();
   const decoded = await decodeImageFile(file);
   try {
     const { width: srcW, height: srcH } = decoded;
@@ -310,6 +311,7 @@ export async function processImageFile(
     ctx.imageSmoothingQuality = "high";
     decoded.draw(ctx, outW, outH);
 
+    await yieldToMainThread();
     const mime = preferredOutputMime();
     const blob = await encodeAdaptive(canvas, mime, config);
     releaseCanvas(canvas);
@@ -338,17 +340,16 @@ export async function processImageFiles(
   onProgress?: (progress: ProcessImagesProgress) => void
 ): Promise<File[]> {
   const total = files.length;
-  const out: File[] = [];
+  const concurrency = imageProcessingConcurrency();
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i]!;
+  const processed = await mapWithConcurrency(files, concurrency, async (file, i) => {
     onProgress?.({ done: i, total, fileName: file.name });
-    const processed = await processImageFile(file, preset);
-    out.push(processed.file);
+    const result = await processImageFile(file, preset);
     onProgress?.({ done: i + 1, total, fileName: file.name });
-  }
+    return result.file;
+  });
 
-  return out;
+  return processed;
 }
 
 export function getUploadMaxBytes(preset: ImageUploadPreset): number {

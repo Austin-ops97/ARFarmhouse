@@ -65,8 +65,8 @@ export function subscribeAlbumMedia(
 }
 
 export type AlbumUploadProgress =
-  | { phase: "processing"; done: number; total: number }
-  | { phase: "uploading"; done: number; total: number };
+  | { phase: "optimizing"; done: number; total: number }
+  | { phase: "uploading"; done: number; total: number; percent?: number };
 
 export async function createAlbumMediaItems(
   input: {
@@ -90,11 +90,11 @@ export async function createAlbumMediaItems(
   }
 
   const total = input.files.length;
-  onProgress?.({ phase: "processing", done: 0, total });
+  onProgress?.({ phase: "optimizing", done: 0, total });
   const optimized = await prepareImagesForUpload(input.files, "album", {
     onProgress: (p) => {
-      if (p.phase === "processing") {
-        onProgress?.({ phase: "processing", done: p.done, total: p.total });
+      if (p.phase === "optimizing") {
+        onProgress?.({ phase: "optimizing", done: p.done, total: p.total });
       }
     },
   });
@@ -114,7 +114,9 @@ export async function createAlbumMediaItems(
     const id = ref.id;
     actionDebug("album", "upload begin", { id, index: i });
 
-    const uploaded = await uploadAlbumImages(id, [file]);
+    const uploaded = await uploadAlbumImages(id, [file], (_done, _total, percent) => {
+      onProgress?.({ phase: "uploading", done: i, total, percent });
+    });
     const { url, path } = uploaded[0]!;
 
     await setDoc(ref, {

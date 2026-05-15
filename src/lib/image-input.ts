@@ -13,6 +13,10 @@ const ACCEPTED_MIME = new Set([
 
 const ACCEPTED_EXT = /\.(jpe?g|png|webp|gif|heic|heif|avif)$/i;
 
+export function isImageFileName(name: string): boolean {
+  return ACCEPTED_EXT.test(name);
+}
+
 export function isAcceptedImageMime(mime: string): boolean {
   if (!mime) return false;
   if (ACCEPTED_MIME.has(mime)) return true;

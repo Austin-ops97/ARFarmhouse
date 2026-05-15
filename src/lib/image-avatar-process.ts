@@ -27,6 +27,7 @@ import {
   outputExtension,
   preferredOutputMime,
 } from "@/lib/image-process";
+import { yieldToMainThread } from "@/lib/image-scheduler";
 
 export { isWebPEncodeSupported };
 
@@ -103,7 +104,12 @@ export async function renderCroppedAvatarBlob(
     AVATAR_OUTPUT_SIZE
   );
 
+  await yieldToMainThread();
   const blob = await canvasToBlob(out, mime, quality);
+  scratch.width = 0;
+  scratch.height = 0;
+  out.width = 0;
+  out.height = 0;
   if (!blob) throw new Error("Could not compress that photo. Try a different image.");
   return blob;
 }
@@ -136,12 +142,17 @@ async function compressAvatarBlob(initial: Blob, mime: string): Promise<Blob> {
 
   let q = AVATAR_QUALITY;
   let blob: Blob | null = initial;
-  while (q >= 0.72) {
+  let attempts = 0;
+  while (q >= 0.72 && attempts < 5) {
+    await yieldToMainThread();
+    attempts += 1;
     blob = await canvasToBlob(canvas, mime, q);
     if (!blob) break;
     if (blob.size <= AVATAR_TARGET_MAX_BYTES) return blob;
     q -= 0.04;
   }
+  canvas.width = 0;
+  canvas.height = 0;
   return blob ?? initial;
 }
 

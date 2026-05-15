@@ -89,8 +89,8 @@ export function subscribeFeedPosts(onPosts: (posts: UiFeedPost[]) => void, onErr
 }
 
 export type FeedPublishProgress =
-  | { phase: "processing"; done: number; total: number }
-  | { phase: "uploading"; done: number; total: number };
+  | { phase: "optimizing"; done: number; total: number }
+  | { phase: "uploading"; done: number; total: number; percent?: number };
 
 export async function createFeedPostWithMedia(
   input: {
@@ -120,20 +120,20 @@ export async function createFeedPostWithMedia(
   let mediaUrls: string[] = [];
   if (input.files.length > 0) {
     const total = input.files.length;
-    onProgress?.({ phase: "processing", done: 0, total });
+    onProgress?.({ phase: "optimizing", done: 0, total });
     actionDebug("feed", "optimize begin");
     const optimized = await prepareImagesForUpload(input.files, "feed", {
       onProgress: (p) => {
-        if (p.phase === "processing") {
-          onProgress?.({ phase: "processing", done: p.done, total: p.total });
+        if (p.phase === "optimizing") {
+          onProgress?.({ phase: "optimizing", done: p.done, total: p.total });
         }
       },
     });
     validateOptimizedFeedFiles(optimized);
     actionDebug("feed", "upload begin");
-    onProgress?.({ phase: "uploading", done: 0, total: optimized.length });
-    mediaUrls = await uploadPostImages(id, optimized, (done, t) =>
-      onProgress?.({ phase: "uploading", done, total: t })
+    onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
+    mediaUrls = await uploadPostImages(id, optimized, (done, t, percent) =>
+      onProgress?.({ phase: "uploading", done, total: t, percent })
     );
     actionDebug("feed", "upload complete", { count: mediaUrls.length });
   }

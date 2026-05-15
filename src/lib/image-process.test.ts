@@ -4,7 +4,7 @@ import { IMAGE_PRESETS, getUploadMaxBytes, outputExtension, preferredOutputMime 
 
 describe("image-process presets", () => {
   it("feed preset targets HD social quality", () => {
-    expect(IMAGE_PRESETS.feed.maxEdge).toBe(2048);
+    expect(IMAGE_PRESETS.feed.maxEdge).toBe(2200);
     expect(IMAGE_PRESETS.feed.quality).toBeGreaterThanOrEqual(0.85);
     expect(IMAGE_PRESETS.feed.softTargetBytes).toBe(2 * 1024 * 1024);
     expect(IMAGE_PRESETS.feed.uploadMaxBytes).toBe(5 * 1024 * 1024);
@@ -14,6 +14,7 @@ describe("image-process presets", () => {
   it("album preset preserves more detail than feed", () => {
     expect(IMAGE_PRESETS.album.maxEdge).toBeGreaterThan(IMAGE_PRESETS.feed.maxEdge);
     expect(IMAGE_PRESETS.album.quality).toBeGreaterThan(IMAGE_PRESETS.feed.quality);
+    expect(IMAGE_PRESETS.album.softTargetBytes).toBe(5 * 1024 * 1024);
     expect(IMAGE_PRESETS.album.softTargetBytes).toBeGreaterThan(IMAGE_PRESETS.feed.softTargetBytes);
     expect(IMAGE_PRESETS.album.uploadMaxBytes).toBe(8 * 1024 * 1024);
   });
