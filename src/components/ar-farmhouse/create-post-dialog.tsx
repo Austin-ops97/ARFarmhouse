@@ -10,6 +10,7 @@ import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { isLargeRawImage } from "@/lib/image-input";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import { cn } from "@/lib/utils";
 
@@ -166,9 +167,13 @@ export function CreatePostDialog({
         )
       : 0;
 
+  const hasLargePhotos = files.some(isLargeRawImage);
+
   const publishLabel =
     publishPhase === "optimizing" && uploadProgress
-      ? `Optimizing ${uploadProgress.done}/${uploadProgress.total}`
+      ? hasLargePhotos
+        ? `Optimizing large photo ${uploadProgress.done}/${uploadProgress.total}`
+        : `Optimizing ${uploadProgress.done}/${uploadProgress.total}`
       : publishPhase === "uploading" && uploadProgress
         ? uploadProgress.percent != null
           ? `Uploading ${uploadPercent}%`
@@ -318,7 +323,9 @@ export function CreatePostDialog({
                   </div>
                   <p className="text-center text-xs text-muted-foreground">
                     {publishPhase === "optimizing"
-                      ? `Optimizing photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
+                      ? hasLargePhotos
+                        ? `Optimizing large photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
+                        : `Optimizing photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
                       : uploadProgress.percent != null
                         ? `Uploading… ${uploadPercent}%`
                         : `Uploading image ${uploadProgress.done} of ${uploadProgress.total}…`}

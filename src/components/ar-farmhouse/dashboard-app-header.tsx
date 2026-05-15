@@ -18,7 +18,7 @@ import { AR_ACCOUNT_MENU } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 const sectionSubtitle: Record<NavId, string> = {
-  home: "Living view of the property",
+  home: "Property overview · stays, weather, tasks",
   feed: "Private · emotionally warm",
   calendar: "Stays, bookings, and shared weekends",
   guide: "Mena · trusted stops for the house",

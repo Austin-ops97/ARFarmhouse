@@ -1,5 +1,19 @@
-/** Max size for raw images before client-side crop/compress (profile picker, future album flows). */
-export const RAW_IMAGE_MAX_BYTES = 25 * 1024 * 1024;
+/**
+ * Max size for raw camera-roll / phone photos before client-side optimization.
+ * Large originals are accepted here, then compressed before Firebase upload.
+ */
+export const RAW_IMAGE_MAX_BYTES = 100 * 1024 * 1024;
+
+/** Raw files above this show "Optimizing large photo…" during processing. */
+export const LARGE_RAW_IMAGE_BYTES = 15 * 1024 * 1024;
+
+export function rawImageLimitMb(): number {
+  return Math.round(RAW_IMAGE_MAX_BYTES / (1024 * 1024));
+}
+
+export function isLargeRawImage(file: File): boolean {
+  return file.size > LARGE_RAW_IMAGE_BYTES;
+}
 
 const ACCEPTED_MIME = new Set([
   "image/jpeg",
@@ -37,7 +51,7 @@ export function validateRawImageFile(file: File): void {
 
   if (file.size > RAW_IMAGE_MAX_BYTES) {
     throw new Error(
-      `"${file.name}" is too large (${Math.round(file.size / (1024 * 1024))} MB). Choose a photo under 25 MB.`
+      `"${file.name}" is too large (${Math.round(file.size / (1024 * 1024))} MB). Choose a photo under ${rawImageLimitMb()} MB.`
     );
   }
 

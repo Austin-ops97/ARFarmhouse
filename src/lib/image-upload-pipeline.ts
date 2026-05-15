@@ -3,7 +3,7 @@ import {
   processImageFiles,
   type ProcessImagesProgress,
 } from "@/lib/image-process";
-import { validateRawImageFile } from "@/lib/image-input";
+import { isLargeRawImage, validateRawImageFile } from "@/lib/image-input";
 
 export type ImagePipelinePhase = "validating" | "optimizing" | "ready";
 
@@ -23,6 +23,17 @@ function assertNotAborted(signal?: AbortSignal) {
   if (signal?.aborted) {
     throw new DOMException("Upload cancelled.", "AbortError");
   }
+}
+
+function optimizingMessage(files: File[], done: number, total: number): string {
+  const hasLarge = files.some(isLargeRawImage);
+  if (total > 1) {
+    if (hasLarge) {
+      return `Optimizing large photo ${Math.min(done + 1, total)} of ${total}…`;
+    }
+    return `Optimizing ${Math.min(done + 1, total)} of ${total}…`;
+  }
+  return hasLarge ? "Optimizing large photo…" : "Optimizing…";
 }
 
 /**
@@ -53,7 +64,7 @@ export async function prepareImagesForUpload(
     phase: "optimizing",
     done: 0,
     total,
-    message: total > 1 ? "Optimizing photos…" : "Optimizing…",
+    message: optimizingMessage(files, 0, total),
   });
 
   return processImageFiles(files, preset, (p: ProcessImagesProgress) => {
@@ -62,10 +73,7 @@ export async function prepareImagesForUpload(
       phase: "optimizing",
       done: p.done,
       total: p.total,
-      message:
-        p.total > 1
-          ? `Optimizing ${Math.min(p.done + 1, p.total)} of ${p.total}…`
-          : "Optimizing…",
+      message: optimizingMessage(files, p.done, p.total),
     });
   });
 }

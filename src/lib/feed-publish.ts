@@ -6,7 +6,7 @@ export const FEED_IMAGE_MAX_BYTES = getUploadMaxBytes("feed");
 
 const MAX_FEED_ATTACHMENTS = 6;
 
-/** Validates raw picks before client-side optimization (up to ~25 MB each). */
+/** Validates raw picks before client-side optimization (up to ~100 MB each). */
 export function validateFeedImageFiles(files: File[]): void {
   if (files.length > MAX_FEED_ATTACHMENTS) {
     throw new Error("You can attach up to 6 images per post.");

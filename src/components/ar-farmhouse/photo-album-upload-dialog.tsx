@@ -10,7 +10,7 @@ import { useImageAttachments } from "@/hooks/use-image-attachments";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/auth-context";
-import { validateRawImageFile } from "@/lib/image-input";
+import { isLargeRawImage, validateRawImageFile } from "@/lib/image-input";
 import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
 import { createAlbumMediaItems } from "@/services/album-media";
 import { cn } from "@/lib/utils";
@@ -204,7 +204,9 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                   </div>
                   <p className="mt-2 text-center text-[11px] text-muted-foreground">
                     {progress.phase === "optimizing"
-                      ? `Optimizing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
+                      ? files.some(isLargeRawImage)
+                        ? `Optimizing large photo ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
+                        : `Optimizing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
                       : progress.percent != null
                         ? `Uploading… ${Math.round(((progress.done + progress.percent / 100) / progress.total) * 100)}%`
                         : `Uploading ${progress.done} of ${progress.total}…`}
@@ -271,7 +273,9 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                 <Upload className="opacity-80" data-icon="inline-start" aria-hidden />
                 {busy
                   ? progress?.phase === "optimizing"
-                    ? "Optimizing…"
+                    ? files.some(isLargeRawImage)
+                      ? "Optimizing large photo…"
+                      : "Optimizing…"
                     : "Uploading…"
                   : "Save to archive"}
               </Button>

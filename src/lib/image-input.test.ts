@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { RAW_IMAGE_MAX_BYTES, validateRawImageFile } from "@/lib/image-input";
+import {
+  RAW_IMAGE_MAX_BYTES,
+  rawImageLimitMb,
+  validateRawImageFile,
+} from "@/lib/image-input";
 
 function mockFile(name: string, type: string, size: number): File {
   const file = new File([new Uint8Array(1)], name, { type });
@@ -18,9 +22,15 @@ describe("validateRawImageFile", () => {
     expect(() => validateRawImageFile(mockFile("doc.pdf", "application/pdf", 1000))).toThrow(/not a supported image/);
   });
 
-  it("rejects files over 25 MB", () => {
+  it("accepts large phone photos under the raw input limit", () => {
+    expect(() =>
+      validateRawImageFile(mockFile("iphone.jpg", "image/jpeg", 83 * 1024 * 1024))
+    ).not.toThrow();
+  });
+
+  it(`rejects files over ${rawImageLimitMb()} MB`, () => {
     expect(() =>
       validateRawImageFile(mockFile("huge.jpg", "image/jpeg", RAW_IMAGE_MAX_BYTES + 1))
-    ).toThrow(/under 25 MB/);
+    ).toThrow(new RegExp(`under ${rawImageLimitMb()} MB`));
   });
 });

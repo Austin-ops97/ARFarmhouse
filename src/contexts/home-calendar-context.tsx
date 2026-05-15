@@ -2,14 +2,14 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
-import { useHubCalendarEvents } from "@/hooks/use-hub-calendar-events";
+import { useHomeCalendarEvents as useHomeCalendarEventsHook } from "@/hooks/use-home-calendar-events";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 
 const HomeCalendarContext = createContext<PropertyCalendarEvent[]>([]);
 
-/** Single month-scoped calendar listener for home surfaces (avoids duplicate subscriptions). */
+/** Calendar listener for home dashboard (current + next month). */
 export function HomeCalendarProvider({ children }: { children: ReactNode }) {
-  const events = useHubCalendarEvents(true);
+  const events = useHomeCalendarEventsHook(true);
   return <HomeCalendarContext.Provider value={events}>{children}</HomeCalendarContext.Provider>;
 }
 
