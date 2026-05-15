@@ -16,11 +16,13 @@ import { probeImageDimensions } from "@/lib/image-dimensions";
 import { deferMediaCpuWork } from "@/lib/image-scheduler";
 import { overlayFromAlbumProgress } from "@/lib/album-upload-status";
 import { enqueueMediaUploadTask } from "@/lib/media-upload-queue";
+import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
 import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import {
   allocateAlbumMediaDocId,
   createAlbumMediaItems,
+  type AlbumUploadProgress,
 } from "@/services/album-media";
 import { cn } from "@/lib/utils";
 
@@ -134,22 +136,19 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
         })
       );
       try {
-        await createAlbumMediaItems(
-          snap,
-          (p) => {
-            const o = overlayFromAlbumProgress(p);
-            for (const id of mediaIds) {
-              patchOptimisticAlbumItem(id, {
-                optimisticUpload: {
-                  phase: o.phase,
-                  progress: o.progress,
-                },
-                timeLabel: o.phase.split("…")[0] ?? "Uploading…",
-              });
-            }
-          },
-          { mediaIds }
-        );
+        const scheduleAlbumProgress = createRafProgressBridge<AlbumUploadProgress>((p) => {
+          const o = overlayFromAlbumProgress(p);
+          for (const id of mediaIds) {
+            patchOptimisticAlbumItem(id, {
+              optimisticUpload: {
+                phase: o.phase,
+                progress: o.progress,
+              },
+              timeLabel: o.phase.split("…")[0] ?? "Uploading…",
+            });
+          }
+        });
+        await createAlbumMediaItems(snap, scheduleAlbumProgress, { mediaIds });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Upload failed.";
         for (const id of mediaIds) {

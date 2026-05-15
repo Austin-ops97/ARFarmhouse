@@ -18,11 +18,13 @@ import { enqueueMediaUploadTask } from "@/lib/media-upload-queue";
 import { buildOptimisticFeedPost, mergeOptimisticUploadProgress } from "@/lib/optimistic-feed-post";
 import { postsSignature } from "@/lib/mutation-lifecycle";
 import { deferMediaCpuWork } from "@/lib/image-scheduler";
+import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
 import type { UiFeedPost } from "@/models/feed-post";
 import {
   allocateFeedPostDocId,
   finalizeFeedPostFromFiles,
   type CreateFeedPostInput,
+  type FeedPublishProgress,
 } from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
 
@@ -107,32 +109,33 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
 
     void enqueueMediaUploadTask(async () => {
       await deferMediaCpuWork();
+      const scheduleProgress = createRafProgressBridge<FeedPublishProgress>((p) => {
+        if (p.phase === "uploading" && p.done >= p.total && (p.percent ?? 100) >= 100) {
+          setOptimisticFeed((prev) =>
+            prev.map((row) =>
+              row.id === postId
+                ? {
+                    ...row,
+                    optimisticUpload: {
+                      phase: "saving",
+                      progress: 96,
+                      message: "Saving post…",
+                    },
+                  }
+                : row
+            )
+          );
+          return;
+        }
+        const next = mergeOptimisticUploadProgress(p);
+        setOptimisticFeed((prev) =>
+          prev.map((row) => (row.id === postId ? { ...row, optimisticUpload: next } : row))
+        );
+      });
       try {
         await finalizeFeedPostFromFiles(postId, input, {
           signal: ac.signal,
-          onProgress: (p) => {
-            if (p.phase === "uploading" && p.done >= p.total && (p.percent ?? 100) >= 100) {
-              setOptimisticFeed((prev) =>
-                prev.map((row) =>
-                  row.id === postId
-                    ? {
-                        ...row,
-                        optimisticUpload: {
-                          phase: "saving",
-                          progress: 96,
-                          message: "Saving post…",
-                        },
-                      }
-                    : row
-                )
-              );
-              return;
-            }
-            const next = mergeOptimisticUploadProgress(p);
-            setOptimisticFeed((prev) =>
-              prev.map((row) => (row.id === postId ? { ...row, optimisticUpload: next } : row))
-            );
-          },
+          onProgress: scheduleProgress,
         });
         retryFeedPayloadsRef.current.delete(postId);
       } catch (e) {

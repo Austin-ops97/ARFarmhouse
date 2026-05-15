@@ -1,9 +1,9 @@
-import { deleteObject, getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
+import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 
-import { actionDebug } from "@/lib/action-debug";
-import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
 import { getUploadMaxBytes, type ImageUploadPreset } from "@/lib/image-process";
 import { tryGetFirebaseStorage } from "@/lib/firebase";
+import { uploadLog } from "@/lib/upload-log";
+import { runFirebaseResumableUpload } from "@/lib/resumable-firebase-upload";
 
 function extFromMime(mime: string) {
   if (mime === "image/jpeg") return "jpg";
@@ -29,9 +29,10 @@ function validateOptimizedUpload(file: File, maxBytes: number) {
 export async function uploadPostImages(
   postId: string,
   files: File[],
-  onProgress?: (done: number, total: number, filePercent?: number) => void
+  onProgress?: (done: number, total: number, filePercent?: number) => void,
+  signal?: AbortSignal
 ) {
-  return uploadImagesToPrefix(`posts/${postId}`, files, "feed", onProgress);
+  return uploadImagesToPrefix(`posts/${postId}`, files, "feed", onProgress, signal);
 }
 
 export type UploadedObject = { url: string; path: string };
@@ -39,7 +40,8 @@ export type UploadedObject = { url: string; path: string };
 export async function uploadAlbumImages(
   mediaId: string,
   files: File[],
-  onProgress?: (done: number, total: number, filePercent?: number) => void
+  onProgress?: (done: number, total: number, filePercent?: number) => void,
+  signal?: AbortSignal
 ): Promise<UploadedObject[]> {
   const storage = tryGetFirebaseStorage();
   if (!storage) throw new Error("Firebase Storage unavailable. Check your connection and try again.");
@@ -47,9 +49,10 @@ export async function uploadAlbumImages(
   const maxBytes = getUploadMaxBytes("album");
   const out: UploadedObject[] = [];
   const total = files.length;
-  actionDebug("upload", "album start", { mediaId, total });
+  uploadLog("album_batch_start", { mediaId, total });
 
   for (let i = 0; i < files.length; i++) {
+    if (signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     const file = files[i]!;
     validateOptimizedUpload(file, maxBytes);
     const ext = extFromMime(file.type || "image/jpeg");
@@ -57,52 +60,39 @@ export async function uploadAlbumImages(
     const objectRef = ref(storage, path);
     try {
       onProgress?.(i, total, 0);
-      await uploadFileResumable(objectRef, file, (filePercent) => onProgress?.(i, total, filePercent));
+      uploadLog("album_file_upload", { mediaId, index: i + 1, total, path });
+      await uploadFileResumable(objectRef, file, {
+        signal,
+        label: path,
+        onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
+      });
       const url = await getDownloadURL(objectRef);
       out.push({ url, path });
     } catch (e) {
-      actionDebug("upload", `album file ${i + 1}/${total} failed`, e);
+      uploadLog("album_file_failed", { mediaId, index: i + 1, error: String(e) });
       throw storageUploadError(file.name, e);
     }
     onProgress?.(i + 1, total, 100);
   }
 
+  uploadLog("album_batch_complete", { mediaId, count: out.length });
   return out;
 }
 
 async function uploadFileResumable(
   objectRef: ReturnType<typeof ref>,
   file: File,
-  onFilePercent?: (percent: number) => void
+  opts?: {
+    signal?: AbortSignal;
+    label?: string;
+    onFilePercent?: (percent: number) => void;
+  }
 ): Promise<void> {
-  const UPLOAD_MS = 180_000;
-  await new Promise<void>((resolve, reject) => {
-    const task = uploadBytesResumable(objectRef, file, { contentType: file.type || "image/jpeg" });
-    const timer = window.setTimeout(() => {
-      const t = task as { cancel?: () => void };
-      try {
-        t.cancel?.();
-      } catch {
-        /* ignore */
-      }
-      reject(new Error("Upload timed out. Check your connection and try again."));
-    }, UPLOAD_MS);
-    task.on(
-      "state_changed",
-      (snap) => {
-        if (snap.totalBytes > 0 && onFilePercent) {
-          onFilePercent(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
-        }
-      },
-      (err) => {
-        window.clearTimeout(timer);
-        reject(err);
-      },
-      () => {
-        window.clearTimeout(timer);
-        resolve();
-      }
-    );
+  await runFirebaseResumableUpload(objectRef, file, {
+    contentType: file.type || "image/jpeg",
+    signal: opts?.signal,
+    label: opts?.label,
+    onProgress: opts?.onFilePercent,
   });
 }
 
@@ -110,7 +100,8 @@ async function uploadImagesToPrefix(
   pathPrefix: string,
   files: File[],
   preset: ImageUploadPreset,
-  onProgress?: (done: number, total: number, filePercent?: number) => void
+  onProgress?: (done: number, total: number, filePercent?: number) => void,
+  signal?: AbortSignal
 ): Promise<string[]> {
   const storage = tryGetFirebaseStorage();
   if (!storage) throw new Error("Firebase Storage unavailable. Check your connection and try again.");
@@ -118,31 +109,38 @@ async function uploadImagesToPrefix(
   const maxBytes = getUploadMaxBytes(preset);
   const urls: string[] = [];
   const total = files.length;
-  actionDebug("upload", "start", { pathPrefix, total });
+  uploadLog("post_batch_start", { pathPrefix, total });
 
   for (let i = 0; i < files.length; i++) {
+    if (signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     const file = files[i]!;
     validateOptimizedUpload(file, maxBytes);
     const ext = extFromMime(file.type || "image/jpeg");
-    const objectRef = ref(storage, `${pathPrefix}/${Date.now()}-${i}.${ext}`);
+    const storagePath = `${pathPrefix}/${Date.now()}-${i}.${ext}`;
+    const objectRef = ref(storage, storagePath);
     try {
       onProgress?.(i, total, 0);
-      await uploadFileResumable(objectRef, file, (filePercent) => onProgress?.(i, total, filePercent));
+      await uploadFileResumable(objectRef, file, {
+        signal,
+        label: storagePath,
+        onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
+      });
       const url = await getDownloadURL(objectRef);
       urls.push(url);
-      actionDebug("upload", `file ${i + 1}/${total} complete`);
+      uploadLog("post_file_complete", { index: i + 1, total });
     } catch (e) {
-      actionDebug("upload", `file ${i + 1}/${total} failed`, e);
+      uploadLog("post_file_failed", { index: i + 1, total, error: String(e) });
       throw storageUploadError(file.name, e);
     }
     onProgress?.(i + 1, total, 100);
   }
 
-  actionDebug("upload", "complete", { count: urls.length });
+  uploadLog("post_batch_complete", { pathPrefix, count: urls.length });
   return urls;
 }
 
 function storageUploadError(fileName: string, e: unknown): Error {
+  if (e instanceof DOMException && e.name === "AbortError") return e;
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes("unauthorized") || msg.includes("permission")) {
     return new Error("Image upload was denied. Sign in again and check Storage rules.");
@@ -174,18 +172,8 @@ export async function deletePostMediaStorage(postId: string, mediaUrls: string[]
     }
   }
   if (paths.size === 0) {
-    actionDebug("upload", "delete post media — no paths parsed", { postId, count: mediaUrls.length });
+    uploadLog("delete_post_media_skipped", { postId, urlCount: mediaUrls.length });
     return;
   }
   await Promise.allSettled([...paths].map((p) => deleteObject(ref(storage, p))));
-}
-
-export async function uploadAvatar(uid: string, file: File) {
-  const storage = tryGetFirebaseStorage();
-  if (!storage) throw new Error("Firebase Storage unavailable");
-  validateOptimizedUpload(file, AVATAR_UPLOAD_MAX_BYTES);
-  const ext = extFromMime(file.type || "image/jpeg");
-  const objectRef = ref(storage, `avatars/${uid}/profile.${ext}`);
-  await uploadFileResumable(objectRef, file);
-  return getDownloadURL(objectRef);
 }

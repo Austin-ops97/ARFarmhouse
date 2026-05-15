@@ -1,9 +1,11 @@
-import { deleteObject, getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
+import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 
 import { actionDebug } from "@/lib/action-debug";
 import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
 import { getUploadMaxBytes } from "@/lib/image-process";
 import { isFirebaseStorageAvailable, tryGetFirebaseStorage } from "@/lib/firebase";
+import { uploadLog } from "@/lib/upload-log";
+import { runFirebaseResumableUpload } from "@/lib/resumable-firebase-upload";
 
 const STORAGE_UNAVAILABLE_MESSAGE =
   "Photo uploads are not available yet. Firebase Storage may still be setting up — you can save other profile details in the meantime.";
@@ -24,8 +26,6 @@ function extFromMime(mime: string) {
   return "img";
 }
 
-const UPLOAD_TIMEOUT_MS = 180_000;
-
 function validateImage(file: File, maxBytes: number) {
   if (!file.type.startsWith("image/")) {
     throw new Error(`"${file.name}" is not a supported image.`);
@@ -39,20 +39,12 @@ function validateImage(file: File, maxBytes: number) {
   }
 }
 
-function cancelUploadTaskIfSupported(task: ReturnType<typeof uploadBytesResumable>) {
-  const t = task as { cancel?: () => void };
-  try {
-    t.cancel?.();
-  } catch {
-    /* noop */
-  }
-}
-
 async function uploadPath(
   path: string,
   file: File,
   maxBytes: number,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal
 ): Promise<string> {
   const storage = tryGetFirebaseStorage();
   if (!storage) throw new Error(STORAGE_UNAVAILABLE_MESSAGE);
@@ -60,47 +52,21 @@ async function uploadPath(
   const ext = extFromMime(file.type || "image/jpeg");
   const objectRef = ref(storage, `${path}.${ext}`);
   try {
-    if (onProgress) {
-      await new Promise<void>((resolve, reject) => {
-        const task = uploadBytesResumable(objectRef, file, { contentType: file.type || "image/jpeg" });
-        const timer = window.setTimeout(() => {
-          cancelUploadTaskIfSupported(task);
-          reject(new Error("Upload timed out. Check your connection and try again."));
-        }, UPLOAD_TIMEOUT_MS);
-        task.on(
-          "state_changed",
-          (snap) => {
-            if (snap.totalBytes > 0) {
-              onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
-            }
-          },
-          (err) => {
-            window.clearTimeout(timer);
-            reject(err);
-          },
-          () => {
-            window.clearTimeout(timer);
-            resolve();
-          }
-        );
-      });
-    } else {
-      await Promise.race([
-        uploadBytes(objectRef, file, { contentType: file.type || "image/jpeg" }),
-        new Promise<never>((_, reject) => {
-          window.setTimeout(
-            () => reject(new Error("Upload timed out. Check your connection and try again.")),
-            UPLOAD_TIMEOUT_MS
-          );
-        }),
-      ]);
-    }
+    uploadLog("profile_upload_start", { path });
+    await runFirebaseResumableUpload(objectRef, file, {
+      contentType: file.type || "image/jpeg",
+      signal,
+      label: `${path}.${ext}`,
+      onProgress,
+    });
     const url = await getDownloadURL(objectRef);
     actionDebug("profile-upload", "complete", { path });
+    uploadLog("profile_upload_complete", { path });
     return url;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     actionDebug("profile-upload", "failed", { path, msg });
+    uploadLog("profile_upload_failed", { path, msg });
     if (msg.includes("storage/unauthorized") || msg.includes("permission") || msg.includes("403")) {
       throw new Error("Photo upload was denied. Sign in again and check Storage rules in Firebase Console.");
     }
@@ -114,27 +80,30 @@ async function uploadPath(
 export async function uploadProfilePhoto(
   uid: string,
   file: File,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal
 ): Promise<string> {
-  return uploadPath(`users/${uid}/profile/avatar`, file, AVATAR_MAX_BYTES, onProgress);
+  return uploadPath(`users/${uid}/profile/avatar`, file, AVATAR_MAX_BYTES, onProgress, signal);
 }
 
 export async function uploadFamilyMemberPhoto(
   uid: string,
   memberId: string,
   file: File,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal
 ): Promise<string> {
-  return uploadPath(`users/${uid}/family/${memberId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress);
+  return uploadPath(`users/${uid}/family/${memberId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress, signal);
 }
 
 export async function uploadPetPhoto(
   uid: string,
   petId: string,
   file: File,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal
 ): Promise<string> {
-  return uploadPath(`users/${uid}/pets/${petId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress);
+  return uploadPath(`users/${uid}/pets/${petId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress, signal);
 }
 
 export async function removeStorageObject(pathPrefix: string): Promise<void> {

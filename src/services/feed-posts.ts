@@ -174,8 +174,11 @@ export async function finalizeFeedPostFromFiles(
     }));
     actionDebug("feed", "upload begin");
     options?.onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
-    mediaUrls = await uploadPostImages(postId, optimized, (done, t, percent) =>
-      options?.onProgress?.({ phase: "uploading", done, total: t, percent })
+    mediaUrls = await uploadPostImages(
+      postId,
+      optimized,
+      (done, t, percent) => options?.onProgress?.({ phase: "uploading", done, total: t, percent }),
+      signal
     );
     actionDebug("feed", "upload complete", { count: mediaUrls.length });
   }
@@ -198,6 +201,7 @@ export async function finalizeFeedPostFromFiles(
   };
 
   try {
+    if (options?.signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     actionDebug("feed", "firestore write begin", { postId });
     await setDoc(ref, payload);
     actionDebug("feed", "firestore write complete", { postId });

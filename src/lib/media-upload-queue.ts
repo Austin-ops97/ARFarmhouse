@@ -1,8 +1,8 @@
 /**
- * Serializes background media work so many picks don’t stack heavy decode/encode
- * on the same event loop turn, while still allowing limited parallel network uploads.
+ * Limits concurrent finalize pipelines (optimize + Storage + Firestore) so mobile Safari
+ * doesn’t decode/compress multiple giant camera rolls at once.
  */
-const DEFAULT_CONCURRENCY = 2;
+import { imageProcessingConcurrency } from "@/lib/image-scheduler";
 
 type Task<T> = () => Promise<T>;
 
@@ -10,7 +10,7 @@ class MediaUploadQueue {
   private active = 0;
   private readonly waiters: Array<() => void> = [];
 
-  constructor(private readonly concurrency = DEFAULT_CONCURRENCY) {}
+  constructor(private readonly concurrency: number) {}
 
   async enqueue<T>(task: Task<T>): Promise<T> {
     while (this.active >= this.concurrency) {
@@ -26,7 +26,7 @@ class MediaUploadQueue {
   }
 }
 
-const globalQueue = new MediaUploadQueue(DEFAULT_CONCURRENCY);
+const globalQueue = new MediaUploadQueue(imageProcessingConcurrency());
 
 export function enqueueMediaUploadTask<T>(task: Task<T>): Promise<T> {
   return globalQueue.enqueue(task);

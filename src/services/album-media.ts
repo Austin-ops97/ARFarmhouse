@@ -92,7 +92,8 @@ async function finalizeAlbumMediaDocuments(
   input: CreateAlbumArchiveInput,
   optimizedArtifacts: ProcessedImageFile[],
   mediaIds: string[],
-  onProgress?: (progress: AlbumUploadProgress) => void
+  onProgress?: (progress: AlbumUploadProgress) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
@@ -103,6 +104,7 @@ async function finalizeAlbumMediaDocuments(
   }
 
   for (let i = 0; i < total; i++) {
+    if (signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     const file = optimizedArtifacts[i]!.file;
     const id = mediaIds[i]!;
     const ref = doc(db, COLLECTION, id);
@@ -111,7 +113,7 @@ async function finalizeAlbumMediaDocuments(
     const art = optimizedArtifacts[i]!;
     const uploaded = await uploadAlbumImages(id, [file], (_done, _total, percent) => {
       onProgress?.({ phase: "uploading", done: i, total, percent });
-    });
+    }, signal);
     const { url, path } = uploaded[0]!;
 
     await setDoc(ref, {
@@ -186,7 +188,7 @@ export async function createAlbumMediaItems(
 
   onProgress?.({ phase: "preparing", done: total, total });
   onProgress?.({ phase: "uploading", done: 0, total: optimizedArtifacts.length, percent: 0 });
-  await finalizeAlbumMediaDocuments(input, optimizedArtifacts, ids, onProgress);
+  await finalizeAlbumMediaDocuments(input, optimizedArtifacts, ids, onProgress, signal);
   return ids;
 }
 
