@@ -194,7 +194,7 @@ export function CreatePostDialog({
 
   const publishLabel =
     publishPhase === "processing" && uploadProgress
-      ? `Optimizing ${uploadProgress.done}/${uploadProgress.total}`
+      ? `Preparing ${uploadProgress.done}/${uploadProgress.total}`
       : publishPhase === "uploading" && uploadProgress
         ? `Uploading ${uploadProgress.done}/${uploadProgress.total}`
         : publishPhase === "saving"
@@ -309,7 +309,7 @@ export function CreatePostDialog({
                   </span>
                   <span className="text-sm font-medium text-foreground">Drop images here</span>
                   <span className="text-xs text-muted-foreground">
-                    or tap to take a photo · large phone photos are optimized automatically
+                    or tap to take a photo · HD quality preserved, uploads prepared automatically
                   </span>
                 </label>
               </motion.div>
@@ -346,7 +346,7 @@ export function CreatePostDialog({
                   </div>
                   <p className="text-center text-xs text-muted-foreground">
                     {publishPhase === "processing"
-                      ? `Optimizing photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
+                      ? `Preparing photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
                       : `Uploading image ${uploadProgress.done} of ${uploadProgress.total}…`}
                   </p>
                 </div>

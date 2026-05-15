@@ -15,7 +15,7 @@ export async function uploadOptimizedFamilyMemberPhoto(
   rawFile: File,
   onStatus?: (status: ProfilePhotoUploadStatus) => void
 ): Promise<string> {
-  onStatus?.({ message: "Optimizing photo…" });
+  onStatus?.({ message: "Preparing photo…" });
   const [optimized] = await prepareImagesForUpload([rawFile], "family");
   onStatus?.({ message: "Uploading…", uploadPercent: 0 });
   return uploadFamilyMemberPhoto(uid, memberId, optimized, (pct) =>
@@ -29,7 +29,7 @@ export async function uploadOptimizedPetPhoto(
   rawFile: File,
   onStatus?: (status: ProfilePhotoUploadStatus) => void
 ): Promise<string> {
-  onStatus?.({ message: "Optimizing photo…" });
+  onStatus?.({ message: "Preparing photo…" });
   const [optimized] = await prepareImagesForUpload([rawFile], "pet");
   onStatus?.({ message: "Uploading…", uploadPercent: 0 });
   return uploadPetPhoto(uid, petId, optimized, (pct) =>

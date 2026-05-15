@@ -53,7 +53,7 @@ export async function prepareImagesForUpload(
     phase: "processing",
     done: 0,
     total,
-    message: total > 1 ? "Optimizing photos…" : "Optimizing photo…",
+    message: total > 1 ? "Preparing photos…" : "Preparing photo…",
   });
 
   return processImageFiles(files, preset, (p: ProcessImagesProgress) => {
@@ -64,8 +64,8 @@ export async function prepareImagesForUpload(
       total: p.total,
       message:
         p.total > 1
-          ? `Optimizing ${Math.min(p.done + 1, p.total)} of ${p.total}…`
-          : "Optimizing photo…",
+          ? `Preparing ${Math.min(p.done + 1, p.total)} of ${p.total}…`
+          : "Preparing photo…",
     });
   });
 }

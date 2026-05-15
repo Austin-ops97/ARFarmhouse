@@ -4,10 +4,10 @@ import type { Area } from "react-easy-crop";
 export const AVATAR_OUTPUT_SIZE = 512;
 
 /** Default encoder quality (WebP / JPEG). */
-export const AVATAR_QUALITY = 0.82;
+export const AVATAR_QUALITY = 0.86;
 
-/** Target max bytes after compression — retries lower quality if exceeded. */
-export const AVATAR_TARGET_MAX_BYTES = 700 * 1024;
+/** Preferred size — gentle stepping only if exceeded. */
+export const AVATAR_TARGET_MAX_BYTES = 800 * 1024;
 
 /** Hard cap for optimized avatar uploads (must match Storage rules). */
 export const AVATAR_UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
@@ -136,11 +136,11 @@ async function compressAvatarBlob(initial: Blob, mime: string): Promise<Blob> {
 
   let q = AVATAR_QUALITY;
   let blob: Blob | null = initial;
-  while (q >= 0.5) {
+  while (q >= 0.72) {
     blob = await canvasToBlob(canvas, mime, q);
     if (!blob) break;
     if (blob.size <= AVATAR_TARGET_MAX_BYTES) return blob;
-    q -= 0.08;
+    q -= 0.04;
   }
   return blob ?? initial;
 }

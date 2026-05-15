@@ -163,7 +163,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                 <ImagePlus className="size-8 text-primary/90" aria-hidden />
                 <p className="text-sm font-medium text-foreground">Drop images here</p>
                 <p className="text-xs text-muted-foreground">
-                  or tap to take a photo — large images are optimized automatically
+                  or tap to take a photo — high-quality memories, prepared automatically
                 </p>
                 <input
                   id={inputId}
@@ -210,7 +210,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                   </div>
                   <p className="mt-2 text-center text-[11px] text-muted-foreground">
                     {progress.phase === "processing"
-                      ? `Optimizing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
+                      ? `Preparing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
                       : `Uploading ${progress.done} of ${progress.total}…`}
                   </p>
                 </div>
@@ -275,7 +275,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                 <Upload className="opacity-80" data-icon="inline-start" aria-hidden />
                 {busy
                   ? progress?.phase === "processing"
-                    ? "Optimizing…"
+                    ? "Preparing…"
                     : "Uploading…"
                   : "Save to archive"}
               </Button>

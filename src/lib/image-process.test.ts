@@ -3,18 +3,22 @@ import { describe, expect, it } from "vitest";
 import { IMAGE_PRESETS, getUploadMaxBytes, outputExtension, preferredOutputMime } from "@/lib/image-process";
 
 describe("image-process presets", () => {
-  it("feed preset targets mobile-friendly sizes", () => {
-    expect(IMAGE_PRESETS.feed.maxEdge).toBe(1800);
+  it("feed preset targets HD social quality", () => {
+    expect(IMAGE_PRESETS.feed.maxEdge).toBe(2048);
+    expect(IMAGE_PRESETS.feed.quality).toBeGreaterThanOrEqual(0.85);
+    expect(IMAGE_PRESETS.feed.softTargetBytes).toBe(2 * 1024 * 1024);
     expect(IMAGE_PRESETS.feed.uploadMaxBytes).toBe(5 * 1024 * 1024);
-    expect(IMAGE_PRESETS.feed.targetMaxBytes).toBeLessThanOrEqual(2 * 1024 * 1024);
+    expect(IMAGE_PRESETS.feed.minQuality).toBeGreaterThanOrEqual(0.75);
   });
 
-  it("album preset allows higher quality than feed", () => {
+  it("album preset preserves more detail than feed", () => {
     expect(IMAGE_PRESETS.album.maxEdge).toBeGreaterThan(IMAGE_PRESETS.feed.maxEdge);
+    expect(IMAGE_PRESETS.album.quality).toBeGreaterThan(IMAGE_PRESETS.feed.quality);
+    expect(IMAGE_PRESETS.album.softTargetBytes).toBeGreaterThan(IMAGE_PRESETS.feed.softTargetBytes);
     expect(IMAGE_PRESETS.album.uploadMaxBytes).toBe(8 * 1024 * 1024);
   });
 
-  it("family and pet presets share portrait limits", () => {
+  it("family and pet presets stay portrait-sized", () => {
     expect(IMAGE_PRESETS.family.maxEdge).toBe(768);
     expect(IMAGE_PRESETS.pet.maxEdge).toBe(768);
     expect(getUploadMaxBytes("family")).toBe(2 * 1024 * 1024);
