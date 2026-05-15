@@ -20,7 +20,98 @@ function guessMimeFromName(name: string): string {
   return "";
 }
 
-function readJpegDimensions(bytes: Uint8Array): ImageDimensions | null {
+function readUint16(bytes: Uint8Array, offset: number, littleEndian: boolean): number {
+  const b0 = bytes[offset]!;
+  const b1 = bytes[offset + 1]!;
+  return littleEndian ? b0 | (b1 << 8) : (b0 << 8) | b1;
+}
+
+function readUint32(bytes: Uint8Array, offset: number, littleEndian: boolean): number {
+  const b0 = bytes[offset]!;
+  const b1 = bytes[offset + 1]!;
+  const b2 = bytes[offset + 2]!;
+  const b3 = bytes[offset + 3]!;
+  return littleEndian
+    ? b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+    : (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+}
+
+/**
+ * Parses IFD0 Orientation (tag 0x0112) from an embedded TIFF header inside JPEG APP1.
+ * Returns null when absent so callers assume orientation 1 (normal).
+ */
+function parseTiffIfd0Orientation(bytes: Uint8Array, tiffStart: number): number | null {
+  if (tiffStart + 8 > bytes.length) return null;
+  const bom = (bytes[tiffStart]! << 8) | bytes[tiffStart + 1]!;
+  const littleEndian = bom === 0x4949;
+  if (bom !== 0x4949 && bom !== 0x4d4d) return null;
+
+  const ifd0Rel = readUint32(bytes, tiffStart + 4, littleEndian);
+  const ifd0 = tiffStart + ifd0Rel;
+  if (ifd0 + 2 > bytes.length || ifd0 < tiffStart) return null;
+
+  const entryCount = readUint16(bytes, ifd0, littleEndian);
+  let p = ifd0 + 2;
+  const safeEntries = Math.min(entryCount, 48);
+
+  for (let e = 0; e < safeEntries; e++) {
+    if (p + 12 > bytes.length) break;
+    const tag = readUint16(bytes, p, littleEndian);
+    const type = readUint16(bytes, p + 2, littleEndian);
+    const count = readUint32(bytes, p + 4, littleEndian);
+    if (tag === 0x0112 && type === 3 && count === 1) {
+      const raw = readUint16(bytes, p + 8, littleEndian);
+      if (raw >= 1 && raw <= 8) return raw;
+      return null;
+    }
+    p += 12;
+  }
+  return null;
+}
+
+function readJpegExifOrientation(bytes: Uint8Array): number | null {
+  let i = 2;
+  while (i < bytes.length - 14) {
+    if (bytes[i] !== 0xff) {
+      i++;
+      continue;
+    }
+    const marker = bytes[i + 1]!;
+    if (marker === 0xd9) break;
+    if (marker === 0xda || marker === 0xd8) {
+      i += 2;
+      continue;
+    }
+    const len = (bytes[i + 2]! << 8) | bytes[i + 3]!;
+    if (len < 2 || i + 2 + len > bytes.length) {
+      i++;
+      continue;
+    }
+
+    if (marker === 0xe1 && len >= 14) {
+      const payloadOffset = i + 4;
+      if (
+        payloadOffset + 6 <= bytes.length &&
+        bytes[payloadOffset] === 0x45 &&
+        bytes[payloadOffset + 1] === 0x78 &&
+        bytes[payloadOffset + 2] === 0x69 &&
+        bytes[payloadOffset + 3] === 0x66 &&
+        bytes[payloadOffset + 4] === 0 &&
+        bytes[payloadOffset + 5] === 0
+      ) {
+        const tiffStart = payloadOffset + 6;
+        const o = parseTiffIfd0Orientation(bytes, tiffStart);
+        if (o !== null) return o;
+      }
+    }
+
+    i += 2 + len;
+  }
+  return null;
+}
+
+/** Stored JPEG raster dimensions from SOF — pre‑EXIF orientation. */
+function readJpegStoredDimensions(bytes: Uint8Array): ImageDimensions | null {
   let i = 0;
   if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
   i = 2;
@@ -46,6 +137,22 @@ function readJpegDimensions(bytes: Uint8Array): ImageDimensions | null {
     i += 2 + len;
   }
   return null;
+}
+
+/**
+ * Applies EXIF orientation to pixel dimensions read from JPEG SOF markers.
+ * Orientations 5–8 transpose width/height vs stored raster so sizing matches browser decode (`imageOrientation: "from-image"`).
+ */
+export function jpegOrientedDimensionsFromStoredAndExif(
+  storedWidth: number,
+  storedHeight: number,
+  exifOrientation: number | null | undefined
+): ImageDimensions {
+  const o = exifOrientation ?? 1;
+  if (o >= 5 && o <= 8) {
+    return { width: storedHeight, height: storedWidth };
+  }
+  return { width: storedWidth, height: storedHeight };
 }
 
 function readPngDimensions(bytes: Uint8Array): ImageDimensions | null {
@@ -142,6 +249,16 @@ async function readHeadSlice(file: File, max: number): Promise<Uint8Array> {
 export async function probeImageDimensions(file: File): Promise<ImageDimensions | null> {
   const type = file.type || guessMimeFromName(file.name);
 
+  /* Prefer JPEG SOF + EXIF orientation — matches createImageBitmap(..., imageOrientation: "from-image"). ImageDecoder often reports coded (pre‑orientation) dimensions. */
+  if (type === "image/jpeg" || /\.(jpe?g)$/i.test(file.name)) {
+    const head = await readHeadSlice(file, JPEG_HEAD_BYTES);
+    const stored = readJpegStoredDimensions(head);
+    if (stored) {
+      const orientation = readJpegExifOrientation(head);
+      return jpegOrientedDimensionsFromStoredAndExif(stored.width, stored.height, orientation);
+    }
+  }
+
   const decoded = await probeWithImageDecoder(file);
   if (decoded) return decoded;
 
@@ -153,11 +270,6 @@ export async function probeImageDimensions(file: File): Promise<ImageDimensions 
   if (type === "image/webp" || /\.webp$/i.test(file.name)) {
     const head = await readHeadSlice(file, WEBP_HEAD_BYTES);
     return readWebpDimensions(head);
-  }
-
-  if (type === "image/jpeg" || /\.(jpe?g)$/i.test(file.name)) {
-    const head = await readHeadSlice(file, JPEG_HEAD_BYTES);
-    return readJpegDimensions(head);
   }
 
   return null;

@@ -1,4 +1,5 @@
 import { dimensionsForLongestEdge, probeImageDimensions } from "@/lib/image-dimensions";
+import { shrinkResizeTargetUniform } from "@/lib/image-resize";
 import { validateRawImageFile } from "@/lib/image-input";
 import {
   imageProcessingConcurrency,
@@ -239,33 +240,10 @@ async function decodeBitmapWithBackoff(file: File, targetW: number, targetH: num
       return await createResizedBitmap(file, w, h, tier);
     } catch (e) {
       lastErr = e;
-      w = Math.max(240, Math.floor(w * 0.68));
-      h = Math.max(240, Math.floor(h * 0.68));
+      const next = shrinkResizeTargetUniform(w, h, 0.68, 240);
+      w = next.width;
+      h = next.height;
       if (w <= 260 && h <= 260 && tier >= 4) break;
-    }
-  }
-
-  if (typeof createImageBitmap === "function") {
-    for (let tier = 0; tier < 4; tier++) {
-      await yieldWhenIdle();
-      try {
-        return await createImageBitmap(file, {
-          resizeWidth: Math.max(256, Math.min(targetW, 1536)),
-          resizeQuality: tier < 2 ? "high" : "medium",
-          imageOrientation: "from-image",
-        });
-      } catch (e) {
-        lastErr = e;
-      }
-      try {
-        return await createImageBitmap(file, {
-          resizeHeight: Math.max(256, Math.min(targetH, 1536)),
-          resizeQuality: tier < 2 ? "high" : "medium",
-          imageOrientation: "from-image",
-        });
-      } catch (e) {
-        lastErr = e;
-      }
     }
   }
 
@@ -355,8 +333,8 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
   const probed = await probeImageDimensions(file);
   await yieldWhenIdle();
 
-  let targetW = config.maxEdge;
-  let targetH = config.maxEdge;
+  /** Without trusted WxH, never pass resizeWidth+resizeHeight into createImageBitmap — a square fallback distorts non‑square sources (common when probes miss HEIC/HDR). Canvas/Image fallback derives oriented natural dimensions instead. */
+  let bitmapResizeTarget: { width: number; height: number } | null = null;
 
   if (probed && probed.width > 0 && probed.height > 0) {
     const longest = Math.max(probed.width, probed.height);
@@ -372,9 +350,7 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
         skippedOptimization: true,
       };
     }
-    const sized = dimensionsForLongestEdge(probed.width, probed.height, config.maxEdge);
-    targetW = sized.width;
-    targetH = sized.height;
+    bitmapResizeTarget = dimensionsForLongestEdge(probed.width, probed.height, config.maxEdge);
   }
 
   async function finalize(canvas: HTMLCanvasElement, width: number, height: number): Promise<ProcessedImageFile> {
@@ -400,9 +376,9 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
     }
   }
 
-  if (typeof createImageBitmap === "function") {
+  if (typeof createImageBitmap === "function" && bitmapResizeTarget) {
     try {
-      const bmp = await decodeBitmapWithBackoff(file, targetW, targetH);
+      const bmp = await decodeBitmapWithBackoff(file, bitmapResizeTarget.width, bitmapResizeTarget.height);
       const { canvas, width, height } = await bitmapToEncodeCanvas(bmp);
       return finalize(canvas, width, height);
     } catch {

@@ -52,12 +52,26 @@ export async function createPreviewObjectUrl(file: File): Promise<string> {
 
   try {
     const dims = await probeImageDimensions(file);
-    let rw = PREVIEW_MAX_EDGE;
-    let rh = PREVIEW_MAX_EDGE;
+    let rw: number;
+    let rh: number;
     if (dims && dims.width > 0 && dims.height > 0) {
       const s = dimensionsForLongestEdge(dims.width, dims.height, PREVIEW_MAX_EDGE);
       rw = s.width;
       rh = s.height;
+    } else {
+      await yieldWhenIdle();
+      const sizingBmp = await createImageBitmap(file, {
+        resizeWidth: Math.min(960, PREVIEW_MAX_EDGE * 4),
+        imageOrientation: "from-image",
+        resizeQuality: "medium",
+      });
+      try {
+        const capped = dimensionsForLongestEdge(sizingBmp.width, sizingBmp.height, PREVIEW_MAX_EDGE);
+        rw = capped.width;
+        rh = capped.height;
+      } finally {
+        sizingBmp.close();
+      }
     }
 
     await yieldWhenIdle();
@@ -91,7 +105,6 @@ export async function createPreviewObjectUrl(file: File): Promise<string> {
       await yieldWhenIdle();
       const bmp = await createImageBitmap(file, {
         resizeWidth: 320,
-        resizeHeight: 320,
         resizeQuality: "low",
         imageOrientation: "from-image",
       });
