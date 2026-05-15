@@ -50,8 +50,9 @@ export async function runFirebaseResumableUpload(
   let lastLoggedPct = -10;
 
   let unsubscribe: (() => void) | undefined;
-  let stallInterval: ReturnType<typeof setInterval> | undefined;
-  let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Browser timer ids — `@types/node` makes `ReturnType<typeof setTimeout>` a `Timeout`, but `window.*` uses numbers. */
+  let stallInterval: number | undefined;
+  let deadlineTimer: number | undefined;
 
   const cleanupTimers = () => {
     if (stallInterval !== undefined) {
