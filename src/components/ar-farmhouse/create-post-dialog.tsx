@@ -1,10 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarPlus, ImagePlus, Loader2, MapPin, X, XCircle } from "lucide-react";
+import { CalendarPlus, Loader2, MapPin, X, XCircle } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { MediaAttachZone } from "@/components/ar-farmhouse/media-attach-zone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -276,7 +277,14 @@ export function CreatePostDialog({
                 })}
               </div>
 
-              <motion.div
+              <MediaAttachZone
+                className="mt-5 hover:border-white/22"
+                disabled={isPublishing}
+                multiple
+                showDesktopDropHint
+                title="Add photos to your post"
+                hint="Take a quick shot or pick from your library · HD quality preserved"
+                dragOver={dragOver}
                 onDragEnter={(e) => {
                   e.preventDefault();
                   setDragOver(true);
@@ -287,32 +295,8 @@ export function CreatePostDialog({
                 }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={onDrop}
-                className={cn(
-                  "mt-5 flex min-h-[160px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-8 text-center transition-colors",
-                  dragOver ? "border-primary/50 bg-primary/10" : "border-white/15 bg-white/[0.03] hover:border-white/22",
-                  isPublishing && "pointer-events-none opacity-60"
-                )}
-              >
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
-                  capture="environment"
-                  multiple
-                  className="hidden"
-                  id="ar-create-post-files"
-                  disabled={isPublishing}
-                  onChange={(e) => e.target.files && addFiles(e.target.files)}
-                />
-                <label htmlFor="ar-create-post-files" className="flex cursor-pointer flex-col items-center gap-2">
-                  <span className="flex size-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
-                    <ImagePlus className="size-5 text-primary" aria-hidden />
-                  </span>
-                  <span className="text-sm font-medium text-foreground">Drop images here</span>
-                  <span className="text-xs text-muted-foreground">
-                    or tap to take a photo · HD quality preserved, uploads prepared automatically
-                  </span>
-                </label>
-              </motion.div>
+                onFiles={addFiles}
+              />
 
               {previews.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">

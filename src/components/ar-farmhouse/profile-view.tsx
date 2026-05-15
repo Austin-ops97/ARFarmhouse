@@ -4,9 +4,9 @@ import { updateProfile } from "firebase/auth";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Camera, Heart, Loader2, PawPrint, Plus, Sparkles, Trash2, UserRound } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { IMAGE_FILE_ACCEPT, MOBILE_CAMERA_CAPTURE } from "@/lib/image-file-input";
+import { MediaSourcePicker } from "@/components/ar-farmhouse/media-source-picker";
 import { validateRawImageFile } from "@/lib/image-input";
 import {
   uploadOptimizedFamilyMemberPhoto,
@@ -97,7 +97,6 @@ const REL_OPTIONS: FamilyRelationship[] = ["spouse", "partner", "child", "relati
 
 export function ProfileView() {
   const reduceMotion = useReducedMotion();
-  const photoInputId = useId();
   const { user, profile: authProfile, refreshProfile, configured } = useAuth();
   const [profile, setProfile] = useState<AppUser | null>(authProfile);
   const [saving, setSaving] = useState(false);
@@ -109,6 +108,9 @@ export function ProfileView() {
   const [cropFileName, setCropFileName] = useState<string | undefined>();
   const cropObjectUrlRef = useRef<string | null>(null);
   const photoUploadAvailable = isProfilePhotoUploadAvailable();
+  const [photoPickerTarget, setPhotoPickerTarget] = useState<
+    { kind: "avatar" } | { kind: "member"; id: string } | { kind: "pet"; id: string } | null
+  >(null);
 
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
@@ -286,8 +288,65 @@ export function ProfileView() {
     void persist({ pets: pets.filter((p) => p.id !== id) });
   };
 
-  const memberPhotoRef = useRef<Record<string, HTMLInputElement | null>>({});
-  const petPhotoRef = useRef<Record<string, HTMLInputElement | null>>({});
+  const photoPickerOpen = photoPickerTarget !== null;
+
+  const onPhotoPickerFiles = useCallback(
+    async (files: File[]) => {
+      const file = files[0];
+      const target = photoPickerTarget;
+      if (!file || !target || !user) return;
+      setPhotoPickerTarget(null);
+
+      if (target.kind === "avatar") {
+        onProfilePhotoSelected(file);
+        return;
+      }
+
+      setSaveError(null);
+      try {
+        validateRawImageFile(file);
+        if (target.kind === "member") {
+          const url = await uploadOptimizedFamilyMemberPhoto(user.uid, target.id, file);
+          updateMember(target.id, { photoUrl: url });
+        } else {
+          const url = await uploadOptimizedPetPhoto(user.uid, target.id, file);
+          updatePet(target.id, { photoUrl: url });
+        }
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : "Upload failed.");
+      }
+    },
+    [onProfilePhotoSelected, photoPickerTarget, updateMember, updatePet, user]
+  );
+
+  const photoPickerCopy =
+    photoPickerTarget?.kind === "avatar"
+      ? {
+          title: "Profile photo",
+          subtitle: "Take a new shot or choose from your library",
+          takePhotoLabel: "Take Photo",
+          uploadLabel: "Upload Photo",
+        }
+      : photoPickerTarget?.kind === "member"
+        ? {
+            title: "Family member photo",
+            subtitle: "Capture or upload a photo for this person",
+            takePhotoLabel: "Take Photo",
+            uploadLabel: "Upload Photo",
+          }
+        : photoPickerTarget?.kind === "pet"
+          ? {
+              title: "Pet photo",
+              subtitle: "Capture or upload a photo for your pet",
+              takePhotoLabel: "Take Photo",
+              uploadLabel: "Upload Photo",
+            }
+          : {
+              title: "Add photo",
+              subtitle: "Choose how you want to add an image",
+              takePhotoLabel: "Take Photo",
+              uploadLabel: "Upload From Library",
+            };
 
   if (!user) {
     return (
@@ -301,6 +360,19 @@ export function ProfileView() {
 
   return (
     <div className="pb-24 pt-1">
+      <MediaSourcePicker
+        sheetOpen={photoPickerOpen}
+        onSheetOpenChange={(open) => {
+          if (!open) setPhotoPickerTarget(null);
+        }}
+        onFiles={(files) => void onPhotoPickerFiles(files)}
+        disabled={uploadingPhoto || (photoPickerTarget?.kind === "avatar" && !photoUploadAvailable)}
+        sheetTitle={photoPickerCopy.title}
+        sheetSubtitle={photoPickerCopy.subtitle}
+        takePhotoLabel={photoPickerCopy.takePhotoLabel}
+        uploadLabel={photoPickerCopy.uploadLabel}
+      />
+
       <AvatarPhotoCropDialog
         open={cropOpen}
         imageSrc={cropImageSrc}
@@ -345,33 +417,24 @@ export function ProfileView() {
                   {displayName.slice(0, 1) || "?"}
                 </AvatarFallback>
               </Avatar>
-              <label
-                htmlFor={photoInputId}
+              <button
+                type="button"
+                disabled={uploadingPhoto || !photoUploadAvailable}
+                onClick={() => setPhotoPickerTarget({ kind: "avatar" })}
                 className={cn(
                   "absolute -bottom-1 -right-1 flex size-9 items-center justify-center rounded-xl border border-border/60 bg-card shadow-sm dark:border-white/12 dark:bg-background",
-                  photoUploadAvailable ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+                  photoUploadAvailable
+                    ? "cursor-pointer transition hover:border-primary/35 hover:bg-primary/10"
+                    : "cursor-not-allowed opacity-60"
                 )}
+                aria-label="Change profile photo"
               >
                 {uploadingPhoto ? (
                   <Loader2 className="size-4 animate-spin text-primary" aria-hidden />
                 ) : (
                   <Camera className="size-4 text-primary" aria-hidden />
                 )}
-                <span className="sr-only">Upload profile photo</span>
-              </label>
-              <input
-                id={photoInputId}
-                type="file"
-                accept={IMAGE_FILE_ACCEPT}
-                capture={MOBILE_CAMERA_CAPTURE}
-                className="sr-only"
-                disabled={uploadingPhoto || !photoUploadAvailable}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) onProfilePhotoSelected(f);
-                }}
-              />
+              </button>
             </div>
             <div className="min-w-0 flex-1 text-center sm:text-left">
               <p className="font-heading text-xl font-semibold text-foreground">{displayName || "Member"}</p>
@@ -493,7 +556,8 @@ export function ProfileView() {
                     <button
                       type="button"
                       className="relative shrink-0"
-                      onClick={() => memberPhotoRef.current[m.id]?.click()}
+                      onClick={() => setPhotoPickerTarget({ kind: "member", id: m.id })}
+                      aria-label={`Change photo for ${m.name}`}
                     >
                       <Avatar className="size-14 rounded-xl">
                         <AvatarImage src={m.photoUrl ?? undefined} alt="" />
@@ -501,28 +565,6 @@ export function ProfileView() {
                       </Avatar>
                       <Camera className="absolute -bottom-0.5 -right-0.5 size-3.5 text-primary" aria-hidden />
                     </button>
-                    <input
-                      ref={(el) => {
-                        memberPhotoRef.current[m.id] = el;
-                      }}
-                      type="file"
-                      accept={IMAGE_FILE_ACCEPT}
-                      capture={MOBILE_CAMERA_CAPTURE}
-                      className="sr-only"
-                      onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        e.target.value = "";
-                        if (!f || !user) return;
-                        setSaveError(null);
-                        try {
-                          validateRawImageFile(f);
-                          const url = await uploadOptimizedFamilyMemberPhoto(user.uid, m.id, f);
-                          updateMember(m.id, { photoUrl: url });
-                        } catch (err) {
-                          setSaveError(err instanceof Error ? err.message : "Upload failed.");
-                        }
-                      }}
-                    />
                     <Field
                       id={`member-name-${m.id}`}
                       label="Name"
@@ -590,35 +632,18 @@ export function ProfileView() {
           ) : (
             pets.map((pet) => (
               <div key={pet.id} className="ar-nested-well flex flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:items-start">
-                <button type="button" className="relative shrink-0" onClick={() => petPhotoRef.current[pet.id]?.click()}>
+                <button
+                  type="button"
+                  className="relative shrink-0"
+                  onClick={() => setPhotoPickerTarget({ kind: "pet", id: pet.id })}
+                  aria-label={`Change photo for ${pet.name}`}
+                >
                   <Avatar className="size-14 rounded-xl">
                     <AvatarImage src={pet.photoUrl ?? undefined} alt="" />
                     <AvatarFallback className="rounded-xl">{pet.name.slice(0, 1)}</AvatarFallback>
                   </Avatar>
                   <Camera className="absolute -bottom-0.5 -right-0.5 size-3.5 text-primary" aria-hidden />
                 </button>
-                <input
-                  ref={(el) => {
-                    petPhotoRef.current[pet.id] = el;
-                  }}
-                  type="file"
-                  accept={IMAGE_FILE_ACCEPT}
-                  capture={MOBILE_CAMERA_CAPTURE}
-                  className="sr-only"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f || !user) return;
-                    setSaveError(null);
-                    try {
-                      validateRawImageFile(f);
-                      const url = await uploadOptimizedPetPhoto(user.uid, pet.id, f);
-                      updatePet(pet.id, { photoUrl: url });
-                    } catch (err) {
-                      setSaveError(err instanceof Error ? err.message : "Upload failed.");
-                    }
-                  }}
-                />
                 <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
                   <Field id={`pet-name-${pet.id}`} label="Name" value={pet.name} onChange={(v) => updatePet(pet.id, { name: v })} />
                   <Field id={`pet-species-${pet.id}`} label="Species" value={pet.species} onChange={(v) => updatePet(pet.id, { species: v })} />

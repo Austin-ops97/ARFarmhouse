@@ -2,13 +2,13 @@
 
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { AlertCircle, ImagePlus, Upload, X } from "lucide-react";
+import { AlertCircle, Upload, X } from "lucide-react";
 import { useCallback, useId, useState } from "react";
 
+import { MediaAttachZone } from "@/components/ar-farmhouse/media-attach-zone";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/auth-context";
-import { IMAGE_FILE_ACCEPT, MOBILE_CAMERA_CAPTURE } from "@/lib/image-file-input";
 import { validateRawImageFile } from "@/lib/image-input";
 import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
 import { createAlbumMediaItems } from "@/services/album-media";
@@ -45,10 +45,10 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     setError(null);
   }, []);
 
-  const onFiles = useCallback((list: FileList | null) => {
-    if (!list?.length) return;
+  const onFiles = useCallback((incoming: File[]) => {
+    if (!incoming.length) return;
     const next: { file: File; preview: string }[] = [];
-    Array.from(list).forEach((file) => {
+    incoming.forEach((file) => {
       if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif|avif|gif)$/i.test(file.name)) {
         return;
       }
@@ -57,6 +57,13 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     setFiles((prev) => [...prev, ...next].slice(0, 12));
     setError(null);
   }, []);
+
+  const onDropFiles = useCallback(
+    (list: FileList) => {
+      onFiles(Array.from(list));
+    },
+    [onFiles]
+  );
 
   const removeAt = (idx: number) => {
     setFiles((prev) => {
@@ -148,36 +155,20 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-              <label
-                htmlFor={inputId}
+              <MediaAttachZone
+                disabled={busy}
+                multiple
+                showDesktopDropHint
+                className="border-border/80 bg-muted/25 hover:border-primary/35 hover:bg-muted/40"
+                title="Add to family archive"
+                hint="Take a memory on the spot or upload from your library — high quality preserved"
+                onFiles={onFiles}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
-                  onFiles(e.dataTransfer.files);
+                  if (e.dataTransfer.files?.length) onDropFiles(e.dataTransfer.files);
                 }}
-                className={cn(
-                  "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border/80 bg-muted/25 px-4 py-10 text-center transition",
-                  "hover:border-primary/35 hover:bg-muted/40"
-                )}
-              >
-                <ImagePlus className="size-8 text-primary/90" aria-hidden />
-                <p className="text-sm font-medium text-foreground">Drop images here</p>
-                <p className="text-xs text-muted-foreground">
-                  or tap to take a photo — high-quality memories, prepared automatically
-                </p>
-                <input
-                  id={inputId}
-                  type="file"
-                  accept={IMAGE_FILE_ACCEPT}
-                  capture={MOBILE_CAMERA_CAPTURE}
-                  multiple
-                  className="sr-only"
-                  onChange={(e) => {
-                    onFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
+              />
 
               {files.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
