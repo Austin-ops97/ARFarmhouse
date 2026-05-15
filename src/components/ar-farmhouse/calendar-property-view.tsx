@@ -5,7 +5,6 @@ import { CalendarPlus, Home, Sparkles, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { CalendarBookingSheet } from "@/components/ar-farmhouse/calendar-booking-sheet";
-import { CalendarEventCard } from "@/components/ar-farmhouse/calendar-event-card";
 import { CalendarFeedBridge } from "@/components/ar-farmhouse/calendar-feed-bridge";
 import { CalendarOccupancyPanel } from "@/components/ar-farmhouse/calendar-occupancy-panel";
 import {
@@ -19,8 +18,8 @@ import { CalendarThisWeekendHub } from "@/components/ar-farmhouse/calendar-this-
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { demoCoordEvents } from "@/lib/calendar-demo";
-import { demoCalendarMonth, demoWeekendEvents, type DemoCalendarDay } from "@/lib/social-demo";
+import { buildCalendarMonthMeta, type CalendarGridDay } from "@/lib/calendar-month-meta";
+import { usePropertyData } from "@/contexts/property-data-context";
 import { cn } from "@/lib/utils";
 
 const surface = cn(
@@ -50,18 +49,22 @@ function rowIndexForDay(day: number, rows: (number | null)[][]) {
 export function CalendarPropertyView() {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
+  const { calendarEvents, calendarError } = usePropertyData();
   const [boot, setBoot] = useState(true);
   const [mode, setMode] = useState<CalendarSurfaceMode>("month");
   const [bookingOpen, setBookingOpen] = useState(false);
   const [previewDay, setPreviewDay] = useState<number | null>(null);
 
+  const calendarMonth = useMemo(() => buildCalendarMonthMeta(), []);
   const rows = useMemo(
-    () => monthWeekRows(demoCalendarMonth.leadingBlanks, demoCalendarMonth.daysInMonth),
-    []
+    () => monthWeekRows(calendarMonth.leadingBlanks, calendarMonth.daysInMonth),
+    [calendarMonth.leadingBlanks, calendarMonth.daysInMonth]
   );
-  const [weekIndex, setWeekIndex] = useState(() => rowIndexForDay(14, rows));
+  const [weekIndex, setWeekIndex] = useState(() =>
+    rowIndexForDay(calendarMonth.todayDay ?? 1, rows)
+  );
 
-  const dayMap = useMemo(() => new Map(demoCalendarMonth.days.map((d) => [d.day, d])), []);
+  const dayMap = useMemo(() => new Map(calendarMonth.days.map((d) => [d.day, d])), [calendarMonth.days]);
 
   const statusStyles: Record<string, string> = {
     open: "border-white/8 bg-white/[0.03] text-muted-foreground hover:border-white/16",
@@ -77,14 +80,21 @@ export function CalendarPropertyView() {
 
   const previewEvents = useMemo(() => {
     if (previewDay === null) return [];
-    return demoCoordEvents.filter((e) => {
+    return calendarEvents.filter((e) => {
       const end = e.endDay ?? e.startDay;
       return previewDay >= e.startDay && previewDay <= end;
     });
-  }, [previewDay]);
+  }, [calendarEvents, previewDay]);
+
+  const monthWord = calendarMonth.label.split(" ")[0] ?? "Month";
 
   return (
     <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden sm:space-y-6">
+      {calendarError && (
+        <p className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100/95">
+          Calendar could not sync: {calendarError}
+        </p>
+      )}
       <motion.section
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -109,7 +119,11 @@ export function CalendarPropertyView() {
               <Home className="size-4 shrink-0 text-primary" aria-hidden />
               AR Farmhouse
             </span>
-            <Button type="button" className="min-h-11 w-full rounded-xl touch-manipulation sm:w-auto" onClick={() => setBookingOpen(true)}>
+            <Button
+              type="button"
+              className="min-h-11 w-full rounded-xl touch-manipulation sm:w-auto"
+              onClick={() => setBookingOpen(true)}
+            >
               <CalendarPlus className="size-4" data-icon="inline-start" />
               New booking
             </Button>
@@ -142,29 +156,36 @@ export function CalendarPropertyView() {
                   className="space-y-3"
                 >
                   <CalendarMonthBoard
-                    dayMap={dayMap as Map<number, DemoCalendarDay>}
+                    calendarMonth={calendarMonth}
+                    dayMap={dayMap as Map<number, CalendarGridDay>}
                     statusStyles={statusStyles}
-                    events={demoCoordEvents}
+                    events={calendarEvents}
                     previewDay={previewDay}
                     onDayHover={setPreviewDay}
                   />
                   <AnimatePresence>
-                    {previewDay !== null && previewEvents.length > 0 && (
+                    {previewDay !== null && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
                         className={cn(surface, "overflow-hidden px-4 py-3")}
                       >
-                        <p className="text-[11px] font-medium text-muted-foreground">May {previewDay}</p>
-                        <ul className="mt-2 space-y-1">
-                          {previewEvents.map((e) => (
-                            <li key={e.id} className="text-sm text-foreground/90">
-                              {e.title}
-                              {e.timeLabel && <span className="text-muted-foreground"> · {e.timeLabel}</span>}
-                            </li>
-                          ))}
-                        </ul>
+                        <p className="text-[11px] font-medium text-muted-foreground">
+                          {monthWord} {previewDay}
+                        </p>
+                        {previewEvents.length > 0 ? (
+                          <ul className="mt-2 space-y-1">
+                            {previewEvents.map((e) => (
+                              <li key={e.id} className="text-sm text-foreground/90">
+                                {e.title}
+                                {e.timeLabel && <span className="text-muted-foreground"> · {e.timeLabel}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-2 text-sm text-muted-foreground">No events on this day yet.</p>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -178,7 +199,12 @@ export function CalendarPropertyView() {
                   exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <CalendarWeekStrip events={demoCoordEvents} weekIndex={weekIndex} onWeekChange={setWeekIndex} />
+                  <CalendarWeekStrip
+                    calendarMonth={calendarMonth}
+                    events={calendarEvents}
+                    weekIndex={weekIndex}
+                    onWeekChange={setWeekIndex}
+                  />
                 </motion.div>
               )}
               {mode === "agenda" && (
@@ -189,7 +215,7 @@ export function CalendarPropertyView() {
                   exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <CalendarAgendaList events={demoCoordEvents} />
+                  <CalendarAgendaList events={calendarEvents} monthLabel={calendarMonth.label} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -197,7 +223,6 @@ export function CalendarPropertyView() {
 
           <div className="flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-foreground">This weekend · coordination</h3>
-            <span className="text-[11px] text-muted-foreground">Shared lists · demo</span>
           </div>
           <CalendarThisWeekendHub onOpenCommandCenter={() => openWeekendHub("current")} />
 
@@ -205,44 +230,60 @@ export function CalendarPropertyView() {
             <h3 className="text-sm font-semibold text-foreground">Upcoming stays & trips</h3>
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
               <Users className="size-3.5" aria-hidden />
-              RSVP preview
+              From your calendar
             </span>
           </div>
-          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-            {demoWeekendEvents.map((ev) => (
-              <CalendarEventCard key={ev.id} event={ev} onOpenWeekendHub={() => openWeekendHub(ev.hubSlug)} />
-            ))}
+          <div
+            className={cn(
+              surface,
+              "flex min-h-[12rem] flex-col items-center justify-center gap-3 p-8 text-center sm:min-h-[14rem]"
+            )}
+          >
+            <p className="font-heading text-lg font-semibold text-foreground">No weekends planned yet</p>
+            <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+              When stays are on the calendar, cards for each trip appear here with weather, headcount, and a link into
+              the weekend hub.
+            </p>
+            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setBookingOpen(true)}>
+              Start a booking
+            </Button>
           </div>
         </div>
 
         <div className="min-w-0 space-y-5 xl:sticky xl:self-start xl:top-[calc(var(--ar-header-height)+0.75rem)] xl:space-y-4">
           <CalendarFeedBridge />
-          <CalendarOccupancyPanel />
+          <CalendarOccupancyPanel calendarMonth={calendarMonth} />
           <div className={cn(surface, "p-5")}>
             <p className="text-xs font-medium text-muted-foreground">Busy weekends</p>
-            <div className="mt-3 space-y-2">
-              {demoCalendarMonth.busyWeekends.map((w) => (
-                <div
-                  key={w.range}
-                  className="flex items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-foreground">{w.title}</p>
-                    <p className="text-[10px] text-muted-foreground">{w.range}</p>
-                  </div>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                      w.tone === "booked"
-                        ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100/90"
-                        : "border-amber-300/30 bg-amber-400/10 text-amber-50/90"
-                    )}
+            {calendarMonth.busyWeekends.length === 0 ? (
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                No peak weekends flagged yet. Heavy weeks will summarize here once bookings exist.
+              </p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {calendarMonth.busyWeekends.map((w) => (
+                  <div
+                    key={w.range}
+                    className="flex items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5"
                   >
-                    {w.occupancy}
-                  </span>
-                </div>
-              ))}
-            </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-foreground">{w.title}</p>
+                      <p className="text-[10px] text-muted-foreground">{w.range}</p>
+                    </div>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                        w.tone === "booked"
+                          ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100/90"
+                          : "border-amber-300/30 bg-amber-400/10 text-amber-50/90"
+                      )}
+                    >
+                      {w.occupancy}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

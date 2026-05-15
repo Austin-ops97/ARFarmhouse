@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from "react";
 
-import { demoFeedPosts } from "@/lib/social-demo";
 import { extractAlbumMediaFromPosts, type AlbumMediaItem } from "@/lib/photo-album-media";
 import type { UiFeedPost } from "@/models/feed-post";
 
@@ -41,7 +40,7 @@ function writeManual(items: AlbumMediaItem[]) {
 }
 
 type PhotoAlbumContextValue = {
-  /** Current feed-backed catalog (from last FeedView sync + demo seed) */
+  /** Current feed-backed catalog (synced from FeedView) */
   allItems: AlbumMediaItem[];
   setFeedPosts: (posts: readonly UiFeedPost[]) => void;
   addUploadItems: (items: AlbumMediaItem[]) => void;
@@ -51,7 +50,7 @@ type PhotoAlbumContextValue = {
 const PhotoAlbumContext = createContext<PhotoAlbumContextValue | null>(null);
 
 export function PhotoAlbumProvider({ children }: { children: ReactNode }) {
-  const [feedPosts, setFeedPostsState] = useState<readonly UiFeedPost[]>(() => demoFeedPosts as unknown as UiFeedPost[]);
+  const [feedPosts, setFeedPostsState] = useState<readonly UiFeedPost[]>([]);
   const [manual, setManual] = useState<AlbumMediaItem[]>([]);
 
   useLayoutEffect(() => {

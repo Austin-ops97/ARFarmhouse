@@ -1,17 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarPlus, ImagePlus, Loader2, MapPin, Users, X } from "lucide-react";
+import { CalendarPlus, ImagePlus, Loader2, MapPin, X } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { demoAttachableEvents, demoFamilyMembers, type DemoPostCategory } from "@/lib/social-demo";
+import type { FeedPostCategory } from "@/models/feed-post-category";
 import { cn } from "@/lib/utils";
 
-const postTypes: { id: DemoPostCategory; label: string }[] = [
+const postTypes: { id: FeedPostCategory; label: string }[] = [
   { id: "memory", label: "Memory" },
   { id: "update", label: "Update" },
   { id: "event", label: "Event" },
@@ -24,42 +24,62 @@ export type LivePostPayload = {
   files: File[];
   caption: string;
   location: string;
-  postType: DemoPostCategory;
+  postType: FeedPostCategory;
   attachedEvent: string | null;
 };
 
 type CreatePostDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  variant?: "demo" | "live";
   publishBusy?: boolean;
+  publishPhase?: "idle" | "uploading" | "saving";
+  uploadProgress?: { done: number; total: number } | null;
+  canPublish?: boolean;
   onPublishLive?: (payload: LivePostPayload) => Promise<void>;
 };
 
 export function CreatePostDialog({
   open,
   onOpenChange,
-  variant = "live",
   publishBusy = false,
+  publishPhase = "idle",
+  uploadProgress = null,
+  canPublish = true,
   onPublishLive,
 }: CreatePostDialogProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
+  const publishingRef = useRef(false);
   const [dragOver, setDragOver] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState("");
-  const [postType, setPostType] = useState<DemoPostCategory>("memory");
-  const [tagged, setTagged] = useState<string[]>([]);
-  const [attachedEvent, setAttachedEvent] = useState<string | null>(null);
+  const [postType, setPostType] = useState<FeedPostCategory>("memory");
+  const [linkedEventLabel, setLinkedEventLabel] = useState("");
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [publishSuccess, setPublishSuccess] = useState(false);
 
   const revokeUrls = useCallback((urls: string[]) => {
     urls.forEach((u) => {
       if (u.startsWith("blob:")) URL.revokeObjectURL(u);
     });
   }, []);
+
+  const resetForm = useCallback(() => {
+    setPreviews((prev) => {
+      revokeUrls(prev);
+      return [];
+    });
+    setFiles([]);
+    setCaption("");
+    setLocation("");
+    setLinkedEventLabel("");
+    setPostType("memory");
+    setDragOver(false);
+    setPublishError(null);
+    setPublishSuccess(false);
+  }, [revokeUrls]);
 
   const addFiles = useCallback(
     (incoming: FileList | File[]) => {
@@ -82,62 +102,67 @@ export function CreatePostDialog({
     [addFiles]
   );
 
-  const toggleTag = (id: string) => {
-    setTagged((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
-
   const closeDialog = useCallback(() => {
-    setPreviews((prev) => {
-      prev.forEach((u) => {
-        if (u.startsWith("blob:")) URL.revokeObjectURL(u);
-      });
-      return [];
-    });
-    setFiles([]);
-    setCaption("");
-    setLocation("");
-    setTagged([]);
-    setAttachedEvent(null);
-    setPostType("memory");
-    setDragOver(false);
-    setPublishError(null);
+    if (publishBusy) return;
+    resetForm();
     onOpenChange(false);
-  }, [onOpenChange]);
+  }, [onOpenChange, publishBusy, resetForm]);
 
   const handlePublish = useCallback(async () => {
+    if (publishingRef.current || publishBusy) return;
     setPublishError(null);
-    if (variant === "demo") {
-      closeDialog();
+    setPublishSuccess(false);
+
+    if (!canPublish) {
+      setPublishError("Wait until sign-in finishes, then try again.");
       return;
     }
-    if (!onPublishLive) return;
+    if (!onPublishLive) {
+      setPublishError("Sign in to publish to the family feed.");
+      return;
+    }
     if (!caption.trim() && files.length === 0) {
       setPublishError("Add a caption or at least one image.");
       return;
     }
+
+    publishingRef.current = true;
     try {
+      const trimmedEvent = linkedEventLabel.trim();
       await onPublishLive({
         files,
         caption: caption.trim(),
         location: location.trim(),
         postType,
-        attachedEvent,
+        attachedEvent: trimmedEvent.length ? trimmedEvent : null,
       });
+      setPublishSuccess(true);
+      window.setTimeout(() => {
+        resetForm();
+        onOpenChange(false);
+      }, 400);
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : "Could not publish.");
+    } finally {
+      publishingRef.current = false;
     }
-  }, [attachedEvent, caption, closeDialog, files, location, onPublishLive, postType, variant]);
+  }, [canPublish, caption, files, linkedEventLabel, location, onOpenChange, onPublishLive, postType, publishBusy, resetForm]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeDialog();
+      if (e.key === "Escape" && !publishBusy) closeDialog();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, closeDialog]);
+  }, [open, closeDialog, publishBusy]);
 
-  const isLive = variant === "live";
+  const publishLabel =
+    publishPhase === "uploading" && uploadProgress
+      ? `Uploading ${uploadProgress.done}/${uploadProgress.total}`
+      : publishPhase === "saving"
+        ? "Saving post"
+        : "Publish";
 
   return (
     <AnimatePresence>
@@ -154,6 +179,7 @@ export function CreatePostDialog({
             className="absolute inset-0 bg-background/70 backdrop-blur-xl"
             aria-label="Close"
             onClick={closeDialog}
+            disabled={publishBusy}
           />
           <motion.div
             role="dialog"
@@ -168,21 +194,26 @@ export function CreatePostDialog({
               "bg-background/90 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:rounded-[1.75rem]"
             )}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+            <motion.div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
               <div>
                 <p id={titleId} className="font-heading text-lg font-semibold tracking-tight text-foreground">
                   New post
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {isLive
-                    ? "Uploads go to private storage · everyone signed in sees updates live"
-                    : "Private to family · demo preview only"}
+                  Uploads go to private storage · everyone signed in sees updates live
                 </p>
               </div>
-              <Button type="button" variant="ghost" size="icon" onClick={closeDialog} aria-label="Close">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={closeDialog}
+                disabled={publishBusy}
+                aria-label="Close"
+              >
                 <X className="size-4" />
               </Button>
-            </div>
+            </motion.div>
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <p className="text-xs font-medium text-muted-foreground">Post type</p>
@@ -193,6 +224,7 @@ export function CreatePostDialog({
                     <button
                       key={t.id}
                       type="button"
+                      disabled={publishBusy}
                       onClick={() => setPostType(t.id)}
                       className={cn(
                         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
@@ -207,7 +239,7 @@ export function CreatePostDialog({
                 })}
               </div>
 
-              <div
+              <motion.div
                 onDragEnter={(e) => {
                   e.preventDefault();
                   setDragOver(true);
@@ -220,7 +252,8 @@ export function CreatePostDialog({
                 onDrop={onDrop}
                 className={cn(
                   "mt-5 flex min-h-[160px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-8 text-center transition-colors",
-                  dragOver ? "border-primary/50 bg-primary/10" : "border-white/15 bg-white/[0.03] hover:border-white/22"
+                  dragOver ? "border-primary/50 bg-primary/10" : "border-white/15 bg-white/[0.03] hover:border-white/22",
+                  publishBusy && "pointer-events-none opacity-60"
                 )}
               >
                 <input
@@ -229,6 +262,7 @@ export function CreatePostDialog({
                   multiple
                   className="hidden"
                   id="ar-create-post-files"
+                  disabled={publishBusy}
                   onChange={(e) => e.target.files && addFiles(e.target.files)}
                 />
                 <label htmlFor="ar-create-post-files" className="flex cursor-pointer flex-col items-center gap-2">
@@ -236,11 +270,9 @@ export function CreatePostDialog({
                     <ImagePlus className="size-5 text-primary" aria-hidden />
                   </span>
                   <span className="text-sm font-medium text-foreground">Drop images here</span>
-                  <span className="text-xs text-muted-foreground">
-                    {isLive ? "or tap to browse · JPEG / PNG / WebP" : "or tap to browse · mock upload, stays on device"}
-                  </span>
+                  <span className="text-xs text-muted-foreground">or tap to browse · JPEG / PNG / WebP · max 10 MB each</span>
                 </label>
-              </div>
+              </motion.div>
 
               {previews.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -252,44 +284,21 @@ export function CreatePostDialog({
                 </div>
               )}
 
+              {publishPhase === "uploading" && uploadProgress && uploadProgress.total > 0 && (
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  Uploading image {uploadProgress.done} of {uploadProgress.total}…
+                </p>
+              )}
+
               <div className="mt-5 space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">Caption</p>
                 <Textarea
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
-                  placeholder="Share the moment — tone is warm, specifics welcome."
+                  placeholder="What happened today?"
+                  disabled={publishBusy}
                   className="min-h-[100px] rounded-2xl border-white/10 bg-white/[0.03]"
                 />
-              </div>
-
-              <div className="mt-5 space-y-2">
-                <p className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  <Users className="size-3.5" aria-hidden />
-                  Tag family
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {demoFamilyMembers.map((m) => {
-                    const on = tagged.includes(m.id);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => toggleTag(m.id)}
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                          on
-                            ? "border-primary/40 bg-primary/15 text-foreground"
-                            : "border-white/10 bg-white/[0.03] text-muted-foreground hover:border-white/18"
-                        )}
-                      >
-                        <span className="relative inline-block size-6 shrink-0 overflow-hidden rounded-full border border-white/10">
-                          <Image src={m.avatar} alt="" fill className="object-cover" sizes="24px" />
-                        </span>
-                        {m.name.split(" ")[0]}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
 
               <div className="mt-5 space-y-2">
@@ -300,7 +309,8 @@ export function CreatePostDialog({
                 <Input
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  placeholder="AR Farmhouse · North camera"
+                  placeholder="Optional — e.g. porch, north field, kitchen"
+                  disabled={publishBusy}
                   className="rounded-xl border-white/10 bg-white/[0.03]"
                 />
               </div>
@@ -308,45 +318,25 @@ export function CreatePostDialog({
               <div className="mt-5 space-y-2">
                 <p className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
                   <CalendarPlus className="size-3.5" aria-hidden />
-                  Attach weekend / event
+                  Linked event (optional)
                 </p>
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAttachedEvent(null)}
-                    className={cn(
-                      "rounded-xl border px-3 py-2 text-left text-xs transition-colors",
-                      attachedEvent === null
-                        ? "border-primary/40 bg-primary/10 text-foreground"
-                        : "border-white/10 bg-white/[0.03] text-muted-foreground hover:border-white/18"
-                    )}
-                  >
-                    None
-                  </button>
-                  {demoAttachableEvents.map((ev) => {
-                    const active = attachedEvent === ev;
-                    return (
-                      <button
-                        key={ev}
-                        type="button"
-                        onClick={() => setAttachedEvent(ev)}
-                        className={cn(
-                          "rounded-xl border px-3 py-2 text-left text-xs transition-colors",
-                          active
-                            ? "border-primary/40 bg-primary/10 text-foreground"
-                            : "border-white/10 bg-white/[0.03] text-muted-foreground hover:border-white/18"
-                        )}
-                      >
-                        {ev}
-                      </button>
-                    );
-                  })}
-                </div>
+                <Input
+                  value={linkedEventLabel}
+                  onChange={(e) => setLinkedEventLabel(e.target.value)}
+                  placeholder="e.g. Memorial Day weekend — ties this post to a hub when it matches"
+                  disabled={publishBusy}
+                  className="rounded-xl border-white/10 bg-white/[0.03]"
+                />
               </div>
 
               {publishError && (
                 <p className="mt-4 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-center text-xs text-red-100/95">
                   {publishError}
+                </p>
+              )}
+              {publishSuccess && (
+                <p className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-center text-xs text-emerald-100/95">
+                  Posted — syncing to the family feed…
                 </p>
               )}
             </div>
@@ -359,17 +349,15 @@ export function CreatePostDialog({
                 type="button"
                 className="rounded-xl"
                 onClick={() => void handlePublish()}
-                disabled={publishBusy}
+                disabled={publishBusy || !canPublish}
               >
                 {publishBusy ? (
                   <>
                     <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
-                    Publishing
+                    {publishLabel}
                   </>
-                ) : isLive ? (
-                  "Publish"
                 ) : (
-                  "Post preview"
+                  "Publish"
                 )}
               </Button>
             </div>

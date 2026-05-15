@@ -1,12 +1,13 @@
 import type { Timestamp } from "firebase/firestore";
 
-import type { DemoPostCategory } from "@/lib/social-demo";
+import type { FeedPostCategory } from "@/models/feed-post-category";
 
-export type { DemoPostCategory as FeedPostCategory } from "@/lib/social-demo";
+export type { FeedPostCategory };
 
 export type UiFeedPost = {
   id: string;
-  category: DemoPostCategory;
+  authorId: string;
+  category: FeedPostCategory;
   layout: "hero" | "standard" | "tall";
   author: { name: string; handle: string; avatar: string };
   timeLabel: string;
@@ -27,7 +28,7 @@ export type FirestorePost = {
   authorId: string;
   authorDisplayName: string;
   authorPhotoUrl: string | null;
-  category: DemoPostCategory;
+  category: FeedPostCategory;
   title?: string | null;
   body: string;
   location?: string | null;

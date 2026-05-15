@@ -1,11 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { Camera, CloudSun, Droplets, Home, Lock, Router, Users, Zap } from "lucide-react";
 
-import type { DemoStatusCard, StatusIconKey } from "@/lib/operations-demo";
-import { demoStatusCards } from "@/lib/operations-demo";
+import type { PropertyStatusCard, StatusIconKey } from "@/lib/property-operations";
+import { usePropertyData } from "@/contexts/property-data-context";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
@@ -21,7 +20,7 @@ const icons: Record<StatusIconKey, typeof CloudSun> = {
   camera: Camera,
 };
 
-const toneClass: Record<NonNullable<DemoStatusCard["tone"]>, string> = {
+const toneClass: Record<NonNullable<PropertyStatusCard["tone"]>, string> = {
   default: "from-muted/50 to-transparent dark:from-white/[0.06] dark:to-transparent",
   mint: "from-primary/14 to-transparent",
   amber: "from-amber-400/12 to-transparent",
@@ -30,10 +29,26 @@ const toneClass: Record<NonNullable<DemoStatusCard["tone"]>, string> = {
 
 export function PropertyStatusPanel() {
   const reduceMotion = useReducedMotion();
+  const { statusCards } = usePropertyData();
+
+  if (statusCards.length === 0) {
+    return (
+      <div className={cn(surface, "col-span-full px-6 py-12 text-center sm:py-14")}>
+        <div className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-border/55 bg-muted/40 dark:border-white/10 dark:bg-white/[0.05]">
+          <CloudSun className="size-6 text-primary" aria-hidden />
+        </div>
+        <p className="mt-5 font-heading text-lg font-semibold text-foreground">Systems idle</p>
+        <p className="mt-2 max-w-lg mx-auto text-sm leading-relaxed text-muted-foreground">
+          Weather, power, water, gates, and cameras will surface here when integrations are connected. Until then, the
+          house stays intentionally quiet — no pretend telemetry.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {demoStatusCards.map((card, i) => {
+      {statusCards.map((card, i) => {
         const Icon = icons[card.icon];
         const tone = card.tone ?? "default";
         return (
@@ -46,27 +61,11 @@ export function PropertyStatusPanel() {
             whileHover={reduceMotion ? undefined : { y: -3 }}
             className={cn(surface, "overflow-hidden p-4 sm:p-5")}
           >
-            <div
-              className={cn(
-                "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-90",
-                toneClass[tone]
-              )}
-            />
+            <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br opacity-90", toneClass[tone])} />
             <div className="relative flex items-start justify-between gap-3">
               <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border/55 bg-muted/55 dark:border-white/10 dark:bg-white/[0.06]">
                 <Icon className="size-5 text-primary" aria-hidden />
               </div>
-              {card.id === "s8" && (
-                <div className="relative h-14 w-24 overflow-hidden rounded-xl border border-border/55 dark:border-white/10">
-                  <Image
-                    src="https://images.unsplash.com/photo-1470770843672-f972a00901c5?auto=format&fit=crop&w=200&q=75"
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="96px"
-                  />
-                </div>
-              )}
             </div>
             <p className="relative mt-4 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{card.title}</p>
             <p className="relative mt-1 font-heading text-2xl font-semibold tracking-tight text-foreground">{card.value}</p>

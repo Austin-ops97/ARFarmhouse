@@ -1,9 +1,10 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Menu, Sparkles, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef } from "react";
 
+import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
@@ -133,9 +134,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
           >
             <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-4 dark:border-white/10">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-card/90 shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.05] dark:shadow-inner dark:shadow-white/5">
-                  <Sparkles className="size-5 text-primary" aria-hidden />
-                </div>
+                <ArFarmhouseLogo size={40} className="shadow-[var(--ar-float-elevate)] dark:shadow-inner dark:shadow-white/5" />
                 <div className="min-w-0">
                   <p id={titleId} className="font-heading text-base font-semibold tracking-tight text-foreground">
                     AR Farmhouse

@@ -11,5 +11,4 @@ export type LocalGuideRow = {
   notes: string;
   key: string;
   distanceMi: number;
-  imageUrl: string;
 };

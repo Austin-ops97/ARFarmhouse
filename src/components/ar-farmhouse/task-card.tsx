@@ -6,7 +6,7 @@ import { Check, GripVertical, MessageSquare } from "lucide-react";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { DemoTask, TaskPriority } from "@/lib/operations-demo";
+import type { HouseTask, TaskPriority } from "@/lib/property-operations";
 import { cn } from "@/lib/utils";
 
 const priorityRing: Record<TaskPriority, string> = {
@@ -32,7 +32,7 @@ function initials(name: string) {
 }
 
 export type TaskCardProps = {
-  task: DemoTask;
+  task: HouseTask;
   dragHandle?: boolean;
   dragListeners?: DraggableSyntheticListeners;
   dragAttributes?: DraggableAttributes;

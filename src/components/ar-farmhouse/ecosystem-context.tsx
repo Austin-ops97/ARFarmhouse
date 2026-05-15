@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
 import type { NavId } from "@/components/ar-farmhouse/dashboard-nav";
-import type { WeekendHubSlug } from "@/lib/ecosystem-demo";
+import type { WeekendHubSlug } from "@/lib/weekend-hub-slug";
 
 export type EcosystemContextValue = {
   openWeekendHub: (slug: WeekendHubSlug) => void;

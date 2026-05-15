@@ -5,28 +5,42 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Bookmark,
   ChevronDown,
+  Flag,
   Heart,
+  Link2,
   MapPin,
   MessageCircle,
   MoreHorizontal,
+  Pencil,
   Play,
   Send,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
+import { PostShareSheet } from "@/components/ar-farmhouse/post-share-sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { usePostSocial } from "@/hooks/use-post-social";
+import { buildPostDeepLink } from "@/lib/app-url";
 import { FEED_IMAGE_SIZES, FEED_MEDIA_BLEED } from "@/lib/feed-layout";
-import { isFirebaseConfigured } from "@/lib/firebase/env";
+import { hubSlugFromLinkedEventLabel } from "@/lib/linked-event-hub";
 import type { UiFeedPost } from "@/models/feed-post";
-import { hubSlugFromLinkedEventLabel } from "@/lib/ecosystem-demo";
+import { deleteFeedPost } from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
 
 const categoryLabel: Record<UiFeedPost["category"], string> = {
@@ -160,14 +174,30 @@ function FeedLightbox({
   );
 }
 
-export function FeedPostCard({ post }: { post: UiFeedPost }) {
+export function FeedPostCard({
+  post,
+  highlightId,
+  suppressMedia = false,
+}: {
+  post: UiFeedPost;
+  highlightId?: string | null;
+  suppressMedia?: boolean;
+}) {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
-  const remoteSocial = isFirebaseConfigured();
-  const { user, displayName, avatarUrl } = useAuth();
+  const { user, displayName, avatarUrl, configured } = useAuth();
+  const interactionsLive = configured && !!user?.uid;
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentBusy, setCommentBusy] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuCoords, setMenuCoords] = useState({ top: 0, right: 0 });
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
 
   const social = usePostSocial({
     postId: post.id,
@@ -175,25 +205,19 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
     displayName,
     avatarUrl,
     commentsOpen,
+    remoteEnabled: interactionsLive,
   });
 
-  const [reactionState, setReactionState] = useState(() =>
-    Object.fromEntries(post.reactions.map((r) => [r.emoji, { count: r.count, on: !!r.active }]))
+  const displayReactions = useMemo(
+    () => social.reactionChips.map((c) => ({ emoji: c.emoji, count: c.count, active: c.active })),
+    [social.reactionChips]
   );
 
-  const displayReactions = useMemo(() => {
-    if (remoteSocial) {
-      return social.reactionChips.map((c) => ({ emoji: c.emoji, count: c.count, active: c.active }));
-    }
-    return post.reactions;
-  }, [post.reactions, remoteSocial, social.reactionChips]);
+  const mergedReactionState = useMemo(
+    () => Object.fromEntries(social.reactionChips.map((c) => [c.emoji, { count: c.count, on: c.active }])),
+    [social.reactionChips]
+  );
 
-  const mergedReactionState = useMemo(() => {
-    if (remoteSocial) {
-      return Object.fromEntries(social.reactionChips.map((c) => [c.emoji, { count: c.count, on: c.active }]));
-    }
-    return reactionState;
-  }, [reactionState, remoteSocial, social.reactionChips]);
   const [lightbox, setLightbox] = useState<LightboxState>(null);
   const touchStart = useRef({ x: 0, y: 0 });
 
@@ -229,21 +253,15 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
       return { ...s, index: n };
     });
 
-  const { toggleReaction: commitRemoteReaction, submitComment } = social;
+  const { toggleReaction: commitRemoteReaction, submitComment, toggleSaved, saved: savedRemote, socialError } = social;
+  const [commentError, setCommentError] = useState<string | null>(null);
 
   const toggleReaction = useCallback(
     async (emoji: string) => {
-      if (remoteSocial && user?.uid) {
-        await commitRemoteReaction(emoji);
-        return;
-      }
-      setReactionState((prev) => {
-        const cur = prev[emoji] ?? { count: 0, on: false };
-        const on = !cur.on;
-        return { ...prev, [emoji]: { count: cur.count + (on ? 1 : -1), on } };
-      });
+      if (!interactionsLive) return;
+      await commitRemoteReaction(emoji);
     },
-    [commitRemoteReaction, remoteSocial, user?.uid]
+    [commitRemoteReaction, interactionsLive]
   );
 
   const totalEngagement = useMemo(
@@ -254,11 +272,15 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
   const primaryKey =
     displayReactions.find((r) => r.emoji === "❤️")?.emoji ?? displayReactions[0]?.emoji ?? "❤️";
   const heartActive = mergedReactionState[primaryKey]?.on ?? false;
+  const isOwner = !!user?.uid && user.uid === post.authorId;
+  const isHighlighted = !!highlightId && highlightId === post.id;
+
   const hasMedia =
-    (post.kind === "image" && post.cover) ||
-    (post.kind === "album" && album.length > 0) ||
-    (post.kind === "video" && post.video) ||
-    (post.kind === "event_recap" && post.cover);
+    !suppressMedia &&
+    ((post.kind === "image" && post.cover) ||
+      (post.kind === "album" && album.length > 0) ||
+      (post.kind === "video" && post.video) ||
+      (post.kind === "event_recap" && post.cover));
 
   const mediaShell = cn(
     "relative overflow-hidden bg-muted/30 dark:bg-zinc-950/40",
@@ -269,9 +291,83 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
   );
 
   const commentLines = useMemo(() => {
-    if (remoteSocial && commentsOpen) return social.commentsPreview;
+    if (interactionsLive && commentsOpen) return social.commentsPreview;
     return post.commentsPreview;
-  }, [commentsOpen, post.commentsPreview, remoteSocial, social.commentsPreview]);
+  }, [commentsOpen, post.commentsPreview, interactionsLive, social.commentsPreview]);
+
+  const commentCountLabel = useMemo(() => {
+    if (interactionsLive && commentsOpen) {
+      return Math.max(post.commentCount, social.commentRows.length);
+    }
+    return post.commentCount;
+  }, [commentsOpen, interactionsLive, post.commentCount, social.commentRows.length]);
+
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+    setDeleteConfirm(false);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !menuBtnRef.current) return;
+    const r = menuBtnRef.current.getBoundingClientRect();
+    setMenuCoords({ top: r.bottom + 8, right: Math.max(12, window.innerWidth - r.right) });
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (menuPanelRef.current?.contains(t) || menuBtnRef.current?.contains(t)) return;
+      closeMenu();
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [closeMenu, menuOpen]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 3200);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
+  const copyPostLink = useCallback(async () => {
+    const url = buildPostDeepLink(post.id);
+    if (!url) {
+      setToast("Link unavailable in this environment.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast("Link copied");
+      closeMenu();
+    } catch {
+      setToast("Could not copy link.");
+    }
+  }, [closeMenu, post.id]);
+
+  const onDeletePost = useCallback(async () => {
+    if (!user?.uid) return;
+    setDeleteBusy(true);
+    try {
+      await deleteFeedPost(post.id, user.uid, post.authorId);
+      closeMenu();
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "Could not delete post.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }, [closeMenu, post.authorId, post.id, user]);
+
+  const shareSummary = useMemo(() => {
+    const t = post.title ? `${post.title} — ${post.body}` : post.body;
+    return t.slice(0, 280);
+  }, [post.body, post.title]);
+
+  const menuMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   const onAlbumTouchEnd = (e: React.TouchEvent) => {
     const t = e.changedTouches[0];
@@ -285,12 +381,16 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
   return (
     <>
       <motion.article
+        id={`feed-post-${post.id}`}
         layout={false}
         initial={reduceMotion ? false : { opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-4% 0px" }}
         transition={{ duration: reduceMotion ? 0.2 : 0.55, ease: [0.22, 1, 0.36, 1] }}
-        className="touch-manipulation pb-10 sm:pb-12"
+        className={cn(
+          "touch-manipulation scroll-mt-28 pb-10 sm:scroll-mt-32 sm:pb-12",
+          isHighlighted && "rounded-2xl ring-2 ring-primary/35 ring-offset-2 ring-offset-background sm:rounded-[1.35rem]"
+        )}
       >
         <header className="flex items-start gap-3 px-1 pb-3 sm:px-0">
           <Avatar size="lg" className="ring-2 ring-border/60 dark:ring-white/10">
@@ -310,13 +410,22 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
               </p>
             )}
           </div>
-          <button
-            type="button"
-            className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/[0.06]"
-            aria-label="Post options"
-          >
-            <MoreHorizontal className="size-5" />
-          </button>
+          <div className="relative shrink-0">
+            <button
+              ref={menuBtnRef}
+              type="button"
+              onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+              className={cn(
+                "rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/[0.06]",
+                menuOpen && "bg-muted/70 text-foreground dark:bg-white/[0.08]"
+              )}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label="Post options"
+            >
+              <MoreHorizontal className="size-5" />
+            </button>
+          </div>
         </header>
 
         {/* Media — dominant, immersive */}
@@ -469,9 +578,15 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
           <motion.button
             type="button"
             aria-label={heartActive ? "Unlike" : "Like"}
+            disabled={!interactionsLive}
+            title={!configured ? "Connect the app to enable likes." : !user ? "Sign in to like posts." : undefined}
             onClick={() => void toggleReaction(primaryKey)}
-            whileTap={reduceMotion ? undefined : { scale: 0.86 }}
-            className={cn("rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]", heartActive && "text-red-400")}
+            whileTap={reduceMotion || !interactionsLive ? undefined : { scale: 0.86 }}
+            className={cn(
+              "rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              heartActive && "text-red-400",
+              !interactionsLive && "pointer-events-none opacity-45"
+            )}
           >
             <Heart className={cn("size-7", heartActive && "fill-current")} strokeWidth={1.6} />
           </motion.button>
@@ -483,27 +598,46 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
           >
             <MessageCircle className="size-7" strokeWidth={1.6} />
           </button>
-          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]" aria-label="Share">
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            className="rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+            aria-label="Share"
+          >
             <Send className="size-7" strokeWidth={1.6} />
           </button>
           <span className="flex-1" />
-          <button type="button" className="rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]" aria-label="Save">
-            <Bookmark className="size-7" strokeWidth={1.6} />
-          </button>
+          <motion.button
+            type="button"
+            aria-label={savedRemote ? "Remove bookmark" : "Save post"}
+            disabled={!interactionsLive}
+            title={!configured ? "Connect the app to save posts." : !user ? "Sign in to save posts." : undefined}
+            onClick={() => void toggleSaved()}
+            whileTap={reduceMotion || !interactionsLive ? undefined : { scale: 0.86 }}
+            className={cn(
+              "rounded-full p-2.5 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              savedRemote && "text-primary",
+              !interactionsLive && "pointer-events-none opacity-45"
+            )}
+          >
+            <Bookmark className={cn("size-7", savedRemote && "fill-current text-primary")} strokeWidth={1.6} />
+          </motion.button>
         </div>
 
-        <div className="flex flex-wrap gap-1.5 px-1 pt-1 sm:px-0">
+        <div className={cn("flex flex-wrap gap-1.5 px-1 pt-1 sm:px-0", !interactionsLive && "opacity-45")}>
           {displayReactions.map((r) => {
             const state = mergedReactionState[r.emoji] ?? { count: r.count, on: !!r.active };
             return (
               <motion.button
                 key={r.emoji}
                 type="button"
+                disabled={!interactionsLive}
                 onClick={() => void toggleReaction(r.emoji)}
-                whileTap={reduceMotion ? undefined : { scale: 0.88 }}
+                whileTap={reduceMotion || !interactionsLive ? undefined : { scale: 0.88 }}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[14px] transition-colors",
-                  state.on ? "bg-primary/15 text-foreground" : "hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+                  "inline-flex min-h-11 min-w-11 items-center gap-1.5 rounded-full px-2.5 py-1 text-[14px] transition-colors sm:min-h-0 sm:min-w-0",
+                  state.on ? "bg-primary/15 text-foreground" : "hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+                  !interactionsLive && "pointer-events-none"
                 )}
               >
                 <motion.span
@@ -557,7 +691,8 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
           className="mt-2 flex w-full items-center justify-between gap-2 px-1 py-1 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:px-0"
         >
           <span>
-            {commentsOpen ? "Hide" : "View"} {post.commentCount} comments
+            {commentsOpen ? "Hide" : "View"} {commentCountLabel}{" "}
+            {commentCountLabel === 1 ? "comment" : "comments"}
           </span>
           <motion.span animate={{ rotate: commentsOpen ? 180 : 0 }} transition={{ duration: 0.25 }}>
             <ChevronDown className="size-4 shrink-0 opacity-70" aria-hidden />
@@ -582,7 +717,7 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
                     <span className="font-semibold text-foreground">{c.author}</span> {c.text}
                   </p>
                 ))}
-                {remoteSocial && user && (
+                {interactionsLive && user && (
                   <form
                     className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center"
                     onSubmit={(e) => {
@@ -590,9 +725,12 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
                       if (!commentDraft.trim() || commentBusy) return;
                       setCommentBusy(true);
                       void (async () => {
+                        setCommentError(null);
                         try {
                           await submitComment(commentDraft);
                           setCommentDraft("");
+                        } catch (e) {
+                          setCommentError(e instanceof Error ? e.message : "Could not post comment.");
                         } finally {
                           setCommentBusy(false);
                         }
@@ -611,11 +749,139 @@ export function FeedPostCard({ post }: { post: UiFeedPost }) {
                     </Button>
                   </form>
                 )}
+                {(commentError || socialError) && (
+                  <p className="text-[12px] text-red-400/95">{commentError ?? socialError}</p>
+                )}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </motion.article>
+
+      <PostShareSheet
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        postId={post.id}
+        title={post.title}
+        summary={shareSummary}
+      />
+
+      {menuMounted && menuOpen
+        ? createPortal(
+            <motion.div
+              ref={menuPanelRef}
+              role="menu"
+              initial={reduceMotion ? false : { opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -4, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="fixed z-[95] w-[min(18rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-border/60 bg-card/95 py-1.5 text-sm shadow-[var(--ar-modal-elevate)] backdrop-blur-xl dark:border-white/12 dark:bg-zinc-950/95"
+              style={{ top: menuCoords.top, right: menuCoords.right }}
+            >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left font-medium text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+                  onClick={() => {
+                    void toggleSaved();
+                    closeMenu();
+                  }}
+                >
+                  <Bookmark className={cn("size-4", savedRemote && "fill-current text-primary")} aria-hidden />
+                  {savedRemote ? "Unsave post" : "Save post"}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left font-medium text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+                  onClick={() => void copyPostLink()}
+                >
+                  <Link2 className="size-4 opacity-80" aria-hidden />
+                  Copy link
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left font-medium text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]"
+                  onClick={() => {
+                    setToast("Thanks — reporting will be available in a future update.");
+                    closeMenu();
+                  }}
+                >
+                  <Flag className="size-4 opacity-80" aria-hidden />
+                  Report an issue
+                </button>
+                {isOwner && (
+                  <>
+                    <div className="my-1 h-px bg-border/60 dark:bg-white/10" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled
+                      className="flex w-full cursor-not-allowed items-center gap-3 px-4 py-3 text-left font-medium text-muted-foreground/70"
+                      title="Editing posts is not available yet."
+                    >
+                      <Pencil className="size-4 opacity-50" aria-hidden />
+                      Edit post
+                    </button>
+                    {deleteConfirm ? (
+                      <div className="space-y-2 px-3 py-2">
+                        <p className="text-xs leading-relaxed text-muted-foreground">Remove this post for everyone? This cannot be undone.</p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 rounded-xl"
+                            disabled={deleteBusy}
+                            onClick={() => setDeleteConfirm(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="flex-1 rounded-xl"
+                            disabled={deleteBusy}
+                            onClick={() => void onDeletePost()}
+                          >
+                            {deleteBusy ? "Deleting…" : "Delete"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left font-medium text-red-500 transition-colors hover:bg-red-500/10"
+                        onClick={() => setDeleteConfirm(true)}
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                        Delete post
+                      </button>
+                    )}
+                  </>
+                )}
+            </motion.div>,
+            document.body
+          )
+        : null}
+
+      <AnimatePresence initial={false}>
+        {toast ? (
+          <motion.p
+            key={toast}
+            role="status"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            className="fixed bottom-[max(5.5rem,env(safe-area-inset-bottom))] left-1/2 z-[120] max-w-sm -translate-x-1/2 rounded-2xl border border-border/55 bg-card/95 px-4 py-2.5 text-center text-sm text-foreground shadow-lg backdrop-blur-md dark:border-white/12 dark:bg-zinc-950/95"
+          >
+            {toast}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
 
       <FeedLightbox
         state={lightbox}

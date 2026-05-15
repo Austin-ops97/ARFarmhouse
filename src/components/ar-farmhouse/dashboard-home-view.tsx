@@ -1,11 +1,27 @@
 "use client";
 
-import { HomeContextualSpotlight } from "@/components/ar-farmhouse/home-contextual-spotlight";
-import { HomeFeedPreview } from "@/components/ar-farmhouse/home-feed-preview";
+import dynamic from "next/dynamic";
+
 import { HomeImmersiveHero } from "@/components/ar-farmhouse/home-immersive-hero";
-import { HomePhotoMemories } from "@/components/ar-farmhouse/home-photo-memories";
 import { HomeQuickActions } from "@/components/ar-farmhouse/home-quick-actions";
-import { HomeThisWeekend } from "@/components/ar-farmhouse/home-this-weekend";
+import { HomeDeferredSectionFallback } from "@/components/ar-farmhouse/dashboard-view-fallback";
+
+const HomeThisWeekendLazy = dynamic(
+  () => import("@/components/ar-farmhouse/home-this-weekend").then((m) => m.HomeThisWeekend),
+  { loading: () => <HomeDeferredSectionFallback /> }
+);
+const HomePhotoMemoriesLazy = dynamic(
+  () => import("@/components/ar-farmhouse/home-photo-memories").then((m) => m.HomePhotoMemories),
+  { loading: () => <HomeDeferredSectionFallback /> }
+);
+const HomeFeedPreviewLazy = dynamic(
+  () => import("@/components/ar-farmhouse/home-feed-preview").then((m) => m.HomeFeedPreview),
+  { loading: () => <HomeDeferredSectionFallback /> }
+);
+const HomeContextualSpotlightLazy = dynamic(
+  () => import("@/components/ar-farmhouse/home-contextual-spotlight").then((m) => m.HomeContextualSpotlight),
+  { loading: () => <HomeDeferredSectionFallback /> }
+);
 
 export function DashboardHomeView() {
   return (
@@ -14,10 +30,10 @@ export function DashboardHomeView() {
         <HomeImmersiveHero />
         <HomeQuickActions />
       </div>
-      <HomeThisWeekend />
-      <HomePhotoMemories />
-      <HomeFeedPreview />
-      <HomeContextualSpotlight />
+      <HomeThisWeekendLazy />
+      <HomePhotoMemoriesLazy />
+      <HomeFeedPreviewLazy />
+      <HomeContextualSpotlightLazy />
     </div>
   );
 }

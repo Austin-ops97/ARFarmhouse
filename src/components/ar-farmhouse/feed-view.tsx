@@ -2,40 +2,21 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { ImagePlus, PenLine } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CreatePostDialog } from "@/components/ar-farmhouse/create-post-dialog";
-import { FeedEcosystemCard } from "@/components/ar-farmhouse/feed-ecosystem-card";
 import { FeedPostCard } from "@/components/ar-farmhouse/feed-post-card";
 import { FeedRail } from "@/components/ar-farmhouse/feed-rail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
+import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
 import { usePhotoAlbum } from "@/contexts/photo-album-context";
-import { demoFeedSurfaceInserts, type FeedSurfaceInsert } from "@/lib/ecosystem-demo";
 import { FEED_LAYOUT_CLASS, FEED_RAIL_CLASS, FEED_STREAM_CLASS } from "@/lib/feed-layout";
-import type { DemoPostCategory } from "@/lib/social-demo";
+import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { UiFeedPost } from "@/models/feed-post";
 import { createFeedPostWithMedia, subscribeFeedPosts } from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
-
-function interleaveFeedWithEcosystem(posts: UiFeedPost[]) {
-  const inserts = [...demoFeedSurfaceInserts].sort((a, b) => a.afterPostIndex - b.afterPostIndex);
-  const out: Array<{ key: string; t: "post"; post: UiFeedPost } | { key: string; t: "insert"; insert: FeedSurfaceInsert }> = [];
-  let ii = 0;
-  posts.forEach((post, idx) => {
-    out.push({ key: post.id, t: "post", post });
-    while (ii < inserts.length && inserts[ii].afterPostIndex === idx) {
-      out.push({ key: inserts[ii].id, t: "insert", insert: inserts[ii] });
-      ii++;
-    }
-  });
-  while (ii < inserts.length) {
-    out.push({ key: inserts[ii].id, t: "insert", insert: inserts[ii] });
-    ii++;
-  }
-  return out;
-}
 
 function FeedSkeleton() {
   return (
@@ -71,11 +52,14 @@ const composerBar = cn(
   "sm:rounded-[1.35rem] sm:px-4 sm:py-3"
 );
 
-export function FeedView() {
+export function FeedView({ highlightPostId }: { highlightPostId?: string | null }) {
   const reduceMotion = useReducedMotion();
-  const { user, displayName, avatarUrl } = useAuth();
+  const { user, displayName, avatarUrl, loading: authLoading, configured } = useAuth();
+  const { prefs } = useSettingsPrefs();
   const [composeOpen, setComposeOpen] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
+  const [publishPhase, setPublishPhase] = useState<"idle" | "uploading" | "saving">("idle");
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
   const [livePosts, setLivePosts] = useState<UiFeedPost[]>([]);
   const [liveLoading, setLiveLoading] = useState(true);
@@ -90,8 +74,6 @@ export function FeedView() {
   useEffect(() => {
     setFeedPosts(posts);
   }, [posts, setFeedPosts]);
-
-  const feedStream = useMemo(() => interleaveFeedWithEcosystem(posts), [posts]);
 
   useEffect(() => {
     const unsub = subscribeFeedPosts(
@@ -108,16 +90,20 @@ export function FeedView() {
     return unsub;
   }, []);
 
+  const canPublish = Boolean(configured && user && !authLoading);
+
   const handlePublishLive = useCallback(
     async (payload: {
       files: File[];
       caption: string;
       location: string;
-      postType: DemoPostCategory;
+      postType: FeedPostCategory;
       attachedEvent: string | null;
     }) => {
-      if (!user) throw new Error("Not signed in");
+      if (!user) throw new Error("Sign in to publish to the family feed.");
       setPublishBusy(true);
+      setPublishPhase(payload.files.length > 0 ? "uploading" : "saving");
+      setUploadProgress(payload.files.length > 0 ? { done: 0, total: payload.files.length } : null);
       try {
         await createFeedPostWithMedia(
           {
@@ -130,16 +116,19 @@ export function FeedView() {
             linkedEvent: payload.attachedEvent,
             files: payload.files,
           },
-          undefined
+          (done, total) => {
+            setPublishPhase("uploading");
+            setUploadProgress({ done, total });
+            if (done >= total) setPublishPhase("saving");
+          }
         );
-        setComposeOpen(false);
-      } catch (e) {
-        throw e instanceof Error ? e : new Error(String(e));
       } finally {
         setPublishBusy(false);
+        setPublishPhase("idle");
+        setUploadProgress(null);
       }
     },
-    [avatarUrl, displayName, user]
+    [avatarUrl, configured, displayName, user]
   );
 
   return (
@@ -152,9 +141,9 @@ export function FeedView() {
           className="mb-5 flex items-end justify-between gap-4 sm:mb-7"
         >
           <div className="min-w-0 space-y-1">
-            <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Feed</h1>
+            <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Family feed</h1>
             <p className="max-w-md text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
-              Live family feed — synchronized moments, reactions, and comments.
+              Private updates, photos, and reactions for people signed in to this home.
             </p>
           </div>
           <button
@@ -186,9 +175,7 @@ export function FeedView() {
               <AvatarImage src={meAvatar} alt="" />
               <AvatarFallback>{meName.slice(0, 1)}</AvatarFallback>
             </Avatar>
-            <span className="min-w-0 flex-1 text-[15px] text-muted-foreground">
-              What&apos;s happening at the property?
-            </span>
+            <span className="min-w-0 flex-1 text-[15px] text-muted-foreground">Share a moment with the family</span>
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-card/80 text-primary dark:border-white/10 dark:bg-white/[0.05]">
               <ImagePlus className="size-[18px]" aria-hidden />
             </span>
@@ -197,7 +184,7 @@ export function FeedView() {
 
         {liveError && (
           <p className="mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100/95">
-            Feed could not sync: {liveError}
+            The feed could not sync: {liveError}
           </p>
         )}
 
@@ -206,23 +193,24 @@ export function FeedView() {
         ) : (
           <>
             {posts.length === 0 && (
-              <div className="rounded-2xl border border-border/55 bg-card/80 px-5 py-10 text-center shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.03]">
-                <p className="font-heading text-lg font-semibold text-foreground">The feed is quiet</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Be the first to share a moment — photos upload to private storage and appear here for everyone
+              <div className="rounded-2xl border border-border/55 bg-card/80 px-5 py-12 text-center shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.03]">
+                <p className="font-heading text-lg font-semibold text-foreground">No family updates yet</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Be the first to post a memory. Photos stay in private storage and appear here for everyone who is
                   signed in.
                 </p>
               </div>
             )}
 
             <div className="space-y-0">
-              {feedStream.map((item) =>
-                item.t === "post" ? (
-                  <FeedPostCard key={item.key} post={item.post} />
-                ) : (
-                  <FeedEcosystemCard key={item.key} insert={item.insert} />
-                )
-              )}
+              {posts.map((post) => (
+                <FeedPostCard
+                  key={post.id}
+                  post={post}
+                  highlightId={highlightPostId}
+                  suppressMedia={!prefs.feedRichMedia || prefs.behaviorDataSaver}
+                />
+              ))}
             </div>
           </>
         )}
@@ -245,9 +233,11 @@ export function FeedView() {
         <CreatePostDialog
           open={composeOpen}
           onOpenChange={setComposeOpen}
-          variant="live"
           publishBusy={publishBusy}
-          onPublishLive={user ? handlePublishLive : undefined}
+          publishPhase={publishPhase}
+          uploadProgress={uploadProgress}
+          canPublish={canPublish}
+          onPublishLive={canPublish ? handlePublishLive : undefined}
         />
       </div>
 

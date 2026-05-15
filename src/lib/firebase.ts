@@ -1,5 +1,3 @@
-"use client";
-
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
@@ -8,63 +6,67 @@ import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { readPublicFirebaseConfig } from "@/lib/firebase/env";
 
 /**
- * Resolves the default Firebase app using the Firebase JS singleton registry.
- * Safe with Next.js dev HMR: re-imports call getApp() when an app already exists.
+ * Lazy init (no module-level singleton). Avoids evaluating Firebase when
+ * `NEXT_PUBLIC_*` is unavailable during SSR of client bundles, and keeps
+ * server/client aligned with fresh `readPublicFirebaseConfig()` reads.
  */
 function resolveFirebaseApp(): FirebaseApp | null {
   const cfg = readPublicFirebaseConfig();
   if (!cfg) return null;
-  return getApps().length > 0 ? getApp() : initializeApp(cfg);
+  try {
+    return getApps().length > 0 ? getApp() : initializeApp(cfg);
+  } catch {
+    return null;
+  }
 }
 
-export const firebaseApp: FirebaseApp | null = resolveFirebaseApp();
-
-export const auth: Auth | null = firebaseApp ? getAuth(firebaseApp) : null;
-
-export const db: Firestore | null = firebaseApp ? getFirestore(firebaseApp) : null;
-
-export const storage: FirebaseStorage | null = firebaseApp ? getStorage(firebaseApp) : null;
-
 export function getFirebaseApp(): FirebaseApp {
-  if (!firebaseApp) {
+  const app = resolveFirebaseApp();
+  if (!app) {
     throw new Error("Firebase is not configured. Add NEXT_PUBLIC_FIREBASE_* to `.env.local`.");
   }
-  return firebaseApp;
+  return app;
 }
 
 export function tryGetFirebaseApp(): FirebaseApp | null {
-  return firebaseApp;
+  return resolveFirebaseApp();
 }
 
 export function getFirebaseAuth(): Auth {
-  if (!auth) {
+  const app = resolveFirebaseApp();
+  if (!app) {
     throw new Error("Firebase is not configured. Add NEXT_PUBLIC_FIREBASE_* to `.env.local`.");
   }
-  return auth;
+  return getAuth(app);
 }
 
 export function tryGetFirebaseAuth(): Auth | null {
-  return auth;
+  const app = resolveFirebaseApp();
+  return app ? getAuth(app) : null;
 }
 
 export function getFirestoreDb(): Firestore {
-  if (!db) {
+  const app = resolveFirebaseApp();
+  if (!app) {
     throw new Error("Firebase is not configured. Add NEXT_PUBLIC_FIREBASE_* to `.env.local`.");
   }
-  return db;
+  return getFirestore(app);
 }
 
 export function tryGetFirestoreDb(): Firestore | null {
-  return db;
+  const app = resolveFirebaseApp();
+  return app ? getFirestore(app) : null;
 }
 
 export function getFirebaseStorage(): FirebaseStorage {
-  if (!storage) {
+  const app = resolveFirebaseApp();
+  if (!app) {
     throw new Error("Firebase is not configured. Add NEXT_PUBLIC_FIREBASE_* to `.env.local`.");
   }
-  return storage;
+  return getStorage(app);
 }
 
 export function tryGetFirebaseStorage(): FirebaseStorage | null {
-  return storage;
+  const app = resolveFirebaseApp();
+  return app ? getStorage(app) : null;
 }

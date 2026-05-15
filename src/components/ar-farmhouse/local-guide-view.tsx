@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import { LocalGuideDetailSheet } from "@/components/ar-farmhouse/local-guide-detail-sheet";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
+import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
 import { LocalGuideListRow } from "@/components/ar-farmhouse/local-guide-list-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,8 @@ const segments: GuideSegment[] = ["restaurants", "stores"];
 
 export function LocalGuideView() {
   const reduceMotion = useReducedMotion();
-  const { openWeekendHub } = useEcosystem();
+  const { openWeekendHub, goTo } = useEcosystem();
+  const { prefs } = useSettingsPrefs();
   const [segment, setSegment] = useState<GuideSegment>("restaurants");
   const [query, setQuery] = useState("");
   const [verifiedOnlyToggle, setVerifiedOnlyToggle] = useState(false);
@@ -85,6 +87,18 @@ export function LocalGuideView() {
         <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">
           Food and shops around the farmhouse — built for quick taps on the road.
         </p>
+        {prefs.guidePreferMap && (
+          <button
+            type="button"
+            onClick={() => goTo("map")}
+            className="mt-3 text-sm font-medium text-primary transition hover:text-primary/85"
+          >
+            Open property map (preferred in settings)
+          </button>
+        )}
+        {prefs.guideQuietHours && (
+          <p className="mt-2 text-[11px] text-muted-foreground/85">Quiet hours on — detail sheets stay minimal.</p>
+        )}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => openWeekendHub("current")}>
             Weekend hub · trip context

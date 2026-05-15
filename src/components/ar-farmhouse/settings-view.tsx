@@ -8,63 +8,16 @@ import {
   Moon,
   Sparkles,
   Sun,
-  UserRound,
   Wifi,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/contexts/auth-context";
+import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
 import { useTheme } from "@/contexts/theme-context";
 import { cn } from "@/lib/utils";
-
-const PREFS_KEY = "ar-settings-prefs-v1";
-
-type Prefs = {
-  notifyPush: boolean;
-  notifyEmailDigest: boolean;
-  notifyWeekend: boolean;
-  privacyLocation: boolean;
-  privacyDiscoverable: boolean;
-  feedChronological: boolean;
-  feedRichMedia: boolean;
-  guidePreferMap: boolean;
-  guideQuietHours: boolean;
-  behaviorHaptics: boolean;
-  behaviorDataSaver: boolean;
-};
-
-const defaultPrefs: Prefs = {
-  notifyPush: true,
-  notifyEmailDigest: false,
-  notifyWeekend: true,
-  privacyLocation: true,
-  privacyDiscoverable: false,
-  feedChronological: true,
-  feedRichMedia: true,
-  guidePreferMap: false,
-  guideQuietHours: true,
-  behaviorHaptics: true,
-  behaviorDataSaver: false,
-};
-
-function loadPrefs(): Prefs {
-  if (typeof window === "undefined") return defaultPrefs;
-  try {
-    const raw = localStorage.getItem(PREFS_KEY);
-    if (!raw) return defaultPrefs;
-    return { ...defaultPrefs, ...JSON.parse(raw) };
-  } catch {
-    return defaultPrefs;
-  }
-}
-
-function savePrefs(p: Prefs) {
-  try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
-  } catch {
-    /* ignore */
-  }
-}
 
 function ToggleRow({
   label,
@@ -159,20 +112,8 @@ function Collapsible({
 export function SettingsView() {
   const reduceMotion = useReducedMotion();
   const { theme, setTheme, ready } = useTheme();
-  const [prefs, setPrefs] = useState<Prefs>(defaultPrefs);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from localStorage after mount
-    setPrefs(loadPrefs());
-  }, []);
-
-  const patch = useCallback((partial: Partial<Prefs>) => {
-    setPrefs((prev) => {
-      const next = { ...prev, ...partial };
-      savePrefs(next);
-      return next;
-    });
-  }, []);
+  const { displayName, avatarUrl, user } = useAuth();
+  const { prefs, patch } = useSettingsPrefs();
 
   const appearanceHint = useMemo(
     () =>
@@ -250,14 +191,17 @@ export function SettingsView() {
 
         <SettingsGroup title="Profile">
           <div className="py-4">
-            <div className="flex items-start gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/30 dark:border-white/10 dark:bg-white/[0.04]">
-                <UserRound className="size-[18px] text-primary" aria-hidden />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[15px] font-medium text-foreground">Household identity</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-                  Name, photo, and branch labels stay on-device until you connect the live profile service.
+            <div className="flex items-start gap-4">
+              <Avatar className="size-14 shrink-0 rounded-2xl ring-2 ring-background">
+                <AvatarImage src={avatarUrl ?? undefined} alt="" className="object-cover" />
+                <AvatarFallback className="rounded-2xl text-lg font-semibold">{displayName.slice(0, 1)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-medium text-foreground">{displayName}</p>
+                {user?.email && <p className="mt-1 text-[13px] text-muted-foreground">{user.email}</p>}
+                <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                  Name and photo come from your Firebase account. Update them in your identity provider or profile
+                  screen when your household enables shared Firestore profiles.
                 </p>
               </div>
             </div>
@@ -308,8 +252,8 @@ export function SettingsView() {
             onCheckedChange={(v) => patch({ feedChronological: v })}
           />
           <ToggleRow
-            label="Rich media autoplay"
-            description="Ambient previews while scrolling — respects reduced motion."
+            label="Show photos in feed"
+            description="Turn off to hide images in the feed (text-only). Data saver also hides media."
             checked={prefs.feedRichMedia}
             onCheckedChange={(v) => patch({ feedRichMedia: v })}
           />
@@ -351,7 +295,8 @@ export function SettingsView() {
             <div className="min-w-0">
               <p className="text-[15px] font-medium text-foreground">This browser session</p>
               <p className="mt-1 text-[13px] text-muted-foreground">
-                Device management ships with the live stack — here you&apos;re seeing a polished preview shell.
+                This browser session. Remote device lists will appear when account security features are enabled for
+                your household.
               </p>
             </div>
           </div>
@@ -368,7 +313,7 @@ export function SettingsView() {
                 <Globe2 className="size-3 opacity-70" aria-hidden />
                 v0.1 design system
               </span>
-              <span className="text-muted-foreground/80">Premium UI preview · no telemetry in demo</span>
+              <span className="text-muted-foreground/80">Privacy-first by design</span>
             </p>
           </div>
         </SettingsGroup>
@@ -376,7 +321,8 @@ export function SettingsView() {
         <div className="flex flex-wrap gap-3 rounded-[1.35rem] border border-dashed border-border/60 bg-muted/20 px-4 py-4 text-[12px] text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.02]">
           <Wifi className="size-4 shrink-0 text-primary/80" aria-hidden />
           <p>
-            Preferences save locally in this browser. Theme syncs instantly and persists for return visits.
+            Notification toggles are stored locally until push is wired. Feed and guide toggles apply immediately in
+            this browser. Theme syncs instantly and can follow your Firestore profile on first sign-in.
           </p>
         </div>
       </div>

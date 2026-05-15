@@ -8,7 +8,8 @@ import { useSyncExternalStore } from "react";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { dashboardHeroImage, mockWeather, mockWeekendGuests } from "@/lib/mock-data";
+import { useAuth } from "@/contexts/auth-context";
+import { PROPERTY_HERO_IMAGE_URL } from "@/lib/brand";
 import { resolveHomeHeroNarrative, type HomeAtmosphere } from "@/lib/home-context";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +31,6 @@ const atmosphereLayers: Record<HomeAtmosphere, string> = {
   day: "from-primary/[0.08] via-transparent to-transparent",
   dusk: "from-amber-300/[0.14] via-rose-200/[0.05] to-transparent",
   night: "from-indigo-400/[0.07] via-transparent to-primary/[0.05]",
-  storm: "from-slate-400/[0.12] via-sky-900/[0.08] to-transparent",
 };
 
 const heroMin =
@@ -42,14 +42,9 @@ export function HomeImmersiveHero() {
   void minute;
   const narrative = resolveHomeHeroNarrative(new Date());
   const { openWeekendHub, goTo } = useEcosystem();
-  const heroImage = dashboardHeroImage;
-
-  const initials = mockWeekendGuests.map((g) =>
-    g.name
-      .split(" ")
-      .map((p) => p[0])
-      .join("")
-  );
+  const { displayName, avatarUrl } = useAuth();
+  const heroImage = PROPERTY_HERO_IMAGE_URL;
+  const firstName = displayName.split(/\s+/)[0] ?? displayName;
 
   return (
     <section
@@ -96,7 +91,7 @@ export function HomeImmersiveHero() {
           <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-white/88">
             {narrative.eyebrow}
             <span className="mx-2 text-white/40">·</span>
-            <span className="tracking-[0.18em] text-white/92">Alex</span>
+            <span className="tracking-[0.18em] text-white/92">{firstName}</span>
           </p>
 
           <div className="space-y-4">
@@ -131,10 +126,10 @@ export function HomeImmersiveHero() {
         <div className="grid gap-4 border-t border-white/14 pt-8 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-[1fr_1.1fr]">
           <div className="flex items-start justify-between gap-4 rounded-2xl bg-white/[0.08] px-4 py-4 ring-1 ring-white/14 backdrop-blur-xl">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/88">{mockWeather.location}</p>
-              <p className="mt-2 font-heading text-4xl font-semibold tracking-tight text-white">{mockWeather.tempF}°</p>
-              <p className="mt-1 text-xs font-medium text-white/88">{mockWeather.condition}</p>
-              <p className="mt-3 text-[11px] font-medium text-white/85">{mockWeather.highLow}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/88">Local conditions</p>
+              <p className="mt-2 font-heading text-2xl font-semibold tracking-tight text-white sm:text-3xl">—</p>
+              <p className="mt-1 text-xs font-medium text-white/88">Weather widgets connect when you are ready.</p>
+              <p className="mt-3 text-[11px] font-medium text-white/85">Check nearby forecast before heading to the ridge.</p>
             </div>
             <div className="flex size-11 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/16">
               <CloudSun className="size-5 text-mist" aria-hidden />
@@ -142,19 +137,18 @@ export function HomeImmersiveHero() {
           </div>
 
           <div className="rounded-2xl bg-white/[0.08] px-4 py-4 ring-1 ring-white/14 backdrop-blur-xl">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/88">Arriving soon</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/88">Household</p>
             <div className="mt-4 flex items-center gap-4">
-              <div className="flex -space-x-2.5">
-                {mockWeekendGuests.slice(0, 4).map((guest, i) => (
-                  <Avatar key={guest.name} className="ring-2 ring-black/30" size="lg">
-                    <AvatarImage src={guest.avatar} alt="" />
-                    <AvatarFallback>{initials[i]}</AvatarFallback>
-                  </Avatar>
-                ))}
-              </div>
+              <Avatar className="ring-2 ring-black/30" size="lg">
+                <AvatarImage src={avatarUrl ?? undefined} alt="" />
+                <AvatarFallback className="text-sm font-medium">{firstName.slice(0, 1)}</AvatarFallback>
+              </Avatar>
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-sm font-medium text-white">Staggered arrivals from Friday</p>
-                <p className="text-xs font-medium text-white/88">Full guest list and ETAs live in the weekend hub.</p>
+                <p className="text-sm font-medium text-white">Signed in as {displayName}</p>
+                <p className="text-xs font-medium text-white/88">
+                  Guest arrivals and ETAs will show here when weekends are on the calendar — nothing invented in the
+                  meantime.
+                </p>
               </div>
             </div>
           </div>

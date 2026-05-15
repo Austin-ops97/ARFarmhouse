@@ -1,12 +1,3 @@
-const keys = [
-  "NEXT_PUBLIC_FIREBASE_API_KEY",
-  "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
-  "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-  "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
-  "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
-  "NEXT_PUBLIC_FIREBASE_APP_ID",
-] as const;
-
 export type PublicFirebaseConfig = {
   apiKey: string;
   authDomain: string;
@@ -29,16 +20,32 @@ function normalizeEnvValue(raw: string | undefined): string {
   return v;
 }
 
+/**
+ * Read public Firebase web config.
+ *
+ * IMPORTANT: each `process.env.NEXT_PUBLIC_*` must be referenced **literally**
+ * (not via a dynamic key). Next.js replaces only static accesses when inlining
+ * env into the client bundle; `process.env[someVariable]` stays undefined in the browser.
+ */
 export function readPublicFirebaseConfig(): PublicFirebaseConfig | null {
-  const values = keys.map((k) => normalizeEnvValue(process.env[k]));
-  if (values.some((v) => !v)) return null;
+  const apiKey = normalizeEnvValue(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  const authDomain = normalizeEnvValue(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN);
+  const projectId = normalizeEnvValue(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
+  const storageBucket = normalizeEnvValue(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+  const messagingSenderId = normalizeEnvValue(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID);
+  const appId = normalizeEnvValue(process.env.NEXT_PUBLIC_FIREBASE_APP_ID);
+
+  if (!apiKey || !authDomain || !projectId || !storageBucket || !messagingSenderId || !appId) {
+    return null;
+  }
+
   return {
-    apiKey: values[0],
-    authDomain: values[1],
-    projectId: values[2],
-    storageBucket: values[3],
-    messagingSenderId: values[4],
-    appId: values[5],
+    apiKey,
+    authDomain,
+    projectId,
+    storageBucket,
+    messagingSenderId,
+    appId,
   };
 }
 

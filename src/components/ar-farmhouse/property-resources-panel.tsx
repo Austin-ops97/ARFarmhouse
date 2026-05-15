@@ -5,13 +5,13 @@ import { ChevronDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
-import type { DemoResource } from "@/lib/operations-demo";
-import { demoResources } from "@/lib/operations-demo";
+import type { PropertyResource } from "@/lib/property-operations";
+import { usePropertyData } from "@/contexts/property-data-context";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
 
-function ResourceRow({ item, open, onToggle }: { item: DemoResource; open: boolean; onToggle: () => void }) {
+function ResourceRow({ item, open, onToggle }: { item: PropertyResource; open: boolean; onToggle: () => void }) {
   const reduceMotion = useReducedMotion();
   return (
     <div className={cn(surface, "overflow-hidden")}>
@@ -26,7 +26,10 @@ function ResourceRow({ item, open, onToggle }: { item: DemoResource; open: boole
           <p className="text-sm text-muted-foreground">{item.summary}</p>
           <div className="flex flex-wrap gap-1 pt-1">
             {item.tags.map((tag) => (
-              <span key={tag} className="rounded-full border border-border/50 bg-muted/45 px-2 py-0.5 text-[10px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]">
+              <span
+                key={tag}
+                className="rounded-full border border-border/50 bg-muted/45 px-2 py-0.5 text-[10px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]"
+              >
                 {tag}
               </span>
             ))}
@@ -54,23 +57,24 @@ function ResourceRow({ item, open, onToggle }: { item: DemoResource; open: boole
 }
 
 export function PropertyResourcesPanel() {
+  const { resources } = usePropertyData();
   const [q, setQ] = useState("");
-  const [openId, setOpenId] = useState<string | null>("r1");
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return demoResources;
-    return demoResources.filter(
+    if (!s) return resources;
+    return resources.filter(
       (r) =>
         r.title.toLowerCase().includes(s) ||
         r.category.toLowerCase().includes(s) ||
         r.detail.toLowerCase().includes(s) ||
         r.tags.some((t) => t.includes(s))
     );
-  }, [q]);
+  }, [q, resources]);
 
   const categories = useMemo(() => {
-    const m = new Map<string, DemoResource[]>();
+    const m = new Map<string, PropertyResource[]>();
     for (const r of filtered) {
       const list = m.get(r.category) ?? [];
       list.push(r);
@@ -83,7 +87,10 @@ export function PropertyResourcesPanel() {
     <div className="space-y-5">
       <div className={cn(surface, "p-3 sm:p-4")}>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -93,21 +100,33 @@ export function PropertyResourcesPanel() {
         </div>
       </div>
 
-      {categories.map(([cat, items]) => (
-        <section key={cat} className="space-y-3">
-          <h3 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cat}</h3>
-          <div className="space-y-3">
-            {items.map((item) => (
-              <ResourceRow
-                key={item.id}
-                item={item}
-                open={openId === item.id}
-                onToggle={() => setOpenId((id) => (id === item.id ? null : item.id))}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+      {resources.length === 0 ? (
+        <div className={cn(surface, "px-6 py-12 text-center")}>
+          <p className="font-heading text-lg font-semibold text-foreground">House binder is empty</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Wi-Fi, gate codes, shutoffs, and vendor cards will live here when you add them. Nothing is prefilled — this
+            is your family&apos;s real runbook.
+          </p>
+        </div>
+      ) : categories.length === 0 ? (
+        <div className={cn(surface, "px-6 py-10 text-center text-sm text-muted-foreground")}>No matches for that search.</div>
+      ) : (
+        categories.map(([cat, items]) => (
+          <section key={cat} className="space-y-3">
+            <h3 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cat}</h3>
+            <div className="space-y-3">
+              {items.map((item) => (
+                <ResourceRow
+                  key={item.id}
+                  item={item}
+                  open={openId === item.id}
+                  onToggle={() => setOpenId((id) => (id === item.id ? null : item.id))}
+                />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
     </div>
   );
 }

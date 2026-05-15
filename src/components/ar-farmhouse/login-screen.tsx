@@ -1,44 +1,96 @@
 "use client";
 
 import Image from "next/image";
-import { motion, useReducedMotion } from "framer-motion";
-import { Lock, Mail, Sparkles, UserPlus } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowLeft, CheckCircle2, Loader2, Lock, Mail, UserPlus } from "lucide-react";
+import { FormEvent, useCallback, useState } from "react";
 
+import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
-import { loginBackdrop } from "@/lib/mock-data";
+import { PROPERTY_HERO_IMAGE_URL } from "@/lib/brand";
 import { cn } from "@/lib/utils";
+
+const MIN_PASSWORD_LEN = 6;
+
+function isValidEmail(value: string): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+type AuthView = "signIn" | "register" | "forgotPassword";
 
 export function LoginScreen() {
   const reduceMotion = useReducedMotion();
-  const { signInWithEmail, signUpWithEmail } = useAuth();
-  const [submitting, setSubmitting] = useState(false);
-  const [wantRegister, setWantRegister] = useState(false);
+  const { signInWithEmail, signUpWithEmail, sendPasswordResetForEmail, clearError } = useAuth();
+  const [view, setView] = useState<AuthView>("signIn");
+  const [pending, setPending] = useState<null | "auth" | "reset">(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; displayName?: string }>({});
+  const [resetSent, setResetSent] = useState(false);
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  const busy = pending !== null;
+
+  const clearFieldErrors = useCallback(() => setFieldErrors({}), []);
+
+  const transitionTo = useCallback(
+    (next: AuthView) => {
+      setFormError(null);
+      clearFieldErrors();
+      clearError();
+      if (next !== "forgotPassword") {
+        setResetSent(false);
+      }
+      setView(next);
+    },
+    [clearError, clearFieldErrors]
+  );
+
+  function validateCredentials(forRegister: boolean): boolean {
+    const next: typeof fieldErrors = {};
+    if (!email.trim()) {
+      next.email = "Email is required.";
+    } else if (!isValidEmail(email)) {
+      next.email = "Enter a valid email address.";
+    }
+    if (!password) {
+      next.password = "Password is required.";
+    } else if (forRegister && password.length < MIN_PASSWORD_LEN) {
+      next.password = `Use at least ${MIN_PASSWORD_LEN} characters.`;
+    }
+    if (forRegister && !displayName.trim()) {
+      next.displayName = "Add a display name for your profile.";
+    }
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
+  function validateForgot(): boolean {
+    const next: typeof fieldErrors = {};
+    if (!email.trim()) {
+      next.email = "Enter the email for your account.";
+    } else if (!isValidEmail(email)) {
+      next.email = "Enter a valid email address.";
+    }
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
+  async function handleAuthSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (submitting) return;
+    if (busy) return;
     setFormError(null);
-    const fd = new FormData(e.currentTarget);
-    const email = String(fd.get("email") ?? "");
-    const password = String(fd.get("password") ?? "");
+    const forRegister = view === "register";
+    if (!validateCredentials(forRegister)) return;
 
-    if (!email.trim() || !password) {
-      setFormError("Email and password are required.");
-      return;
-    }
-    if (wantRegister && !displayName.trim()) {
-      setFormError("Please add a display name for your profile.");
-      return;
-    }
-
-    setSubmitting(true);
+    setPending("auth");
     try {
-      if (wantRegister) {
+      if (forRegister) {
         await signUpWithEmail(email, password, displayName.trim());
       } else {
         await signInWithEmail(email, password);
@@ -46,9 +98,30 @@ export function LoginScreen() {
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Sign-in failed.");
     } finally {
-      setSubmitting(false);
+      setPending(null);
     }
   }
+
+  async function handleResetSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (busy) return;
+    setFormError(null);
+    setResetSent(false);
+    if (!validateForgot()) return;
+
+    setPending("reset");
+    try {
+      await sendPasswordResetForEmail(email);
+      setResetSent(true);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Could not send reset email.");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  const showRegisterFields = view === "register";
+  const showPassword = view === "signIn" || view === "register";
 
   return (
     <div className="relative flex min-h-dvh items-center justify-center px-4 py-10 sm:px-6">
@@ -64,7 +137,7 @@ export function LoginScreen() {
           }
         >
           <Image
-            src={loginBackdrop}
+            src={PROPERTY_HERO_IMAGE_URL}
             alt=""
             fill
             priority
@@ -91,108 +164,293 @@ export function LoginScreen() {
         >
           <div className="mb-8 flex flex-col items-center text-center">
             <motion.div
-              className="mb-5 flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] shadow-inner shadow-white/5"
-              whileHover={reduceMotion ? undefined : { scale: 1.04, rotate: -1.5 }}
-              transition={{ type: "spring", stiffness: 400, damping: 22 }}
+              className="mb-6"
+              whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 400, damping: 24 }}
             >
-              <Sparkles className="size-7 text-primary" aria-hidden />
+              <ArFarmhouseLogo size={72} priority className="shadow-[0_12px_40px_-16px_rgba(0,0,0,0.35)]" />
             </motion.div>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-[2rem]">
-              AR Farmhouse
+              {view === "forgotPassword" ? "Reset password" : "AR Farmhouse"}
             </h1>
             <p className="mt-2 max-w-[280px] text-sm leading-relaxed text-muted-foreground">
-              Private family property network
+              {view === "forgotPassword"
+                ? "We will email you a secure link to choose a new password."
+                : "Private family property network"}
             </p>
           </div>
 
-          <p className="mb-4 rounded-2xl border border-primary/20 bg-primary/[0.08] px-3 py-2 text-center text-xs leading-relaxed text-muted-foreground">
-            Secure sign-in · your session stays signed in on this device until you sign out.
-          </p>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {wantRegister && (
-              <div className="space-y-2">
-                <label className="sr-only" htmlFor="displayName">
-                  Display name
-                </label>
-                <div className="relative">
-                  <UserPlus className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="displayName"
-                    name="displayName"
-                    type="text"
-                    autoComplete="name"
-                    placeholder="Display name"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
-                  />
-                </div>
-              </div>
-            )}
-            <div className="space-y-2">
-              <label className="sr-only" htmlFor="email">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="Email"
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="sr-only" htmlFor="password">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete={wantRegister ? "new-password" : "current-password"}
-                  placeholder="Password"
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
-                />
-              </div>
-            </div>
-
-            {formError && (
-              <p className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-center text-xs text-red-200/95">
-                {formError}
-              </p>
-            )}
-
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="mt-2 h-11 w-full rounded-2xl text-[15px] font-medium shadow-[0_12px_40px_-16px_oklch(0.55_0.08_158_/_0.65)]"
-              size="lg"
-            >
-              {wantRegister ? "Create account" : "Sign in"}
-            </Button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setFormError(null);
-                setWantRegister((v) => !v);
-              }}
-              className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline"
-            >
-              {wantRegister ? "Already have access? Sign in" : "New to the property? Create an account"}
-            </button>
-
-            <p className="pt-2 text-center text-xs text-muted-foreground/90">
-              Encrypted session · family-only feed and storage
+          {view !== "forgotPassword" && (
+            <p className="mb-4 rounded-2xl border border-primary/20 bg-primary/[0.08] px-3 py-2 text-center text-xs leading-relaxed text-muted-foreground">
+              Secure sign-in · your session stays signed in on this device until you sign out.
             </p>
-          </form>
+          )}
+
+          <AnimatePresence mode="wait" initial={false}>
+            {view === "forgotPassword" ? (
+              <motion.form
+                key="forgot"
+                onSubmit={handleResetSubmit}
+                className="space-y-4"
+                initial={reduceMotion ? false : { opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reduceMotion ? undefined : { opacity: 0, x: -10 }}
+                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <div className="space-y-2">
+                  <label className="sr-only" htmlFor="reset-email">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="reset-email"
+                      name="reset-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="Email"
+                      value={email}
+                      onChange={(ev) => {
+                        setEmail(ev.target.value);
+                        if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined }));
+                      }}
+                      disabled={busy}
+                      aria-invalid={Boolean(fieldErrors.email)}
+                      className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
+                    />
+                  </div>
+                  {fieldErrors.email && (
+                    <p className="px-1 text-xs text-amber-200/95" role="status">
+                      {fieldErrors.email}
+                    </p>
+                  )}
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {resetSent && (
+                    <motion.div
+                      initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <p className="flex gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5 text-xs leading-relaxed text-emerald-100/95">
+                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-300" aria-hidden />
+                        <span>
+                          If that address is registered, you will receive reset instructions shortly. Check your inbox
+                          and spam folder, then return here to sign in.
+                        </span>
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {formError && (
+                  <p className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-center text-xs text-red-200/95">
+                    {formError}
+                  </p>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={busy}
+                  className="mt-1 h-11 w-full rounded-2xl text-[15px] font-medium shadow-[0_12px_40px_-16px_oklch(0.55_0.08_158_/_0.65)]"
+                  size="lg"
+                >
+                  {pending === "reset" ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                      Sending…
+                    </>
+                  ) : (
+                    "Send reset link"
+                  )}
+                </Button>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => transitionTo("signIn")}
+                  className="flex w-full items-center justify-center gap-2 text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                  <ArrowLeft className="size-3.5" aria-hidden />
+                  Back to sign in
+                </button>
+              </motion.form>
+            ) : (
+              <motion.form
+                key="auth"
+                onSubmit={handleAuthSubmit}
+                className="space-y-4"
+                initial={reduceMotion ? false : { opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reduceMotion ? undefined : { opacity: 0, x: 10 }}
+                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <AnimatePresence initial={false}>
+                  {showRegisterFields && (
+                    <motion.div
+                      className="space-y-2"
+                      initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <label className="sr-only" htmlFor="displayName">
+                        Display name
+                      </label>
+                      <div className="relative">
+                        <UserPlus className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="displayName"
+                          name="displayName"
+                          type="text"
+                          autoComplete="name"
+                          placeholder="Display name"
+                          value={displayName}
+                          onChange={(ev) => {
+                            setDisplayName(ev.target.value);
+                            if (fieldErrors.displayName) setFieldErrors((f) => ({ ...f, displayName: undefined }));
+                          }}
+                          disabled={busy}
+                          aria-invalid={Boolean(fieldErrors.displayName)}
+                          className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
+                        />
+                      </div>
+                      {fieldErrors.displayName && (
+                        <p className="px-1 text-xs text-amber-200/95" role="status">
+                          {fieldErrors.displayName}
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="space-y-2">
+                  <label className="sr-only" htmlFor="email">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="Email"
+                      value={email}
+                      onChange={(ev) => {
+                        setEmail(ev.target.value);
+                        if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined }));
+                      }}
+                      disabled={busy}
+                      aria-invalid={Boolean(fieldErrors.email)}
+                      className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
+                    />
+                  </div>
+                  {fieldErrors.email && (
+                    <p className="px-1 text-xs text-amber-200/95" role="status">
+                      {fieldErrors.email}
+                    </p>
+                  )}
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {showPassword && (
+                    <motion.div
+                      className="space-y-2"
+                      initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <label className="sr-only" htmlFor="password">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="password"
+                          name="password"
+                          type="password"
+                          autoComplete={view === "register" ? "new-password" : "current-password"}
+                          placeholder="Password"
+                          value={password}
+                          onChange={(ev) => {
+                            setPassword(ev.target.value);
+                            if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined }));
+                          }}
+                          disabled={busy}
+                          aria-invalid={Boolean(fieldErrors.password)}
+                          className="h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80"
+                        />
+                      </div>
+                      {fieldErrors.password && (
+                        <p className="px-1 text-xs text-amber-200/95" role="status">
+                          {fieldErrors.password}
+                        </p>
+                      )}
+                      {view === "register" && !fieldErrors.password && (
+                        <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/80">
+                          At least {MIN_PASSWORD_LEN} characters. Use a phrase only your family would guess.
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {view === "signIn" && (
+                  <div className="flex justify-end pt-0.5">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => transitionTo("forgotPassword")}
+                      className="text-xs font-medium text-primary/90 underline-offset-4 hover:underline disabled:opacity-50"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+
+                {formError && (
+                  <p className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-center text-xs text-red-200/95">
+                    {formError}
+                  </p>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={busy}
+                  className="mt-1 h-11 w-full rounded-2xl text-[15px] font-medium shadow-[0_12px_40px_-16px_oklch(0.55_0.08_158_/_0.65)]"
+                  size="lg"
+                >
+                  {pending === "auth" ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                      {view === "register" ? "Creating account…" : "Signing in…"}
+                    </>
+                  ) : view === "register" ? (
+                    "Create account"
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => transitionTo(view === "register" ? "signIn" : "register")}
+                  className="w-full text-center text-xs font-medium text-primary/90 underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                  {view === "register" ? "Already have access? Sign in" : "New to the property? Create an account"}
+                </button>
+
+                <p className="pt-2 text-center text-xs text-muted-foreground/90">
+                  Encrypted session · family-only feed and storage
+                </p>
+              </motion.form>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
     </div>

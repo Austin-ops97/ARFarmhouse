@@ -1,19 +1,29 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarRange, Home, Minus, Plus, Sparkles, Users, X } from "lucide-react";
-import { useCallback, useEffect, useId, useState } from "react";
+import { CalendarRange, Home, Loader2, Minus, Plus, Sparkles, Users, X } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  demoBookingTripTypes,
-  demoOccupancyByDay,
-  demoPropertyRooms,
-} from "@/lib/calendar-demo";
-import { demoCalendarMonth } from "@/lib/social-demo";
+import { buildCalendarMonthMeta } from "@/lib/calendar-month-meta";
+import { useAuth } from "@/contexts/auth-context";
+import { createBookingRequest } from "@/services/property-data";
 import { cn } from "@/lib/utils";
+
+const TRIP_TYPES = [
+  { id: "family", label: "Family", hint: "Whole-house rhythm" },
+  { id: "friends", label: "Friends", hint: "Shared spaces, flexible rooms" },
+  { id: "maintenance", label: "Maintenance", hint: "Contractors or project days" },
+  { id: "slow", label: "Slow reset", hint: "Low headcount, long evenings" },
+] as const;
+
+const ROOM_OPTIONS = [
+  { id: "main", label: "Main house", beds: "Primary gathering spaces", available: true },
+  { id: "guest", label: "Guest suite", beds: "Private entrance when available", available: true },
+  { id: "barn", label: "Barn apartment", beds: "Optional overflow", available: true },
+] as const;
 
 type CalendarBookingSheetProps = {
   open: boolean;
@@ -23,18 +33,26 @@ type CalendarBookingSheetProps = {
 export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingSheetProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
-  const [tripId, setTripId] = useState<string>("family");
-  const [guests, setGuests] = useState(6);
-  const [roomId, setRoomId] = useState<string>("main");
-  const [startDay, setStartDay] = useState(23);
-  const [endDay, setEndDay] = useState(26);
+  const { user, displayName, loading: authLoading, configured } = useAuth();
+  const submittingRef = useRef(false);
+  const calendarMonth = useMemo(() => buildCalendarMonthMeta(), []);
+  const [tripId, setTripId] = useState<string>(TRIP_TYPES[0].id);
+  const [guests, setGuests] = useState(4);
+  const [roomId, setRoomId] = useState<string>(ROOM_OPTIONS[0].id);
+  const [startDay, setStartDay] = useState(1);
+  const [endDay, setEndDay] = useState(1);
   const [notes, setNotes] = useState("");
+  const [tripPurpose, setTripPurpose] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const close = useCallback(() => {
+    if (submitting) return;
     setSubmitted(false);
+    setSubmitError(null);
     onOpenChange(false);
-  }, [onOpenChange]);
+  }, [onOpenChange, submitting]);
 
   useEffect(() => {
     if (!open) return;
@@ -47,8 +65,8 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
 
   const cells = (() => {
     const out: ({ type: "blank" } | { type: "day"; day: number })[] = [];
-    for (let i = 0; i < demoCalendarMonth.leadingBlanks; i++) out.push({ type: "blank" });
-    for (let d = 1; d <= demoCalendarMonth.daysInMonth; d++) out.push({ type: "day", day: d });
+    for (let i = 0; i < calendarMonth.leadingBlanks; i++) out.push({ type: "blank" });
+    for (let d = 1; d <= calendarMonth.daysInMonth; d++) out.push({ type: "day", day: d });
     while (out.length % 7 !== 0) out.push({ type: "blank" });
     return out;
   })();
@@ -68,7 +86,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
     setEndDay(d);
   };
 
-  const heat = (d: number) => demoOccupancyByDay[d] ?? 0;
+  const heat = (_d: number) => 0;
 
   return (
     <AnimatePresence>
@@ -80,7 +98,13 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0.12 : 0.22 }}
         >
-          <button type="button" className="ar-scrim absolute inset-0" aria-label="Close" onClick={close} />
+          <button
+            type="button"
+            className="ar-scrim absolute inset-0"
+            aria-label="Close"
+            onClick={close}
+            disabled={submitting}
+          />
           <motion.div
             role="dialog"
             aria-modal="true"
@@ -99,7 +123,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                 <p id={titleId} className="font-heading text-lg font-semibold tracking-tight text-foreground">
                   Book a stay
                 </p>
-                <p className="text-xs text-muted-foreground">Demo flow · nothing is saved</p>
+                <p className="text-xs text-muted-foreground">Requests save to the shared calendar for family review.</p>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={close} aria-label="Close">
                 <X className="size-4" />
@@ -116,9 +140,10 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                   <span className="flex size-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/15 text-primary">
                     <Sparkles className="size-7" aria-hidden />
                   </span>
-                  <p className="font-heading text-xl font-semibold text-foreground">Request placed</p>
+                  <p className="font-heading text-xl font-semibold text-foreground">On the calendar</p>
                   <p className="max-w-sm text-sm text-muted-foreground">
-                    In a live build this would notify the house thread and hold dates while someone confirms.
+                    Your stay is saved and visible on the shared calendar for {calendarMonth.label}. It will still be
+                    here after you refresh.
                   </p>
                   <Button type="button" className="rounded-xl" onClick={close}>
                     Done
@@ -129,7 +154,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Trip type</p>
                     <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
-                      {demoBookingTripTypes.map((t) => {
+                      {TRIP_TYPES.map((t) => {
                         const active = tripId === t.id;
                         return (
                           <button
@@ -154,10 +179,10 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                   <div>
                     <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                       <CalendarRange className="size-3.5" aria-hidden />
-                      Dates · May 2026
+                      Dates · {calendarMonth.label}
                     </div>
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      Tap start, then end. Shading shows occupancy (lighter is calmer).
+                      Tap start, then end. Occupancy shading activates when real bookings exist.
                     </p>
                     <div className="mt-3 min-w-0 grid grid-cols-7 gap-px text-center text-[9px] font-medium text-muted-foreground sm:gap-1 sm:text-[10px]">
                       {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
@@ -184,9 +209,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                                 ? "border-primary/40 bg-primary/20 text-foreground"
                                 : "border-border/50 bg-muted/50 text-foreground hover:border-border/80 dark:border-white/10 dark:bg-white/[0.04] dark:text-muted-foreground dark:hover:border-white/18",
                               h === 3 && !range && "border-amber-400/25 bg-amber-500/10",
-                              h === 2 &&
-                                !range &&
-                                "border-amber-300/30 bg-amber-400/12 dark:border-white/12 dark:bg-white/[0.06]"
+                              h === 2 && !range && "border-amber-300/30 bg-amber-400/12 dark:border-white/12 dark:bg-white/[0.06]"
                             )}
                           >
                             <span>{d}</span>
@@ -238,7 +261,7 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Rooms & spaces</p>
                     <div className="mt-2 space-y-2">
-                      {demoPropertyRooms.map((r) => {
+                      {ROOM_OPTIONS.map((r) => {
                         const active = roomId === r.id;
                         const disabled = !r.available;
                         return (
@@ -258,7 +281,6 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                             <div>
                               <p className="text-sm font-medium text-foreground">{r.label}</p>
                               <p className="text-[11px] text-muted-foreground">{r.beds}</p>
-                              {disabled && <p className="mt-1 text-[10px] text-amber-200/80">Held for Memorial week</p>}
                             </div>
                           </button>
                         );
@@ -272,7 +294,9 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                     </label>
                     <Input
                       id="trip-purpose"
-                      placeholder="e.g. Cousins weekend, dock stain party, slow reset"
+                      value={tripPurpose}
+                      onChange={(e) => setTripPurpose(e.target.value)}
+                      placeholder="e.g. Cousins weekend, dock work, slow reset"
                       className="h-11 rounded-2xl border border-border/60 bg-card/75 dark:border-white/10 dark:bg-white/[0.04]"
                     />
                   </div>
@@ -290,12 +314,67 @@ export function CalendarBookingSheet({ open, onOpenChange }: CalendarBookingShee
                     />
                   </div>
 
+                  {submitError && (
+                    <p className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-center text-xs text-red-100/95">
+                      {submitError}
+                    </p>
+                  )}
                   <Button
                     type="button"
                     className="h-12 w-full rounded-2xl text-[15px] font-medium"
-                    onClick={() => setSubmitted(true)}
+                    disabled={submitting || !user || authLoading || !configured}
+                    onClick={() => {
+                      if (submittingRef.current || submitting) return;
+                      if (authLoading || !configured) {
+                        setSubmitError("Wait until sign-in finishes, then try again.");
+                        return;
+                      }
+                      if (!user) {
+                        setSubmitError("Sign in to send a booking request.");
+                        return;
+                      }
+                      const lo = Math.min(startDay, endDay);
+                      const hi = Math.max(startDay, endDay);
+                      if (lo < 1 || hi > calendarMonth.daysInMonth) {
+                        setSubmitError(`Choose dates within ${calendarMonth.label}.`);
+                        return;
+                      }
+                      setSubmitError(null);
+                      setSubmitting(true);
+                      submittingRef.current = true;
+                      void (async () => {
+                        try {
+                          await createBookingRequest({
+                            tripId,
+                            guests,
+                            roomId,
+                            startDay: lo,
+                            endDay: hi,
+                            notes: notes.trim(),
+                            tripPurpose: tripPurpose.trim(),
+                            year: calendarMonth.year,
+                            monthIndex: calendarMonth.monthIndex,
+                            requestedBy: user.uid,
+                            requestedByName: displayName,
+                          });
+                          setSubmitted(true);
+                        } catch (e) {
+                          setSubmitError(e instanceof Error ? e.message : "Could not send request.");
+                        } finally {
+                          submittingRef.current = false;
+                          setSubmitting(false);
+                        }
+                      })();
+                    }}
                   >
-                    Send booking request
+                    {submitting ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                        Saving to calendar…
+                      </>
+                    ) : (
+                      "Send booking request"
+                    )}
                   </Button>
                 </div>
               )}

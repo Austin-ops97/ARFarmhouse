@@ -161,14 +161,14 @@ export function shelfItems(shelfId: AlbumShelfId, items: readonly AlbumMediaItem
   }
 }
 
-/** Album picker labels for uploads — demo only */
-export const MOCK_ALBUM_LABELS = [
+/** Default upload buckets — user-facing labels only. */
+export const ALBUM_UPLOAD_BUCKETS = [
   { key: "general", label: "General memories" },
-  { key: "memorial-2026", label: "Memorial Day 2026" },
-  { key: "fishing-weekend", label: "Fishing weekend" },
-  { key: "dock-build", label: "Dock construction" },
-  { key: "summer-trails", label: "Summer trail rides" },
-  { key: "gatherings", label: "Family gatherings" },
+  { key: "weekend", label: "Weekend trip" },
+  { key: "gathering", label: "Gathering" },
+  { key: "trails", label: "Trails & land" },
+  { key: "projects", label: "Projects & upkeep" },
+  { key: "wildlife", label: "Wildlife & nature" },
 ] as const;
 
 export function memoriesForWeekendHub(eventTitle: string, items: readonly AlbumMediaItem[]): AlbumMediaItem[] {

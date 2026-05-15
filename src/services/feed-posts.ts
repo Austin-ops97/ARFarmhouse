@@ -1,19 +1,23 @@
 import {
   collection,
   doc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
+  writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
+import { actionDebug } from "@/lib/action-debug";
 import { formatFeedTimeLabel, handleFromDisplayName } from "@/lib/datetime/relative";
+import { validateFeedImageFiles } from "@/lib/feed-publish";
 import { tryGetFirestoreDb } from "@/lib/firebase";
-import type { DemoPostCategory } from "@/lib/social-demo";
+import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
 import { uploadPostImages } from "@/services/storage-upload";
 
@@ -35,7 +39,8 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
 
   return {
     id: snapshot.id,
-    category: (d.category as DemoPostCategory) ?? "update",
+    authorId: typeof d.authorId === "string" ? d.authorId : "",
+    category: (d.category as FeedPostCategory) ?? "update",
     layout,
     author: {
       name: d.authorDisplayName ?? "Member",
@@ -69,41 +74,10 @@ export function subscribeFeedPosts(onPosts: (posts: UiFeedPost[]) => void, onErr
       onPosts(snap.docs.map(mapDoc));
     },
     (err) => {
+      actionDebug("feed", "subscribe error", err);
       onError?.(err instanceof Error ? err : new Error(String(err)));
     }
   );
-}
-
-export async function createFeedPost(input: {
-  authorId: string;
-  authorDisplayName: string;
-  authorPhotoUrl: string | null;
-  category: DemoPostCategory;
-  title?: string;
-  body: string;
-  location?: string;
-  linkedEvent?: string | null;
-  mediaUrls: string[];
-}) {
-  const db = tryGetFirestoreDb();
-  if (!db) throw new Error("Firestore unavailable");
-  const ref = doc(collection(db, POSTS));
-  const payload: Record<string, unknown> = {
-    authorId: input.authorId,
-    authorDisplayName: input.authorDisplayName,
-    authorPhotoUrl: input.authorPhotoUrl,
-    category: input.category,
-    title: input.title?.trim() || null,
-    body: input.body.trim(),
-    location: input.location?.trim() || null,
-    linkedEvent: input.linkedEvent?.trim() || null,
-    mediaUrls: input.mediaUrls,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    commentCount: 0,
-  };
-  await setDoc(ref, payload);
-  return ref.id;
 }
 
 export async function createFeedPostWithMedia(
@@ -111,7 +85,7 @@ export async function createFeedPostWithMedia(
     authorId: string;
     authorDisplayName: string;
     authorPhotoUrl: string | null;
-    category: DemoPostCategory;
+    category: FeedPostCategory;
     title?: string;
     body: string;
     location?: string;
@@ -119,17 +93,27 @@ export async function createFeedPostWithMedia(
     files: File[];
   },
   onUploadProgress?: (done: number, total: number) => void
-) {
+): Promise<string> {
+  if (!input.authorId?.trim()) throw new Error("You must be signed in to publish.");
+
   const db = tryGetFirestoreDb();
-  if (!db) throw new Error("Firestore unavailable");
+  if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
+
+  validateFeedImageFiles(input.files);
+
   const ref = doc(collection(db, POSTS));
   const id = ref.id;
-  const mediaUrls =
-    input.files.length > 0 ? await uploadPostImages(id, input.files, onUploadProgress) : [];
+  actionDebug("feed", "publish start", { postId: id, fileCount: input.files.length });
+
+  let mediaUrls: string[] = [];
+  if (input.files.length > 0) {
+    mediaUrls = await uploadPostImages(id, input.files, onUploadProgress);
+  }
+
   const payload: Record<string, unknown> = {
     authorId: input.authorId,
     authorDisplayName: input.authorDisplayName,
-    authorPhotoUrl: input.authorPhotoUrl,
+    authorPhotoUrl: input.authorPhotoUrl ?? null,
     category: input.category,
     title: input.title?.trim() || null,
     body: input.body.trim(),
@@ -140,6 +124,32 @@ export async function createFeedPostWithMedia(
     updatedAt: serverTimestamp(),
     commentCount: 0,
   };
-  await setDoc(ref, payload);
-  return id;
+
+  try {
+    await setDoc(ref, payload);
+    actionDebug("feed", "publish complete", { postId: id });
+    return id;
+  } catch (e) {
+    actionDebug("feed", "publish failed", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("permission") || msg.includes("PERMISSION_DENIED")) {
+      throw new Error("Could not save the post. Check that you are signed in and Firestore rules allow writes.");
+    }
+    throw new Error(`Could not save the post. ${msg}`);
+  }
+}
+
+export async function deleteFeedPost(postId: string, viewerUid: string, authorId: string) {
+  if (viewerUid !== authorId) throw new Error("Only the author can delete this post.");
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  const batch = writeBatch(db);
+  const [reactionsSnap, commentsSnap] = await Promise.all([
+    getDocs(collection(db, POSTS, postId, "reactions")),
+    getDocs(collection(db, POSTS, postId, "comments")),
+  ]);
+  reactionsSnap.forEach((d) => batch.delete(d.ref));
+  commentsSnap.forEach((d) => batch.delete(d.ref));
+  batch.delete(doc(db, POSTS, postId));
+  await batch.commit();
 }

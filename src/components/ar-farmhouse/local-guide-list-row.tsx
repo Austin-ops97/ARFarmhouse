@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { createElement } from "react";
 import {
   Bike,
@@ -14,6 +13,7 @@ import {
   ShieldCheck,
   ShoppingBasket,
   Store,
+  UtensilsCrossed,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -61,8 +61,7 @@ export function LocalGuideListRow({
   onDirections,
 }: LocalGuideListRowProps) {
   const verified = isVerifiedRow(place);
-  const isRestaurant = place.section === "restaurants";
-  const storeGlyph = storeIcon(place);
+  const rowGlyph = place.section === "restaurants" ? UtensilsCrossed : storeIcon(place);
 
   return (
     <div
@@ -75,28 +74,15 @@ export function LocalGuideListRow({
         onClick={onOpen}
         className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-3 pr-2 text-left sm:gap-3.5 sm:pl-3.5"
       >
-        {isRestaurant ? (
-          <div className="relative size-11 shrink-0 overflow-hidden rounded-xl border border-border/55 bg-muted/40 dark:border-white/10 dark:bg-black/20 sm:size-12">
-            <Image
-              src={place.imageUrl}
-              alt=""
-              width={48}
-              height={48}
-              className="size-full object-cover"
-              sizes="48px"
-            />
-          </div>
-        ) : (
-          <div
-            className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/55 bg-muted/50 dark:border-white/12 dark:bg-white/[0.06] sm:size-12"
-            aria-hidden
-          >
-            {createElement(storeGlyph, {
-              className: "size-5 text-primary/85",
-              "aria-hidden": true,
-            })}
-          </div>
-        )}
+        <div
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/55 bg-muted/50 dark:border-white/12 dark:bg-white/[0.06] sm:size-12"
+          aria-hidden
+        >
+          {createElement(rowGlyph, {
+            className: "size-5 text-primary/85",
+            "aria-hidden": true,
+          })}
+        </div>
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">

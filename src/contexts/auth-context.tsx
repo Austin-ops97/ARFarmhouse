@@ -4,6 +4,7 @@ import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -15,37 +16,22 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useReducer,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 
+import { getFirebaseAuthErrorCode, getFirebaseAuthErrorMessage } from "@/lib/firebase/auth-errors";
 import { isFirebaseConfigured } from "@/lib/firebase/env";
 import { tryGetFirebaseAuth } from "@/lib/firebase";
 import type { AppUser } from "@/models/user";
 import { ensureUserProfile, loadUserProfile } from "@/services/user-profile";
 
-function mapAuthError(e: unknown): string {
-  const code = e && typeof e === "object" && "code" in e ? String((e as { code: string }).code) : "";
-  switch (code) {
-    case "auth/invalid-credential":
-    case "auth/wrong-password":
-    case "auth/user-not-found":
-      return "Invalid email or password.";
-    case "auth/email-already-in-use":
-      return "An account already exists for this email.";
-    case "auth/weak-password":
-      return "Password should be at least 6 characters.";
-    case "auth/invalid-email":
-      return "Please enter a valid email address.";
-    case "auth/too-many-requests":
-      return "Too many attempts. Please wait and try again.";
-    default:
-      return "Something went wrong. Please try again.";
-  }
-}
-
 export type AuthContextValue = {
+  /** False only after client mount when public env is incomplete. Before mount, treated as true to avoid SSR/client gate mismatch. */
   configured: boolean;
   loading: boolean;
   user: User | null;
@@ -54,6 +40,8 @@ export type AuthContextValue = {
   clearError: () => void;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
+  /** Sends Firebase password-reset email. Swallows `user-not-found` so response timing does not reveal whether the email is registered. */
+  sendPasswordResetForEmail: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   displayName: string;
   avatarUrl: string | null;
@@ -61,66 +49,140 @@ export type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+type AuthSessionState = {
+  user: User | null;
+  profile: AppUser | null;
+  loading: boolean;
+};
+
+type AuthSessionAction =
+  | { type: "SIGNED_OUT" }
+  | { type: "OFFLINE" }
+  | { type: "PROFILE_LOADING"; user: User }
+  | { type: "PROFILE_SETTLED"; user: User; profile: AppUser | null }
+  | { type: "USER_REFRESH"; user: User };
+
+const initialSession: AuthSessionState = {
+  user: null,
+  profile: null,
+  loading: true,
+};
+
+function authSessionReducer(state: AuthSessionState, action: AuthSessionAction): AuthSessionState {
+  switch (action.type) {
+    case "SIGNED_OUT":
+    case "OFFLINE":
+      return { user: null, profile: null, loading: false };
+    case "PROFILE_LOADING":
+      return { user: action.user, profile: null, loading: true };
+    case "PROFILE_SETTLED":
+      return { user: action.user, profile: action.profile, loading: false };
+    case "USER_REFRESH":
+      return { ...state, user: action.user };
+    default:
+      return state;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [configured] = useState(() => isFirebaseConfigured());
-  const [loading, setLoading] = useState(() => isFirebaseConfigured());
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<AppUser | null>(null);
+  const [clientHydrated, setClientHydrated] = useState(false);
+  const [session, dispatchSession] = useReducer(authSessionReducer, initialSession);
   const [error, setError] = useState<string | null>(null);
 
+  const sessionRef = useRef<AuthSessionState>(initialSession);
+  useLayoutEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  /** Defer “real” env reads until after mount so SSR + first paint match (see `configured`). */
   useEffect(() => {
-    if (!configured) return;
-    const auth = tryGetFirebaseAuth();
-    if (!auth) {
-      queueMicrotask(() => setLoading(false));
+    queueMicrotask(() => {
+      setClientHydrated(true);
+    });
+  }, []);
+
+  const configured = clientHydrated ? isFirebaseConfigured() : true;
+
+  useEffect(() => {
+    if (!clientHydrated) return;
+
+    if (!isFirebaseConfigured()) {
+      queueMicrotask(() => {
+        dispatchSession({ type: "OFFLINE" });
+      });
       return;
     }
 
-    let unsub: (() => void) | undefined;
+    const auth = tryGetFirebaseAuth();
+    if (!auth) {
+      queueMicrotask(() => {
+        dispatchSession({ type: "OFFLINE" });
+      });
+      return;
+    }
+
     let cancelled = false;
 
-    void (async () => {
-      try {
-        await setPersistence(auth, browserLocalPersistence);
-      } catch {
-        // Private mode / blocked storage — session may not survive refresh; auth still works.
-      }
+    void setPersistence(auth, browserLocalPersistence).catch(() => {
+      // Private mode / blocked storage — session may not survive refresh; auth still works.
+    });
+
+    const unsub = onAuthStateChanged(auth, async (next) => {
       if (cancelled) return;
-      unsub = onAuthStateChanged(auth, async (next) => {
-        setUser(next);
-        if (!next) {
-          setProfile(null);
-          setLoading(false);
-          return;
+
+      if (!next) {
+        dispatchSession({ type: "SIGNED_OUT" });
+        return;
+      }
+
+      const uid = next.uid;
+      const snap = sessionRef.current;
+
+      if (snap.user?.uid === uid && snap.loading) {
+        if (snap.user !== next) {
+          dispatchSession({ type: "USER_REFRESH", user: next });
         }
-        try {
-          await ensureUserProfile(next);
-          const p = await loadUserProfile(next.uid);
-          setProfile(p);
-        } catch {
-          setProfile(null);
-        } finally {
-          setLoading(false);
+        return;
+      }
+
+      if (snap.user?.uid === uid && snap.profile !== null && snap.loading === false) {
+        if (snap.user !== next) {
+          dispatchSession({ type: "USER_REFRESH", user: next });
         }
-      });
-    })();
+        return;
+      }
+
+      dispatchSession({ type: "PROFILE_LOADING", user: next });
+
+      try {
+        await ensureUserProfile(next);
+        const p = await loadUserProfile(uid);
+        if (cancelled) return;
+        if (auth.currentUser?.uid !== uid) return;
+        dispatchSession({ type: "PROFILE_SETTLED", user: next, profile: p });
+      } catch {
+        if (cancelled) return;
+        if (auth.currentUser?.uid !== uid) return;
+        dispatchSession({ type: "PROFILE_SETTLED", user: next, profile: null });
+      }
+    });
 
     return () => {
       cancelled = true;
-      unsub?.();
+      unsub();
     };
-  }, [configured]);
+  }, [clientHydrated]);
 
   const clearError = useCallback(() => setError(null), []);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     setError(null);
     const auth = tryGetFirebaseAuth();
-    if (!auth) throw new Error("Auth unavailable");
+    if (!auth) throw new Error("Sign-in is not available. Check that this app is configured.");
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (e) {
-      const msg = mapAuthError(e);
+      const msg = getFirebaseAuthErrorMessage(e);
       setError(msg);
       throw new Error(msg);
     }
@@ -129,15 +191,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string) => {
     setError(null);
     const auth = tryGetFirebaseAuth();
-    if (!auth) throw new Error("Auth unavailable");
+    if (!auth) throw new Error("Sign-in is not available. Check that this app is configured.");
     try {
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const name = displayName.trim() || cred.user.email?.split("@")[0] || "Member";
       await updateProfile(cred.user, { displayName: name });
       await ensureUserProfile(cred.user);
     } catch (e) {
-      const msg = mapAuthError(e);
+      const msg = getFirebaseAuthErrorMessage(e);
       setError(msg);
+      throw new Error(msg);
+    }
+  }, []);
+
+  const sendPasswordResetForEmail = useCallback(async (email: string) => {
+    const auth = tryGetFirebaseAuth();
+    if (!auth) throw new Error("Sign-in is not available. Check that this app is configured.");
+    const trimmed = email.trim();
+    if (!trimmed) throw new Error("Enter your email address.");
+    try {
+      await firebaseSendPasswordResetEmail(auth, trimmed);
+    } catch (e) {
+      if (getFirebaseAuthErrorCode(e) === "auth/user-not-found") {
+        return;
+      }
+      const msg = getFirebaseAuthErrorMessage(e);
       throw new Error(msg);
     }
   }, []);
@@ -149,23 +227,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const displayName =
-    profile?.displayName?.trim() ||
-    user?.displayName?.trim() ||
-    user?.email?.split("@")[0]?.trim() ||
+    session.profile?.displayName?.trim() ||
+    session.user?.displayName?.trim() ||
+    session.user?.email?.split("@")[0]?.trim() ||
     "Member";
 
-  const avatarUrl = profile?.avatar ?? user?.photoURL ?? null;
+  const avatarUrl = session.profile?.avatar ?? session.user?.photoURL ?? null;
 
   const value = useMemo<AuthContextValue>(
     () => ({
       configured,
-      loading,
-      user,
-      profile,
+      loading: session.loading,
+      user: session.user,
+      profile: session.profile,
       error,
       clearError,
       signInWithEmail,
       signUpWithEmail,
+      sendPasswordResetForEmail,
       signOut,
       displayName,
       avatarUrl,
@@ -176,12 +255,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       configured,
       displayName,
       error,
-      loading,
-      profile,
+      session.loading,
+      session.profile,
+      session.user,
+      sendPasswordResetForEmail,
       signInWithEmail,
       signOut,
       signUpWithEmail,
-      user,
     ]
   );
 

@@ -25,7 +25,8 @@ import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { getWeekendHubBundle, type WeekendHubSlug } from "@/lib/ecosystem-demo";
+import { getWeekendHubBundle } from "@/lib/weekend-hub-bundle";
+import type { WeekendHubSlug } from "@/lib/weekend-hub-slug";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised rounded-2xl");
@@ -136,9 +137,11 @@ export function WeekendHubSheet({ open, slug, onClose }: WeekendHubSheetProps) {
                     <CloudSun className="size-3.5 text-mist" aria-hidden />
                     {bundle.weather.label}
                   </p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {bundle.weather.highF}° / {bundle.weather.lowF}°
-                  </p>
+                  {bundle.weather.highF != null && bundle.weather.lowF != null ? (
+                    <p className="text-sm font-semibold text-foreground">
+                      {bundle.weather.highF}° / {bundle.weather.lowF}°
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>

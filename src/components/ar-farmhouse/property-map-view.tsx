@@ -16,14 +16,13 @@ import {
 import { useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { usePropertyData } from "@/contexts/property-data-context";
 import {
-  demoMapBackdrop,
-  demoMapPins,
-  demoMapTrails,
-  demoRecentlyExplored,
-  type DemoMapPin,
+  PROPERTY_MAP_BACKDROP,
+  PROPERTY_MAP_RECENT_TRAILS,
   type MapPinKind,
-} from "@/lib/operations-demo";
+  type PropertyMapPin,
+} from "@/lib/property-operations";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised relative overflow-hidden rounded-[1.35rem]");
@@ -57,10 +56,11 @@ function PinIcon({ kind }: { kind: MapPinKind }) {
 
 export function PropertyMapView() {
   const reduceMotion = useReducedMotion();
+  const { mapPins, mapTrails } = usePropertyData();
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
-  const [selected, setSelected] = useState<DemoMapPin | null>(null);
+  const [selected, setSelected] = useState<PropertyMapPin | null>(null);
   const dragRef = useRef({
     x: 0,
     y: 0,
@@ -136,7 +136,7 @@ export function PropertyMapView() {
               Offline trail PDF
             </Button>
             <span className="rounded-full border border-border/50 bg-muted/45 px-3 py-1.5 text-[10px] font-medium text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]">
-              Demo · static map
+              Private aerial · pan & zoom
             </span>
           </div>
         </div>
@@ -165,10 +165,17 @@ export function PropertyMapView() {
             className="absolute inset-0 will-change-transform"
             style={{ transform: `translate(${tx}px, ${ty}px) scale(${scale})` }}
           >
-            <Image src={demoMapBackdrop} alt="" fill className="object-cover" sizes="(min-width: 1024px) 1200px, 100vw" priority />
+            <Image
+              src={PROPERTY_MAP_BACKDROP}
+              alt=""
+              fill
+              className="object-cover"
+              sizes="(min-width: 1024px) 1200px, 100vw"
+              priority
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-background/85 via-background/15 to-background/40" />
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-              {demoMapTrails.map((tr) => (
+              {mapTrails.map((tr) => (
                 <path
                   key={tr.id}
                   d={tr.d}
@@ -184,7 +191,7 @@ export function PropertyMapView() {
               ))}
             </svg>
 
-            {demoMapPins.map((pin) => (
+            {mapPins.map((pin) => (
               <motion.button
                 key={pin.id}
                 type="button"
@@ -222,24 +229,36 @@ export function PropertyMapView() {
         <div className={cn(surface, "p-4 sm:p-5")}>
           <h3 className="text-sm font-semibold text-foreground">Trail strips</h3>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {demoMapTrails.map((tr) => (
-              <div key={tr.id} className="ar-nested-well rounded-2xl px-3 py-3">
-                <p className="text-sm font-medium text-foreground">{tr.name}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{tr.condition}</p>
-              </div>
-            ))}
+            {mapTrails.length === 0 ? (
+              <p className="col-span-full rounded-2xl border border-border/50 bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground dark:border-white/10 dark:bg-white/[0.03]">
+                No saved trail maps yet. When GIS or GPX layers connect, strips and conditions render here.
+              </p>
+            ) : (
+              mapTrails.map((tr) => (
+                <div key={tr.id} className="ar-nested-well rounded-2xl px-3 py-3">
+                  <p className="text-sm font-medium text-foreground">{tr.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{tr.condition}</p>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
         <div className={cn(surface, "p-4 sm:p-5")}>
           <h3 className="text-sm font-semibold text-foreground">Recently explored</h3>
           <ul className="mt-3 space-y-2">
-            {demoRecentlyExplored.map((r) => (
-              <li key={r.trail + r.when} className="ar-nested-well flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs">
-                <span className="font-medium text-foreground">{r.trail}</span>
-                <span className="shrink-0 text-muted-foreground">{r.who}</span>
+            {PROPERTY_MAP_RECENT_TRAILS.length === 0 ? (
+              <li className="ar-nested-well rounded-xl px-3 py-4 text-center text-xs text-muted-foreground">
+                No recent trail activity logged. Post a ridge walk to the feed and it can echo here later.
               </li>
-            ))}
+            ) : (
+              PROPERTY_MAP_RECENT_TRAILS.map((r) => (
+                <li key={r.trail + r.when} className="ar-nested-well flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs">
+                  <span className="font-medium text-foreground">{r.trail}</span>
+                  <span className="shrink-0 text-muted-foreground">{r.who}</span>
+                </li>
+              ))
+            )}
           </ul>
         </div>
       </div>

@@ -1,10 +1,11 @@
 "use client";
 
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
-import { LogOut, Sparkles } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
 import { DashboardMobileDrawerTrigger } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { sidebarNav, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -63,8 +64,8 @@ export function DashboardAppHeader({
         <div className="shrink-0 lg:hidden">
           <DashboardMobileDrawerTrigger open={mobileMenuOpen} onOpenChange={onMobileMenuOpenChange} />
         </div>
-        <div className="hidden size-9 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-card/50 shadow-inner dark:border-white/10 dark:bg-white/[0.05] dark:shadow-inner dark:shadow-white/5 sm:flex sm:size-10">
-          <Sparkles className="size-[18px] text-primary sm:size-5" aria-hidden />
+        <div className="shrink-0">
+          <ArFarmhouseLogo size={38} className="shadow-inner dark:shadow-inner dark:shadow-white/5" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-heading text-[14px] font-semibold leading-tight tracking-tight text-foreground sm:text-base">

@@ -5,8 +5,6 @@ import { ArrowRight, CalendarRange, Home, Sparkles } from "lucide-react";
 
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
-import { mockPropertyStatus, mockTrailConditions } from "@/lib/mock-data";
-import { demoFeedCalendarBridge } from "@/lib/calendar-demo";
 import { cn } from "@/lib/utils";
 
 const surface = cn(
@@ -17,7 +15,6 @@ const surface = cn(
 export function DashboardEcosystemStrip() {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub, goTo } = useEcosystem();
-  const pulse = demoFeedCalendarBridge[0];
 
   return (
     <motion.section
@@ -48,17 +45,15 @@ export function DashboardEcosystemStrip() {
           <CalendarRange className="size-3.5 text-primary" aria-hidden />
           Feed × calendar
         </div>
-        <p className="text-sm text-foreground">
-          <span className="font-semibold">{pulse.actor}</span>{" "}
-          <span className="text-muted-foreground">{pulse.action}</span>
+        <p className="text-sm text-muted-foreground">
+          Nothing bridged yet. When posts reference a booked weekend, a short line appears here with a path into the hub.
         </p>
-        <p className="text-xs text-primary/90">{pulse.detail}</p>
         <div className="mt-auto flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => openWeekendHub(pulse.hubSlug)}>
-            View trip hub
+          <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => goTo("feed")}>
+            Open feed
           </Button>
-          <Button type="button" variant="ghost" size="sm" className="rounded-xl text-muted-foreground" onClick={() => goTo("feed")}>
-            Feed
+          <Button type="button" variant="ghost" size="sm" className="rounded-xl text-muted-foreground" onClick={() => goTo("calendar")}>
+            Calendar
           </Button>
         </div>
       </div>
@@ -69,7 +64,8 @@ export function DashboardEcosystemStrip() {
           Property awareness
         </div>
         <p className="text-sm leading-relaxed text-foreground/90">
-          {mockPropertyStatus.gates} · {mockPropertyStatus.climate} · trails {mockTrailConditions.summary.toLowerCase()}.
+          Live gates, climate, and trail summaries will connect here. Until integrations land, keep quick checks in the
+          feed so everyone signed in stays aligned.
         </p>
         <Button type="button" variant="outline" size="sm" className="mt-auto w-fit rounded-xl" onClick={() => goTo("property")}>
           Property hub

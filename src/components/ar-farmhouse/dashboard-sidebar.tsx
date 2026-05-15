@@ -1,8 +1,8 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { Sparkles } from "lucide-react";
 
+import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
 import { cn } from "@/lib/utils";
 
 import { type NavId, sidebarNav } from "./dashboard-nav";
@@ -19,9 +19,7 @@ export function DashboardSidebar({ activeId, onSelect, liveData = false }: Dashb
   return (
     <aside className="ar-header-blur fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-border/60 bg-sidebar/92 px-3 py-6 backdrop-blur-2xl lg:flex dark:border-white/[0.06] dark:bg-sidebar/90">
       <div className="mb-8 flex items-center gap-3 px-2">
-        <div className="flex size-11 items-center justify-center rounded-2xl border border-border/65 bg-card/90 shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.05] dark:shadow-inner dark:shadow-white/5">
-          <Sparkles className="size-5 text-primary" aria-hidden />
-        </div>
+        <ArFarmhouseLogo size={44} className="shadow-[var(--ar-float-elevate)] dark:shadow-inner dark:shadow-white/5" />
         <div className="min-w-0">
           <p className="font-heading text-lg font-semibold tracking-tight text-foreground">AR Farmhouse</p>
           <p className="truncate text-xs text-muted-foreground">Private network</p>
@@ -65,8 +63,8 @@ export function DashboardSidebar({ activeId, onSelect, liveData = false }: Dashb
 
       <div className="mt-6 rounded-2xl border border-border/50 bg-muted/45 px-4 py-3.5 text-[11px] leading-relaxed text-muted-foreground/95 shadow-[var(--ar-inset-press)] ring-1 ring-border/35 dark:bg-white/[0.025] dark:ring-white/[0.05]">
         {liveData
-          ? "Authenticated · feed and profile sync to Firebase when keys are present."
-          : "Demo data — tuned for calm hierarchy and motion."}
+          ? "Signed in · feed and profile stay in sync for your family."
+          : "Add your Firebase keys in environment variables to enable live feed and profile sync."}
       </div>
     </aside>
   );

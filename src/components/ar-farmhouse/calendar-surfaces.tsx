@@ -4,8 +4,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, LayoutGrid, List, Rows3 } from "lucide-react";
 import { useMemo, useRef } from "react";
 
-import type { DemoCoordEvent } from "@/lib/calendar-demo";
-import { demoCalendarMonth, type DemoCalendarDay } from "@/lib/social-demo";
+import type { CalendarGridDay, CalendarMonthMeta } from "@/lib/calendar-month-meta";
+import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import { cn } from "@/lib/utils";
 
 const surface = cn("ar-surface-raised rounded-[1.35rem]");
@@ -14,7 +14,7 @@ const weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"] as const;
 
 export type CalendarSurfaceMode = "month" | "week" | "agenda";
 
-const accentDot: Record<DemoCoordEvent["accent"], string> = {
+const accentDot: Record<PropertyCalendarEvent["accent"], string> = {
   mint: "bg-emerald-400/80",
   amber: "bg-amber-300/85",
   rose: "bg-rose-400/80",
@@ -24,23 +24,24 @@ const accentDot: Record<DemoCoordEvent["accent"], string> = {
   emerald: "bg-emerald-300/85",
 };
 
-function eventsForDay(day: number, events: DemoCoordEvent[]) {
+function eventsForDay(day: number, events: PropertyCalendarEvent[]) {
   return events.filter((e) => {
     const end = e.endDay ?? e.startDay;
     return day >= e.startDay && day <= end;
   });
 }
 
-function agendaRows(events: DemoCoordEvent[]) {
+function agendaRows(events: PropertyCalendarEvent[], monthName: string) {
   const sorted = [...events].sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
   return sorted.map((e) => ({
     ...e,
     rangeLabel:
-      e.endDay && e.endDay !== e.startDay ? `May ${e.startDay}–${e.endDay}` : `May ${e.startDay}`,
+      e.endDay && e.endDay !== e.startDay
+        ? `${monthName} ${e.startDay}–${e.endDay}`
+        : `${monthName} ${e.startDay}`,
   }));
 }
 
-/** Weeks as rows of 7 cells (day number or null) for May 2026 grid */
 function monthWeekRows(leadingBlanks: number, daysInMonth: number): (number | null)[][] {
   const cells: (number | null)[] = [];
   for (let i = 0; i < leadingBlanks; i++) cells.push(null);
@@ -97,14 +98,16 @@ export function CalendarViewModeTabs({
 }
 
 type CalendarMonthBoardProps = {
-  dayMap: Map<number, DemoCalendarDay>;
+  calendarMonth: CalendarMonthMeta;
+  dayMap: Map<number, CalendarGridDay>;
   statusStyles: Record<string, string>;
-  events: DemoCoordEvent[];
+  events: PropertyCalendarEvent[];
   onDayHover?: (day: number | null) => void;
   previewDay: number | null;
 };
 
 export function CalendarMonthBoard({
+  calendarMonth,
   dayMap,
   statusStyles,
   events,
@@ -113,15 +116,15 @@ export function CalendarMonthBoard({
 }: CalendarMonthBoardProps) {
   const reduceMotion = useReducedMotion();
   const rows = useMemo(
-    () => monthWeekRows(demoCalendarMonth.leadingBlanks, demoCalendarMonth.daysInMonth),
-    []
+    () => monthWeekRows(calendarMonth.leadingBlanks, calendarMonth.daysInMonth),
+    [calendarMonth.leadingBlanks, calendarMonth.daysInMonth]
   );
 
   return (
     <div className={cn(surface, "min-w-0 max-w-full p-2 sm:p-5")}>
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2 sm:mb-4">
         <p className="min-w-0 truncate font-heading text-sm font-semibold text-foreground sm:text-lg">
-          {demoCalendarMonth.label}
+          {calendarMonth.label}
         </p>
         <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">Swipe week row on mobile</span>
       </div>
@@ -141,7 +144,7 @@ export function CalendarMonthBoard({
               }
               const info = dayMap.get(day);
               const st = info?.status ?? "open";
-              const isToday = day === 14;
+              const isToday = calendarMonth.todayDay !== null && day === calendarMonth.todayDay;
               const dayEvents = eventsForDay(day, events);
               const preview = previewDay === day;
               return (
@@ -178,23 +181,30 @@ export function CalendarMonthBoard({
           </div>
         ))}
       </div>
+      {events.length === 0 && (
+        <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.02] px-3 py-3 text-center text-[11px] leading-relaxed text-muted-foreground">
+          No events this month yet. Add a booking or post a weekend to the feed — the grid will light up from real data.
+        </p>
+      )}
     </div>
   );
 }
 
 export function CalendarWeekStrip({
+  calendarMonth,
   events,
   weekIndex,
   onWeekChange,
 }: {
-  events: DemoCoordEvent[];
+  calendarMonth: CalendarMonthMeta;
+  events: PropertyCalendarEvent[];
   weekIndex: number;
   onWeekChange: (i: number) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const rows = useMemo(
-    () => monthWeekRows(demoCalendarMonth.leadingBlanks, demoCalendarMonth.daysInMonth),
-    []
+    () => monthWeekRows(calendarMonth.leadingBlanks, calendarMonth.daysInMonth),
+    [calendarMonth.leadingBlanks, calendarMonth.daysInMonth]
   );
   const safeIdx = Math.max(0, Math.min(weekIndex, rows.length - 1));
   const row = rows[safeIdx] ?? rows[0];
@@ -280,78 +290,94 @@ export function CalendarWeekStrip({
         </div>
 
         <div className="hidden min-w-0 md:block">
-        <div className="grid min-w-0 grid-cols-7 gap-1.5 sm:gap-2">
-          {row.map((day, i) => {
-            const label = weekdayLabels[i];
-            if (day === null) {
+          <div className="grid min-w-0 grid-cols-7 gap-1.5 sm:gap-2">
+            {row.map((day, i) => {
+              const label = weekdayLabels[i];
+              if (day === null) {
+                return (
+                  <div
+                    key={i}
+                    className="min-h-[5.5rem] rounded-2xl border border-dashed border-border/50 bg-muted/30 sm:min-h-[7.5rem] dark:border-white/8 dark:bg-white/[0.02]"
+                  />
+                );
+              }
+              const dayEv = eventsForDay(day, events);
               return (
-                <div key={i} className="min-h-[5.5rem] rounded-2xl border border-dashed border-border/50 bg-muted/30 sm:min-h-[7.5rem] dark:border-white/8 dark:bg-white/[0.02]" />
+                <motion.div
+                  key={day}
+                  initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                  className="ar-surface-inset flex min-h-[5.5rem] min-w-0 flex-col rounded-2xl p-2 sm:min-h-[7.5rem] sm:p-2.5"
+                >
+                  <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
+                  <p className="font-heading text-base font-semibold tabular-nums text-foreground sm:text-lg">{day}</p>
+                  <div className="mt-1.5 min-h-0 flex-1 space-y-1 overflow-hidden sm:mt-2">
+                    {dayEv.map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="truncate rounded-lg border border-border/55 bg-card/85 px-1.5 py-1 text-[9px] text-muted-foreground sm:text-[9px] dark:border-white/10 dark:bg-white/[0.05]"
+                        title={ev.title}
+                      >
+                        <span className={cn("mr-1 inline-block size-1.5 rounded-full align-middle", accentDot[ev.accent])} />
+                        {ev.title}
+                      </div>
+                    ))}
+                    {dayEv.length === 0 && <p className="text-[9px] text-muted-foreground/70">Open</p>}
+                  </div>
+                </motion.div>
               );
-            }
-            const dayEv = eventsForDay(day, events);
-            return (
-              <motion.div
-                key={day}
-                initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
-                className="ar-surface-inset flex min-h-[5.5rem] min-w-0 flex-col rounded-2xl p-2 sm:min-h-[7.5rem] sm:p-2.5"
-              >
-                <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
-                <p className="font-heading text-base font-semibold tabular-nums text-foreground sm:text-lg">{day}</p>
-                <div className="mt-1.5 min-h-0 flex-1 space-y-1 overflow-hidden sm:mt-2">
-                  {dayEv.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="truncate rounded-lg border border-border/55 bg-card/85 px-1.5 py-1 text-[9px] text-muted-foreground sm:text-[9px] dark:border-white/10 dark:bg-white/[0.05]"
-                      title={ev.title}
-                    >
-                      <span className={cn("mr-1 inline-block size-1.5 rounded-full align-middle", accentDot[ev.accent])} />
-                      {ev.title}
-                    </div>
-                  ))}
-                  {dayEv.length === 0 && <p className="text-[9px] text-muted-foreground/70">Open</p>}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+            })}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-export function CalendarAgendaList({ events }: { events: DemoCoordEvent[] }) {
+export function CalendarAgendaList({
+  events,
+  monthLabel,
+}: {
+  events: PropertyCalendarEvent[];
+  monthLabel: string;
+}) {
   const reduceMotion = useReducedMotion();
-  const rows = agendaRows(events);
+  const monthName = monthLabel.split(" ")[0] ?? "Month";
+  const rows = agendaRows(events, monthName);
   return (
     <div className={cn(surface, "min-w-0 max-w-full divide-y divide-border/45 dark:divide-white/10")}>
       <div className="min-w-0 px-4 py-3 sm:px-5">
-        <p className="text-sm font-semibold text-foreground">May agenda</p>
+        <p className="text-sm font-semibold text-foreground">{monthLabel} agenda</p>
         <p className="text-[11px] text-muted-foreground">Scrollable list · same data as month dots</p>
       </div>
       <div className="max-h-[min(55dvh,420px)] min-h-0 overflow-y-auto overscroll-contain sm:max-h-[520px]">
-        {rows.map((ev, idx) => (
-          <motion.div
-            key={ev.id}
-            initial={reduceMotion ? false : { opacity: 0, x: -8 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-5%" }}
-            transition={{ delay: Math.min(idx * 0.03, 0.24) }}
-            className="flex min-h-[3.25rem] gap-2 px-4 py-3 sm:min-h-0 sm:gap-3 sm:px-5 sm:py-3.5"
-          >
-            <div className="flex w-[4.5rem] shrink-0 flex-col sm:w-24">
-              <span className="text-[11px] font-medium text-muted-foreground">{ev.rangeLabel}</span>
-              {ev.timeLabel && <span className="text-[10px] text-muted-foreground/80">{ev.timeLabel}</span>}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">{ev.title}</p>
-              <p className="text-[11px] capitalize text-muted-foreground">{ev.kind.replace(/_/g, " ")}</p>
-            </div>
-            <span className={cn("mt-1 size-2 shrink-0 rounded-full", accentDot[ev.accent])} />
-          </motion.div>
-        ))}
+        {rows.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+            Nothing scheduled this month. When bookings land in the calendar, they appear here in order.
+          </p>
+        ) : (
+          rows.map((ev, idx) => (
+            <motion.div
+              key={ev.id}
+              initial={reduceMotion ? false : { opacity: 0, x: -8 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-5%" }}
+              transition={{ delay: Math.min(idx * 0.03, 0.24) }}
+              className="flex min-h-[3.25rem] gap-2 px-4 py-3 sm:min-h-0 sm:gap-3 sm:px-5 sm:py-3.5"
+            >
+              <div className="flex w-[4.5rem] shrink-0 flex-col sm:w-24">
+                <span className="text-[11px] font-medium text-muted-foreground">{ev.rangeLabel}</span>
+                {ev.timeLabel && <span className="text-[10px] text-muted-foreground/80">{ev.timeLabel}</span>}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">{ev.title}</p>
+                <p className="text-[11px] capitalize text-muted-foreground">{ev.kind.replace(/_/g, " ")}</p>
+              </div>
+              <span className={cn("mt-1 size-2 shrink-0 rounded-full", accentDot[ev.accent])} />
+            </motion.div>
+          ))
+        )}
       </div>
     </div>
   );

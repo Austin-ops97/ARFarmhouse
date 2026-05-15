@@ -7,8 +7,7 @@ import { useCallback, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MOCK_ALBUM_LABELS, type AlbumMediaItem } from "@/lib/photo-album-media";
-import { demoAttachableEvents } from "@/lib/social-demo";
+import { ALBUM_UPLOAD_BUCKETS, type AlbumMediaItem } from "@/lib/photo-album-media";
 import { cn } from "@/lib/utils";
 
 async function compressToDataUrl(file: File, maxEdge = 960, quality = 0.74): Promise<string> {
@@ -35,7 +34,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
   const reduceMotion = useReducedMotion();
   const inputId = useId();
   const [files, setFiles] = useState<{ file: File; preview: string }[]>([]);
-  const [albumKey, setAlbumKey] = useState<string>(MOCK_ALBUM_LABELS[0].key);
+  const [albumKey, setAlbumKey] = useState<string>(ALBUM_UPLOAD_BUCKETS[0].key);
   const [caption, setCaption] = useState("");
   const [eventLink, setEventLink] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -44,7 +43,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
     setFiles([]);
     setCaption("");
     setEventLink("");
-    setAlbumKey(MOCK_ALBUM_LABELS[0].key);
+    setAlbumKey(ALBUM_UPLOAD_BUCKETS[0].key);
   }, []);
 
   const onFiles = useCallback((list: FileList | null) => {
@@ -80,9 +79,9 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
           caption: caption.trim() || "Added from your device",
           source: "upload",
           albumKey,
-          linkedEvent: eventLink ? String(eventLink) : undefined,
+          linkedEvent: eventLink.trim() ? eventLink.trim() : undefined,
           addedAt: Date.now(),
-          postTitle: MOCK_ALBUM_LABELS.find((a) => a.key === albumKey)?.label,
+          postTitle: ALBUM_UPLOAD_BUCKETS.find((a) => a.key === albumKey)?.label,
         });
       }
       onCommit(items);
@@ -131,7 +130,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
                 <p id={`${inputId}-title`} className="font-heading text-base font-semibold tracking-tight text-foreground">
                   Add to album
                 </p>
-                <p className="text-[11px] text-muted-foreground">Stored privately on this device in demo</p>
+                <p className="text-[11px] text-muted-foreground">Stored on this device until cloud albums are enabled</p>
               </div>
               <button
                 type="button"
@@ -202,7 +201,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
                     onChange={(e) => setAlbumKey(e.target.value)}
                     className="mt-1.5 w-full rounded-xl border border-border/70 bg-background/80 px-3 py-2.5 text-sm text-foreground outline-none ring-0 focus-visible:border-primary/50"
                   >
-                    {MOCK_ALBUM_LABELS.map((a) => (
+                    {ALBUM_UPLOAD_BUCKETS.map((a) => (
                       <option key={a.key} value={a.key}>
                         {a.label}
                       </option>
@@ -211,18 +210,13 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
                 </div>
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Linked event (optional)</p>
-                  <select
+                  <input
+                    type="text"
                     value={eventLink}
                     onChange={(e) => setEventLink(e.target.value)}
+                    placeholder="e.g. Memorial Day weekend"
                     className="mt-1.5 w-full rounded-xl border border-border/70 bg-background/80 px-3 py-2.5 text-sm text-foreground outline-none focus-visible:border-primary/50"
-                  >
-                    <option value="">None</option>
-                    {demoAttachableEvents.map((ev) => (
-                      <option key={ev} value={ev}>
-                        {ev}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Caption</p>
@@ -237,7 +231,16 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onCommit }: PhotoAl
             </div>
 
             <div className="flex gap-2 border-t border-border/50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => {
+                  files.forEach((f) => URL.revokeObjectURL(f.preview));
+                  reset();
+                  onOpenChange(false);
+                }}
+              >
                 Cancel
               </Button>
               <Button type="button" className="flex-1 rounded-xl" disabled={files.length === 0 || busy} onClick={() => void handleSubmit()}>

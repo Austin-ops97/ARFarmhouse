@@ -19,7 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useState } from "react";
 
 import { TaskCard } from "@/components/ar-farmhouse/task-card";
-import type { DemoTask, TaskBoardColumn } from "@/lib/operations-demo";
+import type { HouseTask, TaskBoardColumn } from "@/lib/property-operations";
 import { cn } from "@/lib/utils";
 
 const COLUMNS: TaskBoardColumn[] = ["todo", "doing", "done"];
@@ -30,7 +30,7 @@ const columnTitle: Record<TaskBoardColumn, string> = {
   done: "Wrapped",
 };
 
-function normalizeBoardOrders(ts: DemoTask[]): DemoTask[] {
+function normalizeBoardOrders(ts: HouseTask[]): HouseTask[] {
   let next = [...ts];
   for (const col of COLUMNS) {
     const inCol = next
@@ -43,7 +43,7 @@ function normalizeBoardOrders(ts: DemoTask[]): DemoTask[] {
   return next;
 }
 
-function SortableRow({ task, onToggleDone }: { task: DemoTask; onToggleDone: (id: string) => void }) {
+function SortableRow({ task, onToggleDone }: { task: HouseTask; onToggleDone: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -103,18 +103,28 @@ export function TasksBoard({
   onTasksChange,
   onToggleDone,
 }: {
-  tasks: DemoTask[];
-  onTasksChange: (next: DemoTask[]) => void;
+  tasks: HouseTask[];
+  onTasksChange: (next: HouseTask[]) => void;
   onToggleDone: (id: string) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  if (tasks.length === 0) {
+    return (
+      <div className="rounded-[1.35rem] border border-border/55 bg-muted/25 px-6 py-12 text-center dark:border-white/10 dark:bg-white/[0.02]">
+        <p className="font-heading text-lg font-semibold text-foreground">Board is clear</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Drag cards between columns when tasks exist — for now, nothing is in flight.
+        </p>
+      </div>
+    );
+  }
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 12 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } })
   );
 
   const byColumn = useMemo(() => {
-    const map: Record<TaskBoardColumn, DemoTask[]> = { todo: [], doing: [], done: [] };
+    const map: Record<TaskBoardColumn, HouseTask[]> = { todo: [], doing: [], done: [] };
     for (const col of COLUMNS) {
       map[col] = tasks
         .filter((t) => t.boardColumn === col)
