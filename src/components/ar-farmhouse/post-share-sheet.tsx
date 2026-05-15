@@ -97,7 +97,7 @@ export function PostShareSheet({ open, onOpenChange, postId, title, summary }: P
             exit={reduceMotion ? undefined : { y: 20, opacity: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 32 }}
             className={cn(
-              "relative z-10 w-full max-w-md overflow-hidden rounded-t-[1.5rem] border border-border/60 bg-card/95 shadow-[var(--ar-modal-elevate)]",
+              "ar-modal-shell relative z-10 w-full max-w-md max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] min-h-0 overflow-hidden rounded-t-[1.5rem] border border-border/60 bg-card/95 shadow-[var(--ar-modal-elevate)]",
               "dark:border-white/12 dark:bg-zinc-950/95 sm:rounded-[1.35rem]"
             )}
             onClick={(e) => e.stopPropagation()}

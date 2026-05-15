@@ -113,8 +113,8 @@ export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: We
             exit={reduceMotion ? undefined : { y: 20, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 34 }}
             className={cn(
-              "ar-modal-shell relative z-10 flex max-h-[min(90dvh,100dvh)] w-full max-w-[100vw] flex-col overflow-hidden rounded-t-[1.75rem]",
-              "touch-manipulation sm:max-h-[min(94dvh,920px)] sm:max-w-2xl sm:rounded-[1.75rem]"
+              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-[100vw] min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] touch-manipulation",
+              "sm:max-h-[min(94dvh,920px)] sm:max-w-2xl sm:rounded-[1.75rem]"
             )}
           >
             <div className="relative h-40 shrink-0 sm:h-48">

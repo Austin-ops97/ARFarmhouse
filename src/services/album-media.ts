@@ -14,6 +14,9 @@ import {
 
 import { actionDebug } from "@/lib/action-debug";
 import { formatFeedTimeLabel } from "@/lib/datetime/relative";
+import { validateRawImageFile } from "@/lib/image-input";
+import { getUploadMaxBytes } from "@/lib/image-process";
+import { prepareImagesForUpload } from "@/lib/image-upload-pipeline";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FirestoreAlbumMedia } from "@/models/album-media";
@@ -61,6 +64,10 @@ export function subscribeAlbumMedia(
   );
 }
 
+export type AlbumUploadProgress =
+  | { phase: "processing"; done: number; total: number }
+  | { phase: "uploading"; done: number; total: number };
+
 export async function createAlbumMediaItems(
   input: {
     authorId: string;
@@ -71,23 +78,43 @@ export async function createAlbumMediaItems(
     linkedEvent?: string | null;
     files: File[];
   },
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (progress: AlbumUploadProgress) => void
 ): Promise<string[]> {
   if (!input.authorId?.trim()) throw new Error("You must be signed in to upload.");
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
   if (input.files.length === 0) throw new Error("Choose at least one image.");
 
-  const ids: string[] = [];
-  const total = input.files.length;
+  for (const file of input.files) {
+    validateRawImageFile(file);
+  }
 
-  for (let i = 0; i < input.files.length; i++) {
-    const file = input.files[i]!;
+  const total = input.files.length;
+  onProgress?.({ phase: "processing", done: 0, total });
+  const optimized = await prepareImagesForUpload(input.files, "album", {
+    onProgress: (p) => {
+      if (p.phase === "processing") {
+        onProgress?.({ phase: "processing", done: p.done, total: p.total });
+      }
+    },
+  });
+
+  const albumMax = getUploadMaxBytes("album");
+  for (const file of optimized) {
+    if (file.size > albumMax) {
+      throw new Error(`"${file.name}" is still too large after optimization. Try fewer photos.`);
+    }
+  }
+
+  const ids: string[] = [];
+
+  for (let i = 0; i < optimized.length; i++) {
+    const file = optimized[i]!;
     const ref = doc(collection(db, COLLECTION));
     const id = ref.id;
     actionDebug("album", "upload begin", { id, index: i });
 
-    const uploaded = await uploadAlbumImages(id, [file], (done) => onProgress?.(done, total));
+    const uploaded = await uploadAlbumImages(id, [file]);
     const { url, path } = uploaded[0]!;
 
     await setDoc(ref, {
@@ -104,7 +131,7 @@ export async function createAlbumMediaItems(
     });
 
     ids.push(id);
-    onProgress?.(i + 1, total);
+    onProgress?.({ phase: "uploading", done: i + 1, total });
     actionDebug("album", "item saved", { id });
   }
 

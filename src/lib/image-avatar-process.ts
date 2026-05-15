@@ -22,24 +22,20 @@ export type ProcessedAvatar = {
   height: number;
 };
 
-let webpEncodeSupported: boolean | null = null;
+import {
+  isWebPEncodeSupported,
+  outputExtension,
+  preferredOutputMime,
+} from "@/lib/image-process";
 
-export function isWebPEncodeSupported(): boolean {
-  if (typeof document === "undefined") return false;
-  if (webpEncodeSupported !== null) return webpEncodeSupported;
-  const canvas = document.createElement("canvas");
-  canvas.width = 1;
-  canvas.height = 1;
-  webpEncodeSupported = canvas.toDataURL("image/webp").startsWith("data:image/webp");
-  return webpEncodeSupported;
-}
+export { isWebPEncodeSupported };
 
 export function preferredAvatarMime(): "image/webp" | "image/jpeg" {
-  return isWebPEncodeSupported() ? "image/webp" : "image/jpeg";
+  return preferredOutputMime();
 }
 
 export function avatarFileExtension(mime: string): string {
-  return mime === "image/webp" ? "webp" : "jpg";
+  return outputExtension(mime);
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

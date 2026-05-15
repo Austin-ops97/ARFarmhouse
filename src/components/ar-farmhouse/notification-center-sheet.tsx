@@ -7,8 +7,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/contexts/notifications-context";
 import { useNotificationNavigation } from "@/hooks/use-notification-navigation";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { SyncStatusBanner } from "@/components/ar-farmhouse/sync-status-banner";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { groupNotificationsByDay } from "@/lib/activity-coordination";
+import {
+  AR_OVERLAY_HOST,
+  AR_OVERLAY_SCRIM,
+  AR_SIDE_PANEL_SHEET,
+  AR_SHEET_BODY,
+  AR_SHEET_HEADER,
+} from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 type NotificationCenterSheetProps = {
@@ -23,6 +32,8 @@ export function NotificationCenterSheet({ open, onOpenChange }: NotificationCent
   const navigate = useNotificationNavigation();
   const groups = groupNotificationsByDay(notifications);
 
+  useBodyScrollLock(open);
+
   const handleOpen = async (id: string) => {
     const n = notifications.find((row) => row.id === id);
     if (!n) return;
@@ -32,17 +43,18 @@ export function NotificationCenterSheet({ open, onOpenChange }: NotificationCent
   };
 
   return (
+    <OverlayPortal>
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[75] flex items-end justify-center sm:items-stretch sm:justify-end"
+          className={cn(AR_OVERLAY_HOST, "z-[75] sm:items-stretch sm:justify-end")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
           <button
             type="button"
-            className="ar-scrim absolute inset-0"
+            className={AR_OVERLAY_SCRIM}
             aria-label="Close notifications"
             onClick={() => onOpenChange(false)}
           />
@@ -54,12 +66,9 @@ export function NotificationCenterSheet({ open, onOpenChange }: NotificationCent
             animate={{ y: 0, opacity: 1 }}
             exit={reduceMotion ? undefined : { y: 16, opacity: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 34 }}
-            className={cn(
-              "relative z-10 flex max-h-[min(92dvh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border/50 bg-background/95 backdrop-blur-2xl",
-              "sm:mt-[var(--ar-header-height)] sm:h-[calc(100dvh-var(--ar-header-height))] sm:max-h-none sm:rounded-none sm:border-l sm:border-t-0"
-            )}
+            className={AR_SIDE_PANEL_SHEET}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-border/50 px-4 py-3">
+            <div className={cn(AR_SHEET_HEADER, "flex items-center justify-between gap-3")}>
               <div>
                 <p className="font-heading text-base font-semibold text-foreground">Family activity</p>
                 <p className="text-[11px] text-muted-foreground">Stay connected with property updates</p>
@@ -88,7 +97,7 @@ export function NotificationCenterSheet({ open, onOpenChange }: NotificationCent
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className={cn(AR_SHEET_BODY, "px-3 py-3")}>
               {syncError && (
                 <SyncStatusBanner error={syncError} className="mb-3" />
               )}
@@ -159,5 +168,6 @@ export function NotificationCenterSheet({ open, onOpenChange }: NotificationCent
         </motion.div>
       ) : null}
     </AnimatePresence>
+    </OverlayPortal>
   );
 }

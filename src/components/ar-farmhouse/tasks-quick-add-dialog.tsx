@@ -3,9 +3,12 @@
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useId, useState } from "react";
 
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import type { TaskListSection, TaskPriority } from "@/lib/property-operations";
+import { AR_MOBILE_SHEET, AR_OVERLAY_HOST, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 export type QuickAddTaskOptions = {
@@ -44,6 +47,8 @@ export function TasksQuickAddDialog({ open, onOpenChange, busy = false, onSubmit
   const [dueLabel, setDueLabel] = useState("Soon");
   const [error, setError] = useState<string | null>(null);
 
+  useBodyScrollLock(open);
+
   const close = useCallback(() => {
     setTitle("");
     setListSection("active");
@@ -65,8 +70,9 @@ export function TasksQuickAddDialog({ open, onOpenChange, busy = false, onSubmit
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-end justify-center sm:items-center sm:p-6">
-      <button type="button" className="absolute inset-0 bg-background/70 backdrop-blur-xl" aria-label="Close" onClick={close} />
+    <OverlayPortal>
+    <div className={cn(AR_OVERLAY_HOST, "z-[65]")}>
+      <button type="button" className={AR_OVERLAY_SCRIM} aria-label="Close" onClick={close} />
       <motion.div
         role="dialog"
         aria-modal="true"
@@ -74,7 +80,8 @@ export function TasksQuickAddDialog({ open, onOpenChange, busy = false, onSubmit
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         className={cn(
-          "relative z-10 w-full max-w-md rounded-t-[1.75rem] border border-white/12 bg-background/95 p-5 shadow-xl backdrop-blur-2xl sm:rounded-[1.75rem]"
+          AR_MOBILE_SHEET,
+          "relative z-10 max-w-md overflow-y-auto overscroll-contain p-5 pb-[max(1rem,env(safe-area-inset-bottom,0px))]"
         )}
       >
         <p id={titleId} className="font-heading text-lg font-semibold text-foreground">
@@ -164,5 +171,6 @@ export function TasksQuickAddDialog({ open, onOpenChange, busy = false, onSubmit
         </div>
       </motion.div>
     </div>
+    </OverlayPortal>
   );
 }

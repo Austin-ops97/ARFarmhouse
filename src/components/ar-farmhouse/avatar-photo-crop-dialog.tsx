@@ -108,7 +108,7 @@ export function AvatarPhotoCropDialog({
     <AnimatePresence>
       {open && imageSrc ? (
         <motion.div
-          className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-5"
+          className="fixed inset-0 z-[70] flex items-end justify-center overscroll-contain sm:items-center sm:p-5"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -130,7 +130,7 @@ export function AvatarPhotoCropDialog({
             exit={reduceMotion ? undefined : { y: 16, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 340, damping: 32 }}
             className={cn(
-              "relative z-10 flex max-h-[min(94dvh,720px)] w-full max-w-lg flex-col overflow-hidden",
+              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-lg min-h-0 flex-col overflow-hidden sm:max-h-[min(94dvh,720px)]",
               "rounded-t-[1.5rem] border border-border/60 bg-card/95 shadow-[var(--ar-modal-elevate)] backdrop-blur-2xl sm:rounded-[1.5rem] dark:border-white/10"
             )}
             onClick={(e) => e.stopPropagation()}

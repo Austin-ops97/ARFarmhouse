@@ -8,8 +8,8 @@ import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/auth-context";
-import { compressImageFile } from "@/lib/image-compress";
-import { validateFeedImageFiles } from "@/lib/feed-publish";
+import { IMAGE_FILE_ACCEPT, MOBILE_CAMERA_CAPTURE } from "@/lib/image-file-input";
+import { validateRawImageFile } from "@/lib/image-input";
 import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
 import { createAlbumMediaItems } from "@/services/album-media";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,11 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
   const [caption, setCaption] = useState("");
   const [eventLink, setEventLink] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{
+    phase: "processing" | "uploading";
+    done: number;
+    total: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reset = useCallback(() => {
@@ -45,7 +49,9 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     if (!list?.length) return;
     const next: { file: File; preview: string }[] = [];
     Array.from(list).forEach((file) => {
-      if (!file.type.startsWith("image/")) return;
+      if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif|avif|gif)$/i.test(file.name)) {
+        return;
+      }
       next.push({ file, preview: URL.createObjectURL(file) });
     });
     setFiles((prev) => [...prev, ...next].slice(0, 12));
@@ -71,11 +77,10 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     if (files.length === 0 || !user) return;
     setBusy(true);
     setError(null);
-    setProgress({ done: 0, total: files.length });
+    setProgress({ phase: "processing", done: 0, total: files.length });
     try {
       const raw = files.map((f) => f.file);
-      validateFeedImageFiles(raw);
-      const compressed = await Promise.all(raw.map((f) => compressImageFile(f)));
+      for (const file of raw) validateRawImageFile(file);
       await createAlbumMediaItems(
         {
           authorId: user.uid,
@@ -84,9 +89,9 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
           caption,
           albumKey,
           linkedEvent: eventLink.trim() || null,
-          files: compressed,
+          files: raw,
         },
-        (done, total) => setProgress({ done, total })
+        (p) => setProgress({ phase: p.phase, done: p.done, total: p.total })
       );
       files.forEach((f) => URL.revokeObjectURL(f.preview));
       reset();
@@ -119,7 +124,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
             exit={reduceMotion ? undefined : { y: 16, opacity: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 34 }}
             className={cn(
-              "ar-modal-shell relative z-10 flex max-h-[min(92dvh,880px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem]",
+              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-lg min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] sm:max-h-[min(92dvh,880px)]",
               "sm:rounded-[1.75rem]"
             )}
           >
@@ -157,11 +162,14 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
               >
                 <ImagePlus className="size-8 text-primary/90" aria-hidden />
                 <p className="text-sm font-medium text-foreground">Drop images here</p>
-                <p className="text-xs text-muted-foreground">or tap to browse — up to 12 stills</p>
+                <p className="text-xs text-muted-foreground">
+                  or tap to take a photo — large images are optimized automatically
+                </p>
                 <input
                   id={inputId}
                   type="file"
-                  accept="image/*"
+                  accept={IMAGE_FILE_ACCEPT}
+                  capture={MOBILE_CAMERA_CAPTURE}
                   multiple
                   className="sr-only"
                   onChange={(e) => {
@@ -201,7 +209,9 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                     />
                   </div>
                   <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                    Uploading {progress.done} of {progress.total}…
+                    {progress.phase === "processing"
+                      ? `Optimizing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
+                      : `Uploading ${progress.done} of ${progress.total}…`}
                   </p>
                 </div>
               )}
@@ -263,7 +273,11 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                 onClick={() => void handleSubmit()}
               >
                 <Upload className="opacity-80" data-icon="inline-start" aria-hidden />
-                {busy ? "Uploading…" : "Save to archive"}
+                {busy
+                  ? progress?.phase === "processing"
+                    ? "Optimizing…"
+                    : "Uploading…"
+                  : "Save to archive"}
               </Button>
             </div>
           </motion.div>

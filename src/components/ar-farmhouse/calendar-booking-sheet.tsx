@@ -261,11 +261,11 @@ export function CalendarBookingSheet({
             exit={reduceMotion ? undefined : { y: 22, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className={cn(
-              "ar-modal-shell relative z-10 flex max-h-[min(92dvh,100dvh)] w-full max-w-[100vw] flex-col overflow-hidden rounded-t-[1.75rem] touch-manipulation",
-              "sm:max-h-[min(94dvh,920px)] sm:max-w-lg md:max-w-xl md:rounded-[1.75rem]"
+              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-[100vw] min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] touch-manipulation",
+              "sm:max-h-[min(92dvh,920px)] sm:max-w-lg md:max-w-xl md:rounded-[1.75rem]"
             )}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-border/45 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5 sm:pb-4 dark:border-white/10">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/45 px-4 pb-3 pt-3 sm:px-5 sm:pb-4 dark:border-white/10">
               <div>
                 <p id={titleId} className="font-heading text-lg font-semibold tracking-tight text-foreground">
                   Book a stay
@@ -277,7 +277,7 @@ export function CalendarBookingSheet({
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-5 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:px-5 sm:py-5">
               {submitted ? (
                 <motion.div
                   initial={reduceMotion ? false : { opacity: 0, y: 8 }}

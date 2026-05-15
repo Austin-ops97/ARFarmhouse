@@ -9,9 +9,12 @@ import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
 import { NotificationBell } from "@/components/ar-farmhouse/notification-bell";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { DashboardMobileDrawerTrigger } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { sidebarNav, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/auth-context";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_ACCOUNT_MENU } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 const sectionSubtitle: Record<NavId, string> = {
@@ -44,6 +47,7 @@ export function DashboardAppHeader({
   const { user, signOut, displayName, avatarUrl } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
   const [elevated, setElevated] = useState(false);
+  useBodyScrollLock(accountOpen);
   const { scrollY } = useScroll();
 
   useMotionValueEvent(scrollY, "change", (y) => {
@@ -55,15 +59,21 @@ export function DashboardAppHeader({
   return (
     <header
       className={cn(
-        "ar-header-blur fixed top-0 z-[45] box-border flex min-h-[var(--ar-header-height)] w-full items-center justify-between gap-2 border-b px-3 sm:gap-3 sm:px-4",
+        "fixed top-0 z-[45] box-border min-h-[var(--ar-header-height)] w-full border-b",
         "left-0 lg:left-[248px] lg:right-0",
-        "pt-[var(--ar-header-safe-top)] pb-[var(--ar-header-pad-bottom)]",
-        "transition-[background-color,box-shadow,backdrop-filter,border-color] duration-300 ease-out",
+        "transition-[background-color,box-shadow,border-color] duration-300 ease-out",
         elevated
-          ? "border-border/60 bg-background/88 shadow-[var(--ar-panel-elevate)] supports-[backdrop-filter]:bg-background/78 dark:border-white/[0.1] dark:bg-background/88 dark:shadow-[0_8px_32px_-12px_rgba(0,0,0,0.55)]"
-          : "border-border/45 bg-background/78 supports-[backdrop-filter]:bg-background/65 dark:border-white/[0.06] dark:bg-background/72"
+          ? "border-border/60 bg-background/88 shadow-[var(--ar-panel-elevate)] dark:border-white/[0.1] dark:bg-background/88 dark:shadow-[0_8px_32px_-12px_rgba(0,0,0,0.55)]"
+          : "border-border/45 bg-background/78 dark:border-white/[0.06] dark:bg-background/72"
       )}
     >
+      <div className="ar-header-blur-layer" aria-hidden />
+      <div
+        className={cn(
+          "ar-header-content relative flex min-h-[var(--ar-header-height)] w-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-4",
+          "pt-[var(--ar-header-safe-top)] pb-[var(--ar-header-pad-bottom)]"
+        )}
+      >
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         <div className="shrink-0 lg:hidden">
           <DashboardMobileDrawerTrigger open={mobileMenuOpen} onOpenChange={onMobileMenuOpenChange} />
@@ -97,18 +107,18 @@ export function DashboardAppHeader({
                 {displayName}
               </span>
             </button>
-            {accountOpen && (
-              <>
+            {accountOpen ? (
+              <OverlayPortal>
                 <button
                   type="button"
-                  className="fixed inset-0 z-40 cursor-default bg-transparent"
+                  className="fixed inset-0 z-[75] cursor-default bg-transparent"
                   aria-label="Close menu"
                   onClick={() => setAccountOpen(false)}
                 />
                 <motion.div
                   initial={reduceMotion ? false : { opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="absolute right-0 z-50 mt-2 w-52 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-border/60 bg-popover/95 py-1 shadow-lg backdrop-blur-2xl dark:border-white/12 dark:bg-background/95 dark:shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)]"
+                  className={AR_ACCOUNT_MENU}
                   role="menu"
                 >
                   <p className="truncate px-3 py-2 text-[11px] text-muted-foreground">{user.email}</p>
@@ -140,10 +150,11 @@ export function DashboardAppHeader({
                     Sign out
                   </button>
                 </motion.div>
-              </>
-            )}
+              </OverlayPortal>
+            ) : null}
           </>
         ) : null}
+      </div>
       </div>
     </header>
   );

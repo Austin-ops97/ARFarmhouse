@@ -6,7 +6,12 @@ import { Camera, Heart, Loader2, PawPrint, Plus, Sparkles, Trash2, UserRound } f
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { IMAGE_FILE_ACCEPT, MOBILE_CAMERA_CAPTURE } from "@/lib/image-file-input";
 import { validateRawImageFile } from "@/lib/image-input";
+import {
+  uploadOptimizedFamilyMemberPhoto,
+  uploadOptimizedPetPhoto,
+} from "@/lib/profile-photo-upload";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,12 +29,7 @@ import {
 } from "@/models/family-profile";
 import type { AppUser } from "@/models/user";
 import { profileHandle } from "@/services/user-profile";
-import {
-  isProfilePhotoUploadAvailable,
-  uploadFamilyMemberPhoto,
-  uploadPetPhoto,
-  uploadProfilePhoto,
-} from "@/services/profile-storage";
+import { isProfilePhotoUploadAvailable, uploadProfilePhoto } from "@/services/profile-storage";
 import { saveUserProfile, subscribeUserProfile } from "@/services/user-profile";
 import { cn } from "@/lib/utils";
 
@@ -362,7 +362,8 @@ export function ProfileView() {
               <input
                 id={photoInputId}
                 type="file"
-                accept="image/*"
+                accept={IMAGE_FILE_ACCEPT}
+                capture={MOBILE_CAMERA_CAPTURE}
                 className="sr-only"
                 disabled={uploadingPhoto || !photoUploadAvailable}
                 onChange={(e) => {
@@ -505,14 +506,17 @@ export function ProfileView() {
                         memberPhotoRef.current[m.id] = el;
                       }}
                       type="file"
-                      accept="image/*"
+                      accept={IMAGE_FILE_ACCEPT}
+                      capture={MOBILE_CAMERA_CAPTURE}
                       className="sr-only"
                       onChange={async (e) => {
                         const f = e.target.files?.[0];
                         e.target.value = "";
                         if (!f || !user) return;
+                        setSaveError(null);
                         try {
-                          const url = await uploadFamilyMemberPhoto(user.uid, m.id, f);
+                          validateRawImageFile(f);
+                          const url = await uploadOptimizedFamilyMemberPhoto(user.uid, m.id, f);
                           updateMember(m.id, { photoUrl: url });
                         } catch (err) {
                           setSaveError(err instanceof Error ? err.message : "Upload failed.");
@@ -598,14 +602,17 @@ export function ProfileView() {
                     petPhotoRef.current[pet.id] = el;
                   }}
                   type="file"
-                  accept="image/*"
+                  accept={IMAGE_FILE_ACCEPT}
+                  capture={MOBILE_CAMERA_CAPTURE}
                   className="sr-only"
                   onChange={async (e) => {
                     const f = e.target.files?.[0];
                     e.target.value = "";
                     if (!f || !user) return;
+                    setSaveError(null);
                     try {
-                      const url = await uploadPetPhoto(user.uid, pet.id, f);
+                      validateRawImageFile(f);
+                      const url = await uploadOptimizedPetPhoto(user.uid, pet.id, f);
                       updatePet(pet.id, { photoUrl: url });
                     } catch (err) {
                       setSaveError(err instanceof Error ? err.message : "Upload failed.");

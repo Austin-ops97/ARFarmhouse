@@ -16,7 +16,8 @@ import {
 import { actionDebug } from "@/lib/action-debug";
 import { formatFeedTimeLabel, handleFromDisplayName } from "@/lib/datetime/relative";
 import { buildChipsFromCounts, normalizeReactionCounts } from "@/lib/reaction-counts";
-import { validateFeedImageFiles } from "@/lib/feed-publish";
+import { validateFeedImageFiles, validateOptimizedFeedFiles } from "@/lib/feed-publish";
+import { prepareImagesForUpload } from "@/lib/image-upload-pipeline";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
@@ -87,6 +88,10 @@ export function subscribeFeedPosts(onPosts: (posts: UiFeedPost[]) => void, onErr
   );
 }
 
+export type FeedPublishProgress =
+  | { phase: "processing"; done: number; total: number }
+  | { phase: "uploading"; done: number; total: number };
+
 export async function createFeedPostWithMedia(
   input: {
     authorId: string;
@@ -99,7 +104,7 @@ export async function createFeedPostWithMedia(
     linkedEvent?: string | null;
     files: File[];
   },
-  onUploadProgress?: (done: number, total: number) => void
+  onProgress?: (progress: FeedPublishProgress) => void
 ): Promise<string> {
   if (!input.authorId?.trim()) throw new Error("You must be signed in to publish.");
 
@@ -114,8 +119,22 @@ export async function createFeedPostWithMedia(
 
   let mediaUrls: string[] = [];
   if (input.files.length > 0) {
+    const total = input.files.length;
+    onProgress?.({ phase: "processing", done: 0, total });
+    actionDebug("feed", "optimize begin");
+    const optimized = await prepareImagesForUpload(input.files, "feed", {
+      onProgress: (p) => {
+        if (p.phase === "processing") {
+          onProgress?.({ phase: "processing", done: p.done, total: p.total });
+        }
+      },
+    });
+    validateOptimizedFeedFiles(optimized);
     actionDebug("feed", "upload begin");
-    mediaUrls = await uploadPostImages(id, input.files, onUploadProgress);
+    onProgress?.({ phase: "uploading", done: 0, total: optimized.length });
+    mediaUrls = await uploadPostImages(id, optimized, (done, t) =>
+      onProgress?.({ phase: "uploading", done, total: t })
+    );
     actionDebug("feed", "upload complete", { count: mediaUrls.length });
   }
 

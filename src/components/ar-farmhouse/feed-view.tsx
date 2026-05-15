@@ -60,7 +60,9 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
   const { prefs } = useSettingsPrefs();
   const [composeOpen, setComposeOpen] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
-  const [publishPhase, setPublishPhase] = useState<"idle" | "uploading" | "saving">("idle");
+  const [publishPhase, setPublishPhase] = useState<
+    "idle" | "processing" | "uploading" | "saving"
+  >("idle");
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
   const { posts, loading: liveLoading, error: liveError } = useFeedPosts();
@@ -115,17 +117,22 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
               linkedEvent: payload.attachedEvent,
               files: payload.files,
             },
-            (done, total) => {
+            (progress) => {
               if (publishEpochRef.current !== epoch) return;
+              if (progress.phase === "processing") {
+                setPublishPhase("processing");
+                setUploadProgress({ done: progress.done, total: progress.total });
+                return;
+              }
               setPublishPhase("uploading");
-              setUploadProgress({ done, total });
-              if (done >= total) setPublishPhase("saving");
+              setUploadProgress({ done: progress.done, total: progress.total });
+              if (progress.done >= progress.total) setPublishPhase("saving");
             }
           ),
         {
           onStart: () => {
             setPublishBusy(true);
-            setPublishPhase(hasFiles ? "uploading" : "saving");
+            setPublishPhase(hasFiles ? "processing" : "saving");
             setUploadProgress(hasFiles ? { done: 0, total: payload.files.length } : null);
           },
           onFinally: () => {

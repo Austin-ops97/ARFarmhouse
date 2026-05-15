@@ -32,7 +32,7 @@ type CreatePostDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   publishBusy?: boolean;
-  publishPhase?: "idle" | "uploading" | "saving";
+  publishPhase?: "idle" | "processing" | "uploading" | "saving";
   uploadProgress?: { done: number; total: number } | null;
   canPublish?: boolean;
   onPublishLive?: (payload: LivePostPayload) => Promise<void>;
@@ -85,7 +85,9 @@ export function CreatePostDialog({
 
   const addFiles = useCallback(
     (incoming: FileList | File[]) => {
-      const incomingList = Array.from(incoming).filter((f) => f.type.startsWith("image/"));
+      const incomingList = Array.from(incoming).filter(
+        (f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif|avif|gif)$/i.test(f.name)
+      );
       setFiles((prev) => {
         const merged = [...prev, ...incomingList].slice(0, 6);
         setPreviews((old) => {
@@ -191,11 +193,13 @@ export function CreatePostDialog({
   }, [open, closeDialog, isPublishing]);
 
   const publishLabel =
-    publishPhase === "uploading" && uploadProgress
-      ? `Uploading ${uploadProgress.done}/${uploadProgress.total}`
-      : publishPhase === "saving"
-        ? "Saving post"
-        : "Publish";
+    publishPhase === "processing" && uploadProgress
+      ? `Optimizing ${uploadProgress.done}/${uploadProgress.total}`
+      : publishPhase === "uploading" && uploadProgress
+        ? `Uploading ${uploadProgress.done}/${uploadProgress.total}`
+        : publishPhase === "saving"
+          ? "Saving post"
+          : "Publish";
 
   return (
     <AnimatePresence>
@@ -223,7 +227,7 @@ export function CreatePostDialog({
             exit={reduceMotion ? undefined : { y: 18, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 320, damping: 30 }}
             className={cn(
-              "relative z-10 flex max-h-[min(92dvh,900px)] w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12",
+              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-xl min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12 sm:max-h-[min(92dvh,900px)]",
               "bg-background/90 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:rounded-[1.75rem]"
             )}
           >
@@ -291,7 +295,8 @@ export function CreatePostDialog({
               >
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
+                  capture="environment"
                   multiple
                   className="hidden"
                   id="ar-create-post-files"
@@ -303,7 +308,9 @@ export function CreatePostDialog({
                     <ImagePlus className="size-5 text-primary" aria-hidden />
                   </span>
                   <span className="text-sm font-medium text-foreground">Drop images here</span>
-                  <span className="text-xs text-muted-foreground">or tap to browse · JPEG / PNG / WebP · max 10 MB each</span>
+                  <span className="text-xs text-muted-foreground">
+                    or tap to take a photo · large phone photos are optimized automatically
+                  </span>
                 </label>
               </motion.div>
 
@@ -327,7 +334,9 @@ export function CreatePostDialog({
                 </div>
               )}
 
-              {publishPhase === "uploading" && uploadProgress && uploadProgress.total > 0 && (
+              {(publishPhase === "processing" || publishPhase === "uploading") &&
+                uploadProgress &&
+                uploadProgress.total > 0 && (
                 <div className="mt-4 space-y-2">
                   <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                     <div
@@ -336,7 +345,9 @@ export function CreatePostDialog({
                     />
                   </div>
                   <p className="text-center text-xs text-muted-foreground">
-                    Uploading image {uploadProgress.done} of {uploadProgress.total}…
+                    {publishPhase === "processing"
+                      ? `Optimizing photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
+                      : `Uploading image ${uploadProgress.done} of ${uploadProgress.total}…`}
                   </p>
                 </div>
               )}

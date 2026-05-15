@@ -2,6 +2,7 @@ import { deleteObject, getDownloadURL, ref, uploadBytes, uploadBytesResumable } 
 
 import { actionDebug } from "@/lib/action-debug";
 import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
+import { getUploadMaxBytes } from "@/lib/image-process";
 import { isFirebaseStorageAvailable, tryGetFirebaseStorage } from "@/lib/firebase";
 
 const STORAGE_UNAVAILABLE_MESSAGE =
@@ -13,9 +14,7 @@ export function isProfilePhotoUploadAvailable(): boolean {
 
 /** Optimized avatar uploads after client crop/compress. */
 const AVATAR_MAX_BYTES = AVATAR_UPLOAD_MAX_BYTES;
-
-/** Legacy direct uploads (family/pet) until those flows use the cropper. */
-const LEGACY_PHOTO_MAX_BYTES = 6 * 1024 * 1024;
+const FAMILY_PET_MAX_BYTES = getUploadMaxBytes("family");
 
 function extFromMime(mime: string) {
   if (mime === "image/jpeg") return "jpg";
@@ -91,12 +90,22 @@ export async function uploadProfilePhoto(
   return uploadPath(`users/${uid}/profile/avatar`, file, AVATAR_MAX_BYTES, onProgress);
 }
 
-export async function uploadFamilyMemberPhoto(uid: string, memberId: string, file: File): Promise<string> {
-  return uploadPath(`users/${uid}/family/${memberId}/photo`, file, LEGACY_PHOTO_MAX_BYTES);
+export async function uploadFamilyMemberPhoto(
+  uid: string,
+  memberId: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  return uploadPath(`users/${uid}/family/${memberId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress);
 }
 
-export async function uploadPetPhoto(uid: string, petId: string, file: File): Promise<string> {
-  return uploadPath(`users/${uid}/pets/${petId}/photo`, file, LEGACY_PHOTO_MAX_BYTES);
+export async function uploadPetPhoto(
+  uid: string,
+  petId: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  return uploadPath(`users/${uid}/pets/${petId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress);
 }
 
 export async function removeStorageObject(pathPrefix: string): Promise<void> {
