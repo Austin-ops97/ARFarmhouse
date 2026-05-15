@@ -61,6 +61,7 @@ export function HomeImmersiveHero() {
           alt=""
           fill
           priority
+          fetchPriority="high"
           className="object-cover"
           sizes="(min-width: 1280px) 1200px, 100vw"
         />

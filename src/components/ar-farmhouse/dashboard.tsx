@@ -154,6 +154,7 @@ function DashboardRoutes() {
         onSelect={setActiveId}
       />
       <RouteWeekendHubPortal />
+      <PhotoAlbumLightboxHost />
     </EcosystemProvider>
   );
 }
@@ -176,7 +177,6 @@ export function Dashboard() {
       >
           <DashboardRoutes />
         </Suspense>
-          <PhotoAlbumLightboxHost />
         </PhotoAlbumProvider>
         </NotificationsProvider>
       </SavedPostsProvider>
