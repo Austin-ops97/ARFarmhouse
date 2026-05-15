@@ -1,21 +1,16 @@
 "use client";
 
-import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Calendar,
-  Check,
   ChevronRight,
   Clock,
   CloudSun,
   Compass,
   Heart,
   MapPin,
-  Ship,
-  ShoppingBasket,
   Sparkles,
   Tent,
-  UtensilsCrossed,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -24,7 +19,6 @@ import { WeekendHubAlbumStrip } from "@/components/ar-farmhouse/weekend-hub-albu
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { useHubPropertyOps } from "@/hooks/use-hub-property-ops";
 import { resolveWeekendHubBundle } from "@/lib/weekend-hub-hydrate";
 import type { WeekendHubSlug } from "@/lib/weekend-hub-slug";
@@ -117,10 +111,8 @@ export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: We
               "sm:max-h-[min(94dvh,920px)] sm:max-w-2xl sm:rounded-[1.75rem]"
             )}
           >
-            <div className="relative h-40 shrink-0 sm:h-48">
-              <Image src={bundle.hero} alt="" fill className="object-cover" sizes="(max-width:768px) 100vw, 672px" />
-              <div className="absolute inset-0 bg-gradient-to-t from-background via-background/55 to-transparent" />
-              <div className="absolute left-4 right-4 top-[max(0.75rem,env(safe-area-inset-top))] flex items-start justify-between gap-2">
+            <div className="relative shrink-0 overflow-hidden border-b border-border/40 bg-gradient-to-br from-primary/[0.1] via-background to-muted/25 px-4 pb-6 pt-[max(0.5rem,env(safe-area-inset-top))] dark:border-white/10">
+              <div className="relative mb-6 flex flex-wrap items-start justify-between gap-3 pt-2">
                 <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/75 px-2.5 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md dark:border-white/15 dark:bg-background/55">
                   <Sparkles className="size-3 text-primary" aria-hidden />
                   Weekend hub
@@ -129,7 +121,7 @@ export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: We
                   <X className="size-4" />
                 </Button>
               </div>
-              <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-end justify-between gap-3">
+              <div className="relative flex flex-wrap items-end justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-primary/90">Command center</p>
                   <h2 id="weekend-hub-title" className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
@@ -223,65 +215,34 @@ export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: We
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                <div className={cn(surface, "p-4")}>
-                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    <UtensilsCrossed className="size-3.5 text-primary" aria-hidden />
-                    Meal plan
-                  </div>
-                  <ul className="mt-2 space-y-2">
-                    {bundle.mealPlan.map((m) => (
-                      <li key={m.meal} className="ar-surface-inset rounded-xl px-2.5 py-2">
-                        <p className="text-sm font-medium text-foreground">{m.meal}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {m.chef} · {m.dish}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              <div className="mt-4">
                 <div className={cn(surface, "p-4")}>
                   <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                     <Tent className="size-3.5 text-primary" aria-hidden />
-                    Plans
+                    Plans & activities
                   </div>
                   <ul className="mt-2 space-y-2">
-                    {bundle.activities.map((a) => (
-                      <li key={a.title} className="ar-surface-inset rounded-xl px-2.5 py-2">
-                        <p className="text-sm font-medium text-foreground">{a.title}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {a.when} · {a.people.join(", ")}
-                        </p>
+                    {bundle.activities.length === 0 ? (
+                      <li className="ar-surface-inset rounded-xl px-2.5 py-3 text-sm text-muted-foreground">
+                        Activities from the calendar will show here when the weekend is booked.
                       </li>
-                    ))}
+                    ) : (
+                      bundle.activities.map((a) => (
+                        <li key={a.title} className="ar-surface-inset rounded-xl px-2.5 py-2">
+                          <p className="text-sm font-medium text-foreground">{a.title}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {a.when} · {a.people.join(", ")}
+                          </p>
+                        </li>
+                      ))
+                    )}
                   </ul>
                 </div>
               </div>
 
               <WeekendHubAlbumStrip eventTitle={bundle.title} />
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                <div className={cn(surface, "p-4")}>
-                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    <ShoppingBasket className="size-3.5 text-primary" aria-hidden />
-                    Grocery coordination
-                  </div>
-                  <ul className="mt-2 space-y-2">
-                    {bundle.grocery.slice(0, 5).map((g) => (
-                      <li key={g.item} className="ar-surface-inset flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm text-foreground/90">
-                        <span
-                          className={cn(
-                            "flex size-6 shrink-0 items-center justify-center rounded-full border",
-                            g.done ? "border-primary/35 bg-primary/15 text-primary" : "border-border/55 bg-muted/70 dark:border-white/12 dark:bg-white/[0.04]"
-                          )}
-                        >
-                          {g.done ? <Check className="size-3" aria-hidden /> : null}
-                        </span>
-                        <span className={cn("min-w-0 flex-1", g.done && "text-muted-foreground line-through")}>{g.item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              <div className="mt-4">
                 <div className={cn(surface, "p-4")}>
                   <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                     <Compass className="size-3.5 text-primary" aria-hidden />
@@ -350,34 +311,8 @@ export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: We
                 </div>
               </div>
 
-              <div className={cn(surface, "mt-4 p-4")}>
-                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  <Ship className="size-3.5 text-primary" aria-hidden />
-                  Supplies & equipment
-                </div>
-                <ul className="mt-2 space-y-1.5 text-[12px] text-muted-foreground">
-                  {bundle.supplies.map((s) => (
-                    <li key={s.item}>
-                      <span className="font-medium text-foreground">{s.item}</span> — {s.status}
-                    </li>
-                  ))}
-                </ul>
-                <Separator className="my-3 bg-border/50 dark:bg-white/10" />
-                <ul className="space-y-1 text-[12px] text-muted-foreground">
-                  {bundle.equipment.map((e) => (
-                    <li key={e.item}>
-                      <span className="font-medium text-foreground">{e.item}</span> · {e.who} — {e.note}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-3 text-[11px] text-muted-foreground">Packing nudges</p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {bundle.packing.map((p) => (
-                    <span key={p} className="rounded-full border border-border/55 bg-secondary/80 px-2.5 py-1 text-[10px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]">
-                      {p}
-                    </span>
-                  ))}
-                </div>
+              <div className="mt-4 rounded-2xl border border-border/50 bg-muted/15 px-4 py-3 text-sm text-muted-foreground dark:border-white/10 dark:bg-white/[0.03]">
+                Meal planning and shared groceries now live on the <span className="font-medium text-foreground">Calendar</span> tab so the whole crew sees one coordinated list.
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2 border-t border-border/50 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-4 dark:border-white/10">

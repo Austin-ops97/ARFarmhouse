@@ -1,11 +1,16 @@
 import {
   type ImageUploadPreset,
+  type ProcessedImageFile,
   processImageFiles,
   type ProcessImagesProgress,
 } from "@/lib/image-process";
 import { isLargeRawImage, validateRawImageFile } from "@/lib/image-input";
 
-export type ImagePipelinePhase = "validating" | "optimizing" | "ready";
+/**
+ * Central client-side media pipeline: validate → prepare → GPU-friendly decode/resize → encode → upload.
+ * All Firebase writes should consume only `ProcessedImageFile.file` (never raw camera originals for lossy types).
+ */
+export type ImagePipelinePhase = "validating" | "preparing" | "optimizing" | "ready";
 
 export type ImagePipelineProgress = {
   phase: ImagePipelinePhase;
@@ -18,6 +23,8 @@ export type PrepareImagesOptions = {
   onProgress?: (progress: ImagePipelineProgress) => void;
   signal?: AbortSignal;
 };
+
+export type { ProcessedImageFile };
 
 function assertNotAborted(signal?: AbortSignal) {
   if (signal?.aborted) {
@@ -36,14 +43,12 @@ function optimizingMessage(files: File[], done: number, total: number): string {
   return hasLarge ? "Optimizing large photo…" : "Optimizing…";
 }
 
-/**
- * Validates raw camera roll / phone photos, then optimizes each file for the given preset.
- */
-export async function prepareImagesForUpload(
+/** Full optimization result + metadata for Firestore (Firebase stores URLs only — meta is supplementary). */
+export async function prepareOptimizedArtifactsForFirebase(
   files: File[],
   preset: ImageUploadPreset,
   options?: PrepareImagesOptions
-): Promise<File[]> {
+): Promise<ProcessedImageFile[]> {
   const { onProgress, signal } = options ?? {};
   const total = files.length;
 
@@ -60,6 +65,15 @@ export async function prepareImagesForUpload(
     });
   }
 
+  assertNotAborted(signal);
+  onProgress?.({
+    phase: "preparing",
+    done: 0,
+    total,
+    message: total > 1 ? "Preparing photos…" : "Preparing photo…",
+  });
+
+  assertNotAborted(signal);
   onProgress?.({
     phase: "optimizing",
     done: 0,
@@ -67,7 +81,7 @@ export async function prepareImagesForUpload(
     message: optimizingMessage(files, 0, total),
   });
 
-  return processImageFiles(files, preset, (p: ProcessImagesProgress) => {
+  const artifacts = await processImageFiles(files, preset, (p: ProcessImagesProgress) => {
     assertNotAborted(signal);
     onProgress?.({
       phase: "optimizing",
@@ -76,4 +90,25 @@ export async function prepareImagesForUpload(
       message: optimizingMessage(files, p.done, p.total),
     });
   });
+
+  onProgress?.({
+    phase: "ready",
+    done: total,
+    total,
+    message: total > 1 ? `${total} photos ready` : "Ready to upload",
+  });
+
+  return artifacts;
+}
+
+/**
+ * Validates raw camera roll picks, runs the shared optimizer, returns only uploaded `File` blobs (WebP/JPEG).
+ */
+export async function prepareImagesForUpload(
+  files: File[],
+  preset: ImageUploadPreset,
+  options?: PrepareImagesOptions
+): Promise<File[]> {
+  const artifacts = await prepareOptimizedArtifactsForFirebase(files, preset, options);
+  return artifacts.map((a) => a.file);
 }

@@ -61,7 +61,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
   const [composeOpen, setComposeOpen] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishPhase, setPublishPhase] = useState<
-    "idle" | "optimizing" | "uploading" | "saving"
+    "idle" | "preparing" | "optimizing" | "uploading" | "saving"
   >("idle");
   const [uploadProgress, setUploadProgress] = useState<{
     done: number;
@@ -123,26 +123,26 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
             },
             (progress) => {
               if (publishEpochRef.current !== epoch) return;
-              if (progress.phase === "optimizing") {
-                setPublishPhase("optimizing");
-                setUploadProgress({ done: progress.done, total: progress.total });
+              if (progress.phase === "uploading") {
+                setPublishPhase("uploading");
+                setUploadProgress({
+                  done: progress.done,
+                  total: progress.total,
+                  percent: progress.percent,
+                });
+                if (progress.done >= progress.total && (progress.percent ?? 100) >= 100) {
+                  setPublishPhase("saving");
+                }
                 return;
               }
-              setPublishPhase("uploading");
-              setUploadProgress({
-                done: progress.done,
-                total: progress.total,
-                percent: progress.percent,
-              });
-              if (progress.done >= progress.total && (progress.percent ?? 100) >= 100) {
-                setPublishPhase("saving");
-              }
+              setPublishPhase(progress.phase === "optimizing" ? "optimizing" : "preparing");
+              setUploadProgress({ done: progress.done, total: progress.total });
             }
           ),
         {
           onStart: () => {
             setPublishBusy(true);
-            setPublishPhase(hasFiles ? "optimizing" : "saving");
+            setPublishPhase(hasFiles ? "preparing" : "saving");
             setUploadProgress(hasFiles ? { done: 0, total: payload.files.length } : null);
           },
           onFinally: () => {

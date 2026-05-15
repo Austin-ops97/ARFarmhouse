@@ -1,8 +1,10 @@
+import { dimensionsForLongestEdge, probeImageDimensions } from "@/lib/image-dimensions";
 import { validateRawImageFile } from "@/lib/image-input";
 import {
   imageProcessingConcurrency,
   mapWithConcurrency,
   yieldToMainThread,
+  yieldWhenIdle,
 } from "@/lib/image-scheduler";
 
 export type ImageUploadPreset = "feed" | "album" | "family" | "pet";
@@ -21,36 +23,35 @@ export type ImagePresetConfig = {
 };
 
 /**
- * Social-style presets: HD-first, size reduction second.
- * Inspired by Facebook/Instagram — sharp feed photos, richer album archives.
+ * Social-style presets: HD-first, bandwidth second.
  */
 export const IMAGE_PRESETS: Record<ImageUploadPreset, ImagePresetConfig> = {
   feed: {
-    maxEdge: 2200,
-    quality: 0.88,
+    maxEdge: 2000,
+    quality: 0.86,
     minQuality: 0.78,
-    softTargetBytes: 2 * 1024 * 1024,
+    softTargetBytes: 1800 * 1024,
     uploadMaxBytes: 5 * 1024 * 1024,
   },
   album: {
-    maxEdge: 3000,
+    maxEdge: 3200,
     quality: 0.9,
-    minQuality: 0.8,
+    minQuality: 0.82,
     softTargetBytes: 5 * 1024 * 1024,
     uploadMaxBytes: 8 * 1024 * 1024,
   },
   family: {
-    maxEdge: 768,
-    quality: 0.86,
+    maxEdge: 720,
+    quality: 0.84,
     minQuality: 0.72,
-    softTargetBytes: 700 * 1024,
+    softTargetBytes: 380 * 1024,
     uploadMaxBytes: 2 * 1024 * 1024,
   },
   pet: {
-    maxEdge: 768,
-    quality: 0.86,
+    maxEdge: 720,
+    quality: 0.84,
     minQuality: 0.72,
-    softTargetBytes: 700 * 1024,
+    softTargetBytes: 380 * 1024,
     uploadMaxBytes: 2 * 1024 * 1024,
   },
 };
@@ -60,7 +61,9 @@ export type ProcessedImageFile = {
   width: number;
   height: number;
   originalSize: number;
-  outputSize: number;
+  /** MIME from the picker before optimization (never uploaded raw). */
+  originalMime: string;
+  optimizedSizeBytes: number;
   skippedOptimization: boolean;
 };
 
@@ -110,7 +113,7 @@ async function loadImageElement(file: File): Promise<{ img: HTMLImageElement; re
       el.onerror = () =>
         reject(
           new Error(
-            "Could not read that photo. If it is HEIC, try again in Safari or save as JPEG in Photos first."
+            "Could not read that photo. If it is HEIC, try Safari or convert to JPEG in Photos first."
           )
         );
       el.src = url;
@@ -120,41 +123,6 @@ async function loadImageElement(file: File): Promise<{ img: HTMLImageElement; re
     URL.revokeObjectURL(url);
     throw e;
   }
-}
-
-type DecodedImage = {
-  width: number;
-  height: number;
-  draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
-  dispose: () => void;
-};
-
-async function decodeImageFile(file: File): Promise<DecodedImage> {
-  if (typeof createImageBitmap === "function") {
-    try {
-      const bmp = await createImageBitmap(file);
-      return {
-        width: bmp.width,
-        height: bmp.height,
-        draw: (ctx, w, h) => {
-          ctx.drawImage(bmp, 0, 0, w, h);
-        },
-        dispose: () => bmp.close(),
-      };
-    } catch {
-      /* fall through to Image() — some HEIC / older browsers */
-    }
-  }
-
-  const { img, revoke } = await loadImageElement(file);
-  return {
-    width: img.naturalWidth,
-    height: img.naturalHeight,
-    draw: (ctx, w, h) => {
-      ctx.drawImage(img, 0, 0, w, h);
-    },
-    dispose: revoke,
-  };
 }
 
 const LOSSY_OUTPUT = new Set(["image/jpeg", "image/webp"]);
@@ -170,9 +138,6 @@ function mustTranscodeMime(mime: string, fileName: string): boolean {
   );
 }
 
-/**
- * Skip canvas work when the source is already web-ready at HD quality.
- */
 function canPassThroughOriginal(
   file: File,
   srcW: number,
@@ -188,16 +153,11 @@ function canPassThroughOriginal(
   const longest = Math.max(srcW, srcH);
   if (longest > config.maxEdge) return false;
 
-  // Already a well-sized JPEG/WebP — keep pixels, skip re-encode.
   if (file.size <= config.softTargetBytes) return true;
 
-  // Slightly over soft target but still within upload cap — still sharp enough.
   return file.size <= config.softTargetBytes * 1.35;
 }
 
-/**
- * Adaptive encode: start high quality, only step down when needed for upload limits.
- */
 const MAX_ENCODE_ATTEMPTS = 6;
 
 async function encodeAdaptive(
@@ -219,7 +179,7 @@ async function encodeAdaptive(
   let attempts = 1;
 
   while (attempts < MAX_ENCODE_ATTEMPTS && q > minQuality) {
-    await yieldToMainThread();
+    await yieldWhenIdle();
     q = Math.max(minQuality, q - 0.04);
     attempts += 1;
     const candidate = await canvasToBlob(canvas, mime, q);
@@ -246,16 +206,131 @@ function outputFileName(originalName: string, mime: string): string {
   return `${base}.${outputExtension(mime)}`;
 }
 
-/**
- * Resize and compress a single image for upload. GIFs pass through unchanged.
- */
-export async function processImageFile(
-  file: File,
-  preset: ImageUploadPreset
-): Promise<ProcessedImageFile> {
-  validateRawImageFile(file);
+type ResizeBitmapOpts = Omit<ImageBitmapOptions, "resizeWidth"> & {
+  resizeWidth: number;
+  resizeHeight: number;
+};
 
+/**
+ * Decode + resize in one GPU-friendly step when supported (critical for giant iPhone photos).
+ */
+async function createResizedBitmap(file: File, rw: number, rh: number, qualityTier: number): Promise<ImageBitmap> {
+  const resizeQuality = qualityTier <= 1 ? "high" : qualityTier <= 3 ? "medium" : "low";
+  const opts: ResizeBitmapOpts = {
+    resizeWidth: rw,
+    resizeHeight: rh,
+    resizeQuality,
+    imageOrientation: "from-image",
+  };
+  await yieldToMainThread();
+  const bmp = await createImageBitmap(file, opts as ImageBitmapOptions);
+  return bmp;
+}
+
+/** Decrementally shrink resize box on decode failure / memory pressure. */
+async function decodeBitmapWithBackoff(file: File, targetW: number, targetH: number): Promise<ImageBitmap> {
+  let w = Math.max(1, targetW);
+  let h = Math.max(1, targetH);
+  let lastErr: unknown;
+
+  for (let tier = 0; tier < 8; tier++) {
+    await yieldWhenIdle();
+    try {
+      return await createResizedBitmap(file, w, h, tier);
+    } catch (e) {
+      lastErr = e;
+      w = Math.max(240, Math.floor(w * 0.68));
+      h = Math.max(240, Math.floor(h * 0.68));
+      if (w <= 260 && h <= 260 && tier >= 4) break;
+    }
+  }
+
+  if (typeof createImageBitmap === "function") {
+    for (let tier = 0; tier < 4; tier++) {
+      await yieldWhenIdle();
+      try {
+        return await createImageBitmap(file, {
+          resizeWidth: Math.max(256, Math.min(targetW, 1536)),
+          resizeQuality: tier < 2 ? "high" : "medium",
+          imageOrientation: "from-image",
+        });
+      } catch (e) {
+        lastErr = e;
+      }
+      try {
+        return await createImageBitmap(file, {
+          resizeHeight: Math.max(256, Math.min(targetH, 1536)),
+          resizeQuality: tier < 2 ? "high" : "medium",
+          imageOrientation: "from-image",
+        });
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+  }
+
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error("Could not decode that photo on this device. Try a smaller JPEG or convert HEIC in Photos.");
+}
+
+/**
+ * Last-resort path: Image() decode then draw into a canvas capped by {@link ImagePresetConfig.maxEdge}.
+ * Can spike RAM on enormous HEIF — prefer {@link decodeBitmapWithBackoff} when it succeeds.
+ */
+async function decodeViaCanvasDownscale(
+  file: File,
+  config: ImagePresetConfig
+): Promise<{ canvas: HTMLCanvasElement; width: number; height: number }> {
+  const { img, revoke } = await loadImageElement(file);
+  try {
+    const srcW = img.naturalWidth;
+    const srcH = img.naturalHeight;
+    if (srcW === 0 || srcH === 0) {
+      throw new Error("That photo appears corrupted or empty. Try another.");
+    }
+    const { width: outW, height: outH } = dimensionsForLongestEdge(srcW, srcH, config.maxEdge);
+    const canvas = document.createElement("canvas");
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not process image on this device.");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    await yieldWhenIdle();
+    ctx.drawImage(img, 0, 0, outW, outH);
+    return { canvas, width: outW, height: outH };
+  } finally {
+    revoke();
+  }
+}
+
+async function bitmapToEncodeCanvas(bitmap: ImageBitmap): Promise<{
+  canvas: HTMLCanvasElement;
+  width: number;
+  height: number;
+}> {
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    bitmap.close();
+    throw new Error("Could not process image on this device.");
+  }
+  await yieldWhenIdle();
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  return { canvas, width: canvas.width, height: canvas.height };
+}
+
+/**
+ * Resize and compress for Firebase. GIFs pass through unchanged.
+ */
+export async function processImageFile(file: File, preset: ImageUploadPreset): Promise<ProcessedImageFile> {
+  validateRawImageFile(file);
   const config = IMAGE_PRESETS[preset];
+  const originalMime = file.type || "application/octet-stream";
 
   if (file.type === "image/gif") {
     if (file.size > config.uploadMaxBytes) {
@@ -266,7 +341,8 @@ export async function processImageFile(
       width: 0,
       height: 0,
       originalSize: file.size,
-      outputSize: file.size,
+      originalMime,
+      optimizedSizeBytes: file.size,
       skippedOptimization: true,
     };
   }
@@ -275,81 +351,83 @@ export async function processImageFile(
     throw new Error(`"${file.name}" is not a supported image.`);
   }
 
-  await yieldToMainThread();
-  const decoded = await decodeImageFile(file);
-  try {
-    const { width: srcW, height: srcH } = decoded;
-    if (srcW === 0 || srcH === 0) {
-      throw new Error("That photo appears corrupted or empty. Try another.");
-    }
+  await yieldWhenIdle();
+  const probed = await probeImageDimensions(file);
+  await yieldWhenIdle();
 
-    const longest = Math.max(srcW, srcH);
-    const scale = Math.min(1, config.maxEdge / longest);
-    const needsResize = scale < 1;
-    const outW = Math.max(1, Math.round(srcW * scale));
-    const outH = Math.max(1, Math.round(srcH * scale));
+  let targetW = config.maxEdge;
+  let targetH = config.maxEdge;
 
-    if (canPassThroughOriginal(file, srcW, srcH, config, needsResize)) {
+  if (probed && probed.width > 0 && probed.height > 0) {
+    const longest = Math.max(probed.width, probed.height);
+    const needsResize = longest > config.maxEdge;
+    if (canPassThroughOriginal(file, probed.width, probed.height, config, needsResize)) {
       return {
         file,
-        width: srcW,
-        height: srcH,
+        width: probed.width,
+        height: probed.height,
         originalSize: file.size,
-        outputSize: file.size,
+        originalMime,
+        optimizedSizeBytes: file.size,
         skippedOptimization: true,
       };
     }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = outW;
-    canvas.height = outH;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      throw new Error("Could not process image on this device.");
-    }
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    decoded.draw(ctx, outW, outH);
-
-    await yieldToMainThread();
-    const mime = preferredOutputMime();
-    const blob = await encodeAdaptive(canvas, mime, config);
-    releaseCanvas(canvas);
-
-    const outFile = new File([blob], outputFileName(file.name, mime), {
-      type: mime,
-      lastModified: file.lastModified,
-    });
-
-    return {
-      file: outFile,
-      width: outW,
-      height: outH,
-      originalSize: file.size,
-      outputSize: outFile.size,
-      skippedOptimization: false,
-    };
-  } finally {
-    decoded.dispose();
+    const sized = dimensionsForLongestEdge(probed.width, probed.height, config.maxEdge);
+    targetW = sized.width;
+    targetH = sized.height;
   }
+
+  async function finalize(canvas: HTMLCanvasElement, width: number, height: number): Promise<ProcessedImageFile> {
+    try {
+      await yieldWhenIdle();
+      const mime = preferredOutputMime();
+      const blob = await encodeAdaptive(canvas, mime, config);
+      const outFile = new File([blob], outputFileName(file.name, mime), {
+        type: mime,
+        lastModified: file.lastModified,
+      });
+      return {
+        file: outFile,
+        width,
+        height,
+        originalSize: file.size,
+        originalMime,
+        optimizedSizeBytes: outFile.size,
+        skippedOptimization: false,
+      };
+    } finally {
+      releaseCanvas(canvas);
+    }
+  }
+
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bmp = await decodeBitmapWithBackoff(file, targetW, targetH);
+      const { canvas, width, height } = await bitmapToEncodeCanvas(bmp);
+      return finalize(canvas, width, height);
+    } catch {
+      /* fall through */
+    }
+  }
+
+  const { canvas, width, height } = await decodeViaCanvasDownscale(file, config);
+  return finalize(canvas, width, height);
 }
 
 export async function processImageFiles(
   files: File[],
   preset: ImageUploadPreset,
   onProgress?: (progress: ProcessImagesProgress) => void
-): Promise<File[]> {
+): Promise<ProcessedImageFile[]> {
   const total = files.length;
   const concurrency = imageProcessingConcurrency();
 
-  const processed = await mapWithConcurrency(files, concurrency, async (file, i) => {
+  return mapWithConcurrency(files, concurrency, async (file, i) => {
     onProgress?.({ done: i, total, fileName: file.name });
     const result = await processImageFile(file, preset);
     onProgress?.({ done: i + 1, total, fileName: file.name });
-    return result.file;
+    return result;
   });
-
-  return processed;
 }
 
 export function getUploadMaxBytes(preset: ImageUploadPreset): number {

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import type { NavId } from "@/components/ar-farmhouse/dashboard-nav";
 import { PropertyDataProvider } from "@/contexts/property-data-context";
 
-const PROPERTY_DATA_ROUTES = new Set<NavId>(["calendar", "tasks", "property", "map"]);
+const PROPERTY_DATA_ROUTES = new Set<NavId>(["calendar", "tasks", "property"]);
 
 export function routeNeedsPropertyData(activeId: NavId): boolean {
   return PROPERTY_DATA_ROUTES.has(activeId);

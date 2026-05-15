@@ -25,6 +25,14 @@ export type UiFeedPost = {
   commentCount: number;
 };
 
+export type FeedMediaAttachmentMeta = {
+  width: number;
+  height: number;
+  originalMime: string;
+  optimizedSizeBytes: number;
+  skippedOptimization: boolean;
+};
+
 export type FirestorePost = {
   authorId: string;
   authorDisplayName: string;
@@ -35,6 +43,8 @@ export type FirestorePost = {
   location?: string | null;
   linkedEvent?: string | null;
   mediaUrls: string[];
+  /** Parallel with {@link mediaUrls} indices — client-added metadata after optimization (optional on legacy posts). */
+  mediaMeta?: FeedMediaAttachmentMeta[];
   createdAt: Timestamp;
   updatedAt?: Timestamp | null;
   commentCount: number;

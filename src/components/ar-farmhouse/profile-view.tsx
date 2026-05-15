@@ -145,6 +145,10 @@ export function ProfileView() {
     }
   }, [authProfile, syncForm]);
 
+  useEffect(() => {
+    void import("@/components/ar-farmhouse/avatar-photo-crop-dialog").catch(() => {});
+  }, []);
+
   const persist = useCallback(
     async (patch: Parameters<typeof saveUserProfile>[1]) => {
       if (!user) return;

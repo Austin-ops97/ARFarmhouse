@@ -17,7 +17,7 @@ import { actionDebug } from "@/lib/action-debug";
 import { formatFeedTimeLabel, handleFromDisplayName } from "@/lib/datetime/relative";
 import { buildChipsFromCounts, normalizeReactionCounts } from "@/lib/reaction-counts";
 import { validateFeedImageFiles, validateOptimizedFeedFiles } from "@/lib/feed-publish";
-import { prepareImagesForUpload } from "@/lib/image-upload-pipeline";
+import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
@@ -89,7 +89,7 @@ export function subscribeFeedPosts(onPosts: (posts: UiFeedPost[]) => void, onErr
 }
 
 export type FeedPublishProgress =
-  | { phase: "optimizing"; done: number; total: number }
+  | { phase: "preparing" | "optimizing"; done: number; total: number }
   | { phase: "uploading"; done: number; total: number; percent?: number };
 
 export async function createFeedPostWithMedia(
@@ -118,18 +118,31 @@ export async function createFeedPostWithMedia(
   actionDebug("feed", "publish start", { postId: id, fileCount: input.files.length });
 
   let mediaUrls: string[] = [];
+  let mediaMeta: NonNullable<FirestorePost["mediaMeta"]> | undefined;
+
   if (input.files.length > 0) {
     const total = input.files.length;
-    onProgress?.({ phase: "optimizing", done: 0, total });
     actionDebug("feed", "optimize begin");
-    const optimized = await prepareImagesForUpload(input.files, "feed", {
-      onProgress: (p) => {
-        if (p.phase === "optimizing") {
-          onProgress?.({ phase: "optimizing", done: p.done, total: p.total });
+    const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(input.files, "feed", {
+      onProgress: (pipe) => {
+        if (!onProgress) return;
+        if (pipe.phase === "optimizing") {
+          onProgress({ phase: "optimizing", done: pipe.done, total });
+          return;
         }
+        if (pipe.phase === "ready") return;
+        onProgress({ phase: "preparing", done: pipe.done, total });
       },
     });
+    const optimized = optimizedArtifacts.map((a) => a.file);
     validateOptimizedFeedFiles(optimized);
+    mediaMeta = optimizedArtifacts.map((a) => ({
+      width: a.width,
+      height: a.height,
+      originalMime: a.originalMime,
+      optimizedSizeBytes: a.optimizedSizeBytes,
+      skippedOptimization: a.skippedOptimization,
+    }));
     actionDebug("feed", "upload begin");
     onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
     mediaUrls = await uploadPostImages(id, optimized, (done, t, percent) =>
@@ -148,6 +161,7 @@ export async function createFeedPostWithMedia(
     location: input.location?.trim() || null,
     linkedEvent: input.linkedEvent?.trim() || null,
     mediaUrls,
+    ...(mediaMeta && mediaMeta.length > 0 ? { mediaMeta } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     commentCount: 0,

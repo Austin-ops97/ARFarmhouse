@@ -514,3 +514,91 @@ export function subscribePropertyInventory(
     onError
   );
 }
+
+export type SharedGrocerKind = "meal" | "grocery";
+
+export type SharedGroceryItemRow = {
+  id: string;
+  kind: SharedGrocerKind;
+  label: string;
+  assignmentHint: string;
+  claimedByUid: string;
+  claimedByName: string;
+  done: boolean;
+  createdByUid: string;
+  boardOrder: number;
+};
+
+/** Collaborative grocery + meal plan list for trip coordination. */
+export function subscribeSharedGroceryItems(
+  onRows: (rows: SharedGroceryItemRow[]) => void,
+  onError?: (e: Error) => void
+) {
+  return subscribeCollection(
+    "sharedGroceryItems",
+    (snap) => {
+      const d = snap.data();
+      const kindRaw = (d.kind as string) ?? "grocery";
+      const kind: SharedGrocerKind = kindRaw === "meal" ? "meal" : "grocery";
+      return {
+        id: snap.id,
+        kind,
+        label: (d.label as string) ?? "",
+        assignmentHint: (d.assignmentHint as string) ?? "",
+        claimedByUid: (d.claimedByUid as string) ?? "",
+        claimedByName: (d.claimedByName as string) ?? "",
+        done: Boolean(d.done),
+        createdByUid: (d.createdByUid as string) ?? "",
+        boardOrder: typeof d.boardOrder === "number" ? d.boardOrder : 0,
+      };
+    },
+    onRows,
+    onError,
+    (row) => -row.boardOrder
+  );
+}
+
+export async function createSharedGroceryItem(input: {
+  kind: SharedGrocerKind;
+  label: string;
+  assignmentHint?: string;
+  claimedByUid?: string;
+  claimedByName?: string;
+  createdByUid: string;
+}) {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  const label = input.label.trim();
+  if (!label) throw new Error("Enter a label");
+  await addDoc(collection(db, "sharedGroceryItems"), {
+    kind: input.kind,
+    label,
+    assignmentHint: (input.assignmentHint ?? "").trim(),
+    claimedByUid: input.claimedByUid ?? "",
+    claimedByName: input.claimedByName ?? "",
+    done: false,
+    createdByUid: input.createdByUid,
+    boardOrder: Date.now(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateSharedGroceryItem(itemId: string, patch: Partial<Pick<SharedGroceryItemRow, "done" | "claimedByUid" | "claimedByName" | "assignmentHint">>) {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  const ref = doc(db, "sharedGroceryItems", itemId);
+  const update: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  if (patch.done !== undefined) update.done = patch.done;
+  if (patch.claimedByUid !== undefined) update.claimedByUid = patch.claimedByUid;
+  if (patch.claimedByName !== undefined) update.claimedByName = patch.claimedByName;
+  if (patch.assignmentHint !== undefined) update.assignmentHint = patch.assignmentHint;
+  await updateDoc(ref, update);
+}
+
+export async function deleteSharedGroceryItem(itemId: string, viewerUid: string, createdByUid: string) {
+  if (viewerUid !== createdByUid) throw new Error("Only the creator can remove items");
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  await deleteDoc(doc(db, "sharedGroceryItems", itemId));
+}

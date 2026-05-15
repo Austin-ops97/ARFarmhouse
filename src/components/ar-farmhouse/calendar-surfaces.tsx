@@ -102,8 +102,8 @@ type CalendarMonthBoardProps = {
   dayMap: Map<number, CalendarGridDay>;
   statusStyles: Record<string, string>;
   events: PropertyCalendarEvent[];
-  onDayHover?: (day: number | null) => void;
-  previewDay: number | null;
+  selectedDay: number | null;
+  onDaySelect: (day: number) => void;
 };
 
 export function CalendarMonthBoard({
@@ -111,8 +111,8 @@ export function CalendarMonthBoard({
   dayMap,
   statusStyles,
   events,
-  onDayHover,
-  previewDay,
+  selectedDay,
+  onDaySelect,
 }: CalendarMonthBoardProps) {
   const reduceMotion = useReducedMotion();
   const rows = useMemo(
@@ -146,14 +146,14 @@ export function CalendarMonthBoard({
               const st = info?.status ?? "open";
               const isToday = calendarMonth.todayDay !== null && day === calendarMonth.todayDay;
               const dayEvents = eventsForDay(day, events);
-              const preview = previewDay === day;
+              const preview = selectedDay === day;
               return (
-                <motion.div
+                <motion.button
                   key={day}
+                  type="button"
                   layout={false}
-                  onMouseEnter={() => onDayHover?.(day)}
-                  onMouseLeave={() => onDayHover?.(null)}
-                  whileHover={reduceMotion ? undefined : { scale: 1.04 }}
+                  onClick={() => onDaySelect(day)}
+                  whileTap={reduceMotion ? undefined : { scale: 0.98 }}
                   className={cn(
                     "relative flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center rounded-md border p-0.5 text-[9px] font-medium transition-colors sm:aspect-square sm:min-h-0 sm:rounded-xl sm:text-[11px]",
                     statusStyles[st] ?? statusStyles.open,
@@ -175,7 +175,7 @@ export function CalendarMonthBoard({
                       {info.guests[0]}
                     </span>
                   )}
-                </motion.div>
+                </motion.button>
               );
             })}
           </div>

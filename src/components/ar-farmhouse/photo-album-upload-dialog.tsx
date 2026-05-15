@@ -33,7 +33,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
   const [eventLink, setEventLink] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{
-    phase: "optimizing" | "uploading";
+    phase: "preparing" | "optimizing" | "uploading";
     done: number;
     total: number;
     percent?: number;
@@ -67,7 +67,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     if (files.length === 0 || !user) return;
     setBusy(true);
     setError(null);
-    setProgress({ phase: "optimizing", done: 0, total: files.length });
+    setProgress({ phase: "preparing", done: 0, total: files.length });
     try {
       for (const file of files) validateRawImageFile(file);
       await createAlbumMediaItems(
@@ -194,22 +194,29 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
                       style={{
                         width: `${
                           progress.phase === "uploading" && progress.percent != null
-                            ? Math.round(
-                                ((progress.done + progress.percent / 100) / progress.total) * 100
-                              )
-                            : Math.round((progress.done / progress.total) * 100)
+                            ? Math.round(((progress.done + progress.percent / 100) / progress.total) * 100)
+                            : progress.phase === "preparing"
+                              ? Math.round((progress.done / Math.max(progress.total, 1)) * 26)
+                              : Math.round(
+                                  26 +
+                                    (progress.done / Math.max(progress.total, 1)) * 44
+                                )
                         }%`,
                       }}
                     />
                   </div>
                   <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                    {progress.phase === "optimizing"
-                      ? files.some(isLargeRawImage)
-                        ? `Optimizing large photo ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
-                        : `Optimizing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
-                      : progress.percent != null
-                        ? `Uploading… ${Math.round(((progress.done + progress.percent / 100) / progress.total) * 100)}%`
-                        : `Uploading ${progress.done} of ${progress.total}…`}
+                    {progress.phase === "preparing"
+                      ? progress.total > 1
+                        ? `Preparing photos ${progress.done}/${progress.total}…`
+                        : "Preparing photo for upload…"
+                      : progress.phase === "optimizing"
+                        ? files.some(isLargeRawImage)
+                          ? `Optimizing large photo ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
+                          : `Optimizing ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
+                        : progress.percent != null
+                          ? `Uploading… ${Math.round(((progress.done + progress.percent / 100) / progress.total) * 100)}%`
+                          : `Uploading ${progress.done} of ${progress.total}…`}
                   </p>
                 </div>
               )}

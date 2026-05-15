@@ -5,8 +5,9 @@ import { CalendarPlus, ChevronLeft, ChevronRight, Home, Sparkles, Users } from "
 import { useMemo, useState } from "react";
 
 import { CalendarBookingSheet } from "@/components/ar-farmhouse/calendar-booking-sheet";
-import { CalendarFeedBridge } from "@/components/ar-farmhouse/calendar-feed-bridge";
+import { CalendarDayEventsSheet } from "@/components/ar-farmhouse/calendar-day-events-sheet";
 import { CalendarOccupancyPanel } from "@/components/ar-farmhouse/calendar-occupancy-panel";
+import { CalendarSharedGrocerPanel } from "@/components/ar-farmhouse/calendar-shared-grocer-panel";
 import {
   CalendarAgendaList,
   CalendarMonthBoard,
@@ -14,8 +15,6 @@ import {
   CalendarWeekStrip,
   type CalendarSurfaceMode,
 } from "@/components/ar-farmhouse/calendar-surfaces";
-import { CalendarThisWeekendHub } from "@/components/ar-farmhouse/calendar-this-weekend-hub";
-import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildUpcomingStays, mergeEventsIntoMonthMeta } from "@/lib/calendar-event-merge";
@@ -49,21 +48,21 @@ function rowIndexForDay(day: number, rows: (number | null)[][]) {
 
 export function CalendarPropertyView() {
   const reduceMotion = useReducedMotion();
-  const { openWeekendHub } = useEcosystem();
-  const { calendarEvents, calendarError, calendarLoading, shiftCalendarMonth, calendarViewDate } =
+  const { calendarEvents, calendarEventsForOps, calendarError, calendarLoading, shiftCalendarMonth, calendarViewDate } =
     usePropertyData();
   const baseMonth = useCalendarMonthMeta();
   const [mode, setMode] = useState<CalendarSurfaceMode>("month");
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [previewDay, setPreviewDay] = useState<number | null>(null);
+  const [daySheetOpen, setDaySheetOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const calendarMonth = useMemo(
     () => mergeEventsIntoMonthMeta(baseMonth, calendarEvents),
     [baseMonth, calendarEvents]
   );
   const upcomingStays = useMemo(
-    () => buildUpcomingStays(calendarEvents, calendarViewDate),
-    [calendarEvents, calendarViewDate]
+    () => buildUpcomingStays(calendarEventsForOps, calendarViewDate),
+    [calendarEventsForOps, calendarViewDate]
   );
   const rows = useMemo(
     () => monthWeekRows(calendarMonth.leadingBlanks, calendarMonth.daysInMonth),
@@ -81,16 +80,10 @@ export function CalendarPropertyView() {
     busy: "border-amber-300/25 bg-amber-400/10 text-amber-50/90",
     checkout: "border-sky-400/25 bg-sky-500/10 text-sky-50/90",
   };
-
-  const previewEvents = useMemo(() => {
-    if (previewDay === null) return [];
-    return calendarEvents.filter((e) => {
-      const end = e.endDay ?? e.startDay;
-      return previewDay >= e.startDay && previewDay <= end;
-    });
-  }, [calendarEvents, previewDay]);
-
-  const monthWord = calendarMonth.label.split(" ")[0] ?? "Month";
+  const handleDaySheetOpen = (open: boolean) => {
+    setDaySheetOpen(open);
+    if (!open) setSelectedDay(null);
+  };
 
   return (
     <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden sm:space-y-6">
@@ -115,7 +108,7 @@ export function CalendarPropertyView() {
               Coordinate the house like a quiet resort.
             </h2>
             <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Month, week, and agenda stay in sync — bookings, weekends, and feed moments share the same story.
+              Bookings stay light and operational — tap a date to review every detail in one glance.
             </p>
           </div>
           <div className="flex min-w-0 shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -190,40 +183,12 @@ export function CalendarPropertyView() {
                     dayMap={dayMap as Map<number, CalendarGridDay>}
                     statusStyles={statusStyles}
                     events={calendarEvents}
-                    previewDay={previewDay}
-                    onDayHover={setPreviewDay}
+                    selectedDay={selectedDay}
+                    onDaySelect={(d) => {
+                      setSelectedDay(d);
+                      setDaySheetOpen(true);
+                    }}
                   />
-                  <AnimatePresence>
-                    {previewDay !== null && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className={cn(surface, "overflow-hidden px-4 py-3")}
-                      >
-                        <p className="text-[11px] font-medium text-muted-foreground">
-                          {monthWord} {previewDay}
-                        </p>
-                        {previewEvents.length > 0 ? (
-                          <ul className="mt-2 space-y-1">
-                            {previewEvents.map((e) => (
-                              <li key={e.id} className="text-sm text-foreground/90">
-                                <span className="font-medium">{e.title}</span>
-                                {e.timeLabel && <span className="text-muted-foreground"> · {e.timeLabel}</span>}
-                                {e.attendeeLabels.length > 0 && (
-                                  <span className="mt-0.5 block text-[12px] text-muted-foreground">
-                                    {e.attendeeLabels.join(", ")}
-                                  </span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="mt-2 text-sm text-muted-foreground">No events on this day yet.</p>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </motion.div>
               )}
               {mode === "week" && (
@@ -256,13 +221,10 @@ export function CalendarPropertyView() {
             </AnimatePresence>
           )}
 
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-sm font-semibold text-foreground">This weekend · coordination</h3>
-          </div>
-          <CalendarThisWeekendHub onOpenCommandCenter={() => openWeekendHub("current")} />
+          <CalendarSharedGrocerPanel />
 
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-sm font-semibold text-foreground">Upcoming stays & trips</h3>
+            <h3 className="text-sm font-semibold text-foreground">Upcoming stays &amp; trips</h3>
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
               <Users className="size-3.5" aria-hidden />
               From your calendar
@@ -305,43 +267,22 @@ export function CalendarPropertyView() {
         </div>
 
         <div className="min-w-0 space-y-5 xl:sticky xl:self-start xl:top-[calc(var(--ar-header-height)+0.75rem)] xl:space-y-4">
-          <CalendarFeedBridge />
-          <CalendarOccupancyPanel calendarMonth={calendarMonth} events={calendarEvents} />
-          <div className={cn(surface, "p-5")}>
-            <p className="text-xs font-medium text-muted-foreground">Busy weekends</p>
-            {calendarMonth.busyWeekends.length === 0 ? (
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-                No peak weekends flagged yet. Heavy weeks will summarize here once bookings exist.
-              </p>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {calendarMonth.busyWeekends.map((w) => (
-                  <div
-                    key={w.range}
-                    className="flex items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium text-foreground">{w.title}</p>
-                      <p className="text-[10px] text-muted-foreground">{w.range}</p>
-                    </div>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                        w.tone === "booked"
-                          ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100/90"
-                          : "border-amber-300/30 bg-amber-400/10 text-amber-50/90"
-                      )}
-                    >
-                      {w.occupancy}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <CalendarOccupancyPanel
+            calendarMonth={calendarMonth}
+            gridEvents={calendarEvents}
+            opsEvents={calendarEventsForOps}
+          />
         </div>
       </div>
 
+      <CalendarDayEventsSheet
+        open={daySheetOpen}
+        onOpenChange={handleDaySheetOpen}
+        day={selectedDay}
+        year={calendarMonth.year}
+        monthIndex={calendarMonth.monthIndex}
+        events={calendarEvents}
+      />
       <CalendarBookingSheet
         open={bookingOpen}
         onOpenChange={setBookingOpen}

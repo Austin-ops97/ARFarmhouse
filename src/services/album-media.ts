@@ -16,7 +16,7 @@ import { actionDebug } from "@/lib/action-debug";
 import { formatFeedTimeLabel } from "@/lib/datetime/relative";
 import { validateRawImageFile } from "@/lib/image-input";
 import { getUploadMaxBytes } from "@/lib/image-process";
-import { prepareImagesForUpload } from "@/lib/image-upload-pipeline";
+import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FirestoreAlbumMedia } from "@/models/album-media";
@@ -65,7 +65,7 @@ export function subscribeAlbumMedia(
 }
 
 export type AlbumUploadProgress =
-  | { phase: "optimizing"; done: number; total: number }
+  | { phase: "preparing" | "optimizing"; done: number; total: number }
   | { phase: "uploading"; done: number; total: number; percent?: number };
 
 export async function createAlbumMediaItems(
@@ -90,14 +90,20 @@ export async function createAlbumMediaItems(
   }
 
   const total = input.files.length;
-  onProgress?.({ phase: "optimizing", done: 0, total });
-  const optimized = await prepareImagesForUpload(input.files, "album", {
+  onProgress?.({ phase: "preparing", done: 0, total });
+  const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(input.files, "album", {
     onProgress: (p) => {
+      if (!onProgress) return;
       if (p.phase === "optimizing") {
-        onProgress?.({ phase: "optimizing", done: p.done, total: p.total });
+        onProgress({ phase: "optimizing", done: p.done, total });
+        return;
       }
+      if (p.phase === "ready") return;
+      onProgress({ phase: "preparing", done: p.done, total });
     },
   });
+
+  const optimized = optimizedArtifacts.map((a) => a.file);
 
   const albumMax = getUploadMaxBytes("album");
   for (const file of optimized) {
@@ -114,6 +120,7 @@ export async function createAlbumMediaItems(
     const id = ref.id;
     actionDebug("album", "upload begin", { id, index: i });
 
+    const art = optimizedArtifacts[i]!;
     const uploaded = await uploadAlbumImages(id, [file], (_done, _total, percent) => {
       onProgress?.({ phase: "uploading", done: i, total, percent });
     });
@@ -128,6 +135,10 @@ export async function createAlbumMediaItems(
       caption: input.caption.trim() || "Family memory",
       albumKey: input.albumKey,
       linkedEvent: input.linkedEvent?.trim() || null,
+      width: art.width,
+      height: art.height,
+      originalMimeType: art.originalMime,
+      optimizedSizeBytes: art.optimizedSizeBytes,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });

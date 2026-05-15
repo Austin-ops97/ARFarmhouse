@@ -61,8 +61,10 @@ export function LocalGuideView() {
   }, []);
 
   const openMaps = useCallback((place: LocalGuideRow) => {
-    const url = `https://maps.apple.com/?q=${encodeURIComponent(place.address || place.business)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    const q = encodeURIComponent(place.address || place.business);
+    const url = `https://maps.apple.com/?q=${q}`;
+    // Same-tab avoids an orphan blank browser tab after the native Maps handoff (common on mobile Safari/PWA).
+    window.location.assign(url);
   }, []);
 
   const tryCall = useCallback((place: LocalGuideRow) => {

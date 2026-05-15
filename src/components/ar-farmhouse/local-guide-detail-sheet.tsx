@@ -136,18 +136,19 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
                   Call
                 </Button>
               )}
-              <a
-                href={mapsUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
                 className={cn(
                   buttonVariants({ variant: "outline", size: "sm" }),
                   "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl sm:flex-none"
                 )}
+                onClick={() => {
+                  window.location.assign(mapsUrl);
+                }}
               >
                 <ExternalLink className="size-4" aria-hidden />
                 Open in Maps
-              </a>
+              </button>
             </div>
           </motion.div>
         </motion.div>

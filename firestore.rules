@@ -204,5 +204,17 @@ service cloud.firestore {
       allow read: if isFamilyMember();
       allow create, update, delete: if isFamilyMember();
     }
+
+    match /sharedGroceryItems/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.kind in ["meal", "grocery"]
+        && request.resource.data.label is string
+        && request.resource.data.label.size() > 0
+        && request.resource.data.label.size() <= 200;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.createdByUid == request.auth.uid;
+    }
   }
 }

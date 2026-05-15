@@ -35,7 +35,7 @@ type CreatePostDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   publishBusy?: boolean;
-  publishPhase?: "idle" | "optimizing" | "uploading" | "saving";
+  publishPhase?: "idle" | "preparing" | "optimizing" | "uploading" | "saving";
   uploadProgress?: { done: number; total: number; percent?: number } | null;
   canPublish?: boolean;
   onPublishLive?: (payload: LivePostPayload) => Promise<void>;
@@ -170,17 +170,21 @@ export function CreatePostDialog({
   const hasLargePhotos = files.some(isLargeRawImage);
 
   const publishLabel =
-    publishPhase === "optimizing" && uploadProgress
-      ? hasLargePhotos
-        ? `Optimizing large photo ${uploadProgress.done}/${uploadProgress.total}`
-        : `Optimizing ${uploadProgress.done}/${uploadProgress.total}`
-      : publishPhase === "uploading" && uploadProgress
-        ? uploadProgress.percent != null
-          ? `Uploading ${uploadPercent}%`
-          : `Uploading ${uploadProgress.done}/${uploadProgress.total}`
-        : publishPhase === "saving"
-          ? "Saving post"
-          : "Publish";
+    publishPhase === "preparing" && uploadProgress
+      ? uploadProgress.total > 1
+        ? `Preparing photos ${uploadProgress.done}/${uploadProgress.total}`
+        : "Preparing photo…"
+      : publishPhase === "optimizing" && uploadProgress
+        ? hasLargePhotos
+          ? `Optimizing large photo ${uploadProgress.done}/${uploadProgress.total}`
+          : `Optimizing ${uploadProgress.done}/${uploadProgress.total}`
+        : publishPhase === "uploading" && uploadProgress
+          ? uploadProgress.percent != null
+            ? `Uploading ${uploadPercent}%`
+            : `Uploading ${uploadProgress.done}/${uploadProgress.total}`
+          : publishPhase === "saving"
+            ? "Saving post"
+            : "Publish";
 
   return (
     <AnimatePresence>
@@ -305,7 +309,9 @@ export function CreatePostDialog({
                 </motion.div>
               )}
 
-              {(publishPhase === "optimizing" || publishPhase === "uploading") &&
+              {(publishPhase === "preparing" ||
+                publishPhase === "optimizing" ||
+                publishPhase === "uploading") &&
                 uploadProgress &&
                 uploadProgress.total > 0 && (
                 <div className="mt-4 space-y-2">
@@ -316,19 +322,28 @@ export function CreatePostDialog({
                         width: `${
                           publishPhase === "uploading"
                             ? uploadPercent
-                            : Math.round((uploadProgress.done / uploadProgress.total) * 100)
+                            : publishPhase === "preparing"
+                              ? Math.round((uploadProgress.done / Math.max(uploadProgress.total, 1)) * 28)
+                              : Math.round(
+                                  28 +
+                                    (uploadProgress.done / Math.max(uploadProgress.total, 1)) * 42
+                                )
                         }%`,
                       }}
                     />
                   </div>
                   <p className="text-center text-xs text-muted-foreground">
-                    {publishPhase === "optimizing"
-                      ? hasLargePhotos
-                        ? `Optimizing large photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
-                        : `Optimizing photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
-                      : uploadProgress.percent != null
-                        ? `Uploading… ${uploadPercent}%`
-                        : `Uploading image ${uploadProgress.done} of ${uploadProgress.total}…`}
+                    {publishPhase === "preparing"
+                      ? uploadProgress.total > 1
+                        ? `Checking & preparing photo ${uploadProgress.done} of ${uploadProgress.total}…`
+                        : "Checking photo & preparing optimized upload…"
+                      : publishPhase === "optimizing"
+                        ? hasLargePhotos
+                          ? `Optimizing large photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
+                          : `Optimizing photo ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…`
+                        : uploadProgress.percent != null
+                          ? `Uploading… ${uploadPercent}%`
+                          : `Uploading image ${uploadProgress.done} of ${uploadProgress.total}…`}
                   </p>
                 </div>
               )}

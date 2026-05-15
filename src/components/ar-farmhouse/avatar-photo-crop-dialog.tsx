@@ -90,6 +90,7 @@ export function AvatarPhotoCropDialog({
     setError(null);
     setPhase("processing");
     try {
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
       const { file, blob } = await processAvatarFromCrop(imageSrc, croppedAreaPixels, rotation);
       const localPreview = URL.createObjectURL(blob);
       setPreviewUrl(localPreview);

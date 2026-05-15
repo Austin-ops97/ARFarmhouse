@@ -75,8 +75,18 @@ async function uploadFileResumable(
   file: File,
   onFilePercent?: (percent: number) => void
 ): Promise<void> {
+  const UPLOAD_MS = 180_000;
   await new Promise<void>((resolve, reject) => {
     const task = uploadBytesResumable(objectRef, file, { contentType: file.type || "image/jpeg" });
+    const timer = window.setTimeout(() => {
+      const t = task as { cancel?: () => void };
+      try {
+        t.cancel?.();
+      } catch {
+        /* ignore */
+      }
+      reject(new Error("Upload timed out. Check your connection and try again."));
+    }, UPLOAD_MS);
     task.on(
       "state_changed",
       (snap) => {
@@ -84,8 +94,14 @@ async function uploadFileResumable(
           onFilePercent(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
         }
       },
-      (err) => reject(err),
-      () => resolve()
+      (err) => {
+        window.clearTimeout(timer);
+        reject(err);
+      },
+      () => {
+        window.clearTimeout(timer);
+        resolve();
+      }
     );
   });
 }
@@ -170,6 +186,6 @@ export async function uploadAvatar(uid: string, file: File) {
   validateOptimizedUpload(file, AVATAR_UPLOAD_MAX_BYTES);
   const ext = extFromMime(file.type || "image/jpeg");
   const objectRef = ref(storage, `avatars/${uid}/profile.${ext}`);
-  await uploadBytes(objectRef, file, { contentType: file.type || "image/jpeg" });
+  await uploadFileResumable(objectRef, file);
   return getDownloadURL(objectRef);
 }

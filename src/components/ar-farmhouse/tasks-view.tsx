@@ -172,11 +172,6 @@ export function TasksView() {
             </>
           )}
         </ul>
-        {hubBundle.packing.length > 0 ? (
-          <p className="text-[11px] text-muted-foreground/85">Things to bring: {hubBundle.packing.slice(0, 2).join(" · ")}</p>
-        ) : (
-          <p className="text-[11px] text-muted-foreground/85">Packing nudges from the weekend hub will appear here.</p>
-        )}
       </motion.section>
 
       <SyncStatusBanner error={mutationError ?? tasksError} />

@@ -49,4 +49,15 @@ describe("resolveHomeBookingSnapshot", () => {
       expect(snap.guestSummary).toContain("Alex");
     }
   });
+
+  it("ignores pending bookings for operational snapshot even when spans overlap today", () => {
+    const now = new Date(2026, 4, 21, 12);
+    const pending = mockEvent({
+      status: "pending",
+      id: "p",
+      startDay: 20,
+      endDay: 23,
+    });
+    expect(resolveHomeBookingSnapshot([pending], now)).toEqual({ kind: "empty" });
+  });
 });

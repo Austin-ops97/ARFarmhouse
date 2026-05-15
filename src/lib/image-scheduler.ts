@@ -16,6 +16,16 @@ export function yieldToMainThread(): Promise<void> {
   });
 }
 
+/** Extra breath between heavy decode/encode steps — helps iOS Safari stay responsive. */
+export function yieldWhenIdle(): Promise<void> {
+  if (typeof requestIdleCallback === "function") {
+    return new Promise((resolve) => {
+      requestIdleCallback(() => void resolve(), { timeout: 80 });
+    });
+  }
+  return yieldToMainThread();
+}
+
 /**
  * Runs async tasks with limited concurrency — avoids memory spikes on multi-photo picks.
  */

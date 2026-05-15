@@ -24,6 +24,8 @@ function extFromMime(mime: string) {
   return "img";
 }
 
+const UPLOAD_TIMEOUT_MS = 180_000;
+
 function validateImage(file: File, maxBytes: number) {
   if (!file.type.startsWith("image/")) {
     throw new Error(`"${file.name}" is not a supported image.`);
@@ -34,6 +36,15 @@ function validateImage(file: File, maxBytes: number) {
   }
   if (file.size === 0) {
     throw new Error(`"${file.name}" appears to be empty.`);
+  }
+}
+
+function cancelUploadTaskIfSupported(task: ReturnType<typeof uploadBytesResumable>) {
+  const t = task as { cancel?: () => void };
+  try {
+    t.cancel?.();
+  } catch {
+    /* noop */
   }
 }
 
@@ -52,6 +63,10 @@ async function uploadPath(
     if (onProgress) {
       await new Promise<void>((resolve, reject) => {
         const task = uploadBytesResumable(objectRef, file, { contentType: file.type || "image/jpeg" });
+        const timer = window.setTimeout(() => {
+          cancelUploadTaskIfSupported(task);
+          reject(new Error("Upload timed out. Check your connection and try again."));
+        }, UPLOAD_TIMEOUT_MS);
         task.on(
           "state_changed",
           (snap) => {
@@ -59,12 +74,26 @@ async function uploadPath(
               onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
             }
           },
-          (err) => reject(err),
-          () => resolve()
+          (err) => {
+            window.clearTimeout(timer);
+            reject(err);
+          },
+          () => {
+            window.clearTimeout(timer);
+            resolve();
+          }
         );
       });
     } else {
-      await uploadBytes(objectRef, file, { contentType: file.type || "image/jpeg" });
+      await Promise.race([
+        uploadBytes(objectRef, file, { contentType: file.type || "image/jpeg" }),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(
+            () => reject(new Error("Upload timed out. Check your connection and try again.")),
+            UPLOAD_TIMEOUT_MS
+          );
+        }),
+      ]);
     }
     const url = await getDownloadURL(objectRef);
     actionDebug("profile-upload", "complete", { path });

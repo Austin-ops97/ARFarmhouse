@@ -66,12 +66,12 @@ export function formatCountdownToDate(target: Date, now: Date = new Date()): str
   return `${diffDays} days away`;
 }
 
-function isConfirmed(event: PropertyCalendarEvent): boolean {
-  return event.status !== "cancelled";
+/** Home hero and arrival tiles only reflect confirmed reservations. */
+function isOperationalBooking(event: PropertyCalendarEvent): boolean {
+  return event.status === "confirmed";
 }
 
 function isActiveStay(event: PropertyCalendarEvent, now: Date): boolean {
-  if (!isConfirmed(event)) return false;
   const t = now.getTime();
   return t >= calendarEventStart(event).getTime() && t <= calendarEventEnd(event).getTime();
 }
@@ -87,7 +87,7 @@ export function resolveHomeBookingSnapshot(
   events: readonly PropertyCalendarEvent[],
   now: Date = new Date()
 ): HomeBookingSnapshot {
-  const confirmed = events.filter(isConfirmed).sort(sortByStart);
+  const confirmed = events.filter(isOperationalBooking).sort(sortByStart);
   const active = confirmed.find((e) => isActiveStay(e, now));
   const pick = active ?? confirmed.find((e) => calendarEventEnd(e) >= startOfDay(now));
 

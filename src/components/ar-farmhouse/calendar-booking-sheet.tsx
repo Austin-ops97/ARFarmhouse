@@ -225,7 +225,8 @@ export function CalendarBookingSheet({
     setEndDay(d);
   };
 
-  const heat = (d: number) => dayOccupancyHeat(d, existingEvents);
+  const heat = (d: number) =>
+    dayOccupancyHeat(d, calendarMonth.year, calendarMonth.monthIndex, existingEvents);
 
   const arrivalLabel = useMemo(() => {
     const lo = Math.min(startDay, endDay);

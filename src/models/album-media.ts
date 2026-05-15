@@ -10,6 +10,11 @@ export type FirestoreAlbumMedia = {
   caption: string;
   albumKey: string;
   linkedEvent?: string | null;
+  /** Present on uploads after optimizer pipeline rollout. */
+  width?: number;
+  height?: number;
+  originalMimeType?: string;
+  optimizedSizeBytes?: number;
   createdAt: Timestamp;
   updatedAt?: Timestamp | null;
 };

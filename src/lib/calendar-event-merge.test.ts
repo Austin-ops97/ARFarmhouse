@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildCalendarMonthMeta } from "@/lib/calendar-month-meta";
 import {
   dayOccupancyHeat,
+  eventsActiveOnLocalDate,
   findEventOverlappingRange,
   mergeEventsIntoMonthMeta,
 } from "@/lib/calendar-event-merge";
@@ -33,11 +34,11 @@ function sampleEvent(overrides: Partial<PropertyCalendarEvent> = {}): PropertyCa
 
 describe("dayOccupancyHeat", () => {
   it("returns 0 for empty day", () => {
-    expect(dayOccupancyHeat(5, [])).toBe(0);
+    expect(dayOccupancyHeat(5, 2026, 4, [])).toBe(0);
   });
 
   it("returns elevated heat for heavy guest load", () => {
-    expect(dayOccupancyHeat(10, [sampleEvent({ guests: 10 })])).toBeGreaterThanOrEqual(2);
+    expect(dayOccupancyHeat(10, 2026, 4, [sampleEvent({ guests: 10 })])).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -48,6 +49,29 @@ describe("mergeEventsIntoMonthMeta", () => {
     expect(merged.days.find((d) => d.day === 10)?.status).toBe("booked");
     expect(merged.days.find((d) => d.day === 11)?.status).toBe("booked");
     expect(merged.busyWeekends.length).toBeGreaterThan(0);
+  });
+});
+
+describe("eventsActiveOnLocalDate", () => {
+  it("counts only confirmed overlaps on local today", () => {
+    const today = new Date(2026, 4, 11);
+    const confirmed = sampleEvent({
+      id: "c",
+      status: "confirmed",
+      startDay: 10,
+      endDay: 12,
+    });
+    expect(eventsActiveOnLocalDate([confirmed], today)).toHaveLength(1);
+  });
+
+  it("does not treat pending spans as occupying the property", () => {
+    const today = new Date(2026, 4, 11);
+    const pending = sampleEvent({
+      status: "pending",
+      startDay: 10,
+      endDay: 12,
+    });
+    expect(eventsActiveOnLocalDate([pending], today)).toHaveLength(0);
   });
 });
 

@@ -34,7 +34,12 @@ type PropertyDataContextValue = {
   tasks: HouseTask[];
   tasksLoading: boolean;
   tasksError: string | null;
+  /** Events for the calendar month currently shown in the UI (grid, agenda for that month). */
   calendarEvents: PropertyCalendarEvent[];
+  /** Same month as wall-clock "today" — used for occupancy / on-property when the user browses other months. */
+  calendarTodayMonthEvents: PropertyCalendarEvent[];
+  /** Deduplicated union of the two (for operational panels). */
+  calendarEventsForOps: PropertyCalendarEvent[];
   calendarLoading: boolean;
   calendarError: string | null;
   calendarViewDate: Date;
@@ -59,6 +64,7 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [calendarEvents, setCalendarEvents] = useState<PropertyCalendarEvent[]>([]);
+  const [calendarTodayMonthEvents, setCalendarTodayMonthEvents] = useState<PropertyCalendarEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarError, setCalendarError] = useState<string | null>(null);
   const [statusCards, setStatusCards] = useState<PropertyStatusCard[]>([]);
@@ -71,6 +77,13 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
 
   const viewYear = calendarViewDate.getFullYear();
   const viewMonthIndex = calendarViewDate.getMonth();
+
+  const calendarEventsForOps = useMemo(() => {
+    const byId = new Map<string, PropertyCalendarEvent>();
+    for (const e of calendarEvents) byId.set(e.id, e);
+    for (const e of calendarTodayMonthEvents) byId.set(e.id, e);
+    return [...byId.values()];
+  }, [calendarEvents, calendarTodayMonthEvents]);
 
   const shiftCalendarMonth = useCallback((delta: number) => {
     setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
@@ -127,6 +140,26 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
       )
     );
 
+    mount(LISTENER_STAGGER_MS + 12, () => {
+      const now = new Date();
+      const ty = now.getFullYear();
+      const tm = now.getMonth();
+      if (ty === viewYear && tm === viewMonthIndex) {
+        setCalendarTodayMonthEvents([]);
+        return () => {};
+      }
+      return subscribeCalendarEvents(
+        ty,
+        tm,
+        (rows) => {
+          setCalendarTodayMonthEvents(rows);
+        },
+        (e) => {
+          setCalendarError((prev) => prev ?? e.message);
+        }
+      );
+    });
+
     mount(LISTENER_STAGGER_MS * 2, () =>
       subscribePropertyStatus(setStatusCards, onSliceError("property status"))
     );
@@ -156,6 +189,8 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
       tasksLoading,
       tasksError,
       calendarEvents,
+      calendarTodayMonthEvents,
+      calendarEventsForOps,
       calendarLoading,
       calendarError,
       calendarViewDate,
@@ -173,7 +208,9 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
       calendarViewDate,
       calendarError,
       calendarEvents,
+      calendarEventsForOps,
       calendarLoading,
+      calendarTodayMonthEvents,
       configured,
       inventory,
       propertySyncError,
