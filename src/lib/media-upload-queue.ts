@@ -1,12 +1,12 @@
 /**
- * Limits concurrent finalize pipelines (optimize + Storage + Firestore) so mobile Safari
- * doesn’t decode/compress multiple giant camera rolls at once.
+ * Serializes CPU-heavy decode/compress-only work so Safari does not run multiple giant
+ * `createImageBitmap`/`canvas` pipelines at once. Storage + Firestore finalize **outside**
+ * this queue so long network uploads cannot block parallel jobs (feed vs album).
  */
 import { imageProcessingConcurrency } from "@/lib/image-scheduler";
-
 type Task<T> = () => Promise<T>;
 
-class MediaUploadQueue {
+class MediaCpuQueue {
   private active = 0;
   private readonly waiters: Array<() => void> = [];
 
@@ -26,8 +26,17 @@ class MediaUploadQueue {
   }
 }
 
-const globalQueue = new MediaUploadQueue(imageProcessingConcurrency());
+const cpuQueue = new MediaCpuQueue(imageProcessingConcurrency());
 
+/** Decode + optimize only — never wrap full Storage uploads (see docs on class). */
+export function enqueueCpuBoundMediaTask<T>(task: Task<T>): Promise<T> {
+  return cpuQueue.enqueue(task);
+}
+
+/**
+ * Fire-and-forget async task (no global mutex over network). Prefer {@link enqueueCpuBoundMediaTask}
+ * for heavyweight decode/compress batches so simultaneous jobs do not contend on CPU.
+ */
 export function enqueueMediaUploadTask<T>(task: Task<T>): Promise<T> {
-  return globalQueue.enqueue(task);
+  return Promise.resolve().then(task);
 }

@@ -12,6 +12,45 @@ import {
 import { FEED_STREAM_MAX_WIDTH_PX } from "@/lib/feed-layout";
 import { cn } from "@/lib/utils";
 
+function FeedDecodedImageLayer({
+  src,
+  alt,
+  sizes,
+  imageExtraClassName,
+  imageProps,
+  onLoadingComplete,
+}: {
+  src: string;
+  alt: string;
+  sizes: string;
+  imageExtraClassName?: string;
+  imageProps?: Record<string, unknown>;
+  onLoadingComplete: (img: HTMLImageElement) => void;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      sizes={sizes}
+      draggable={false}
+      className={cn(
+        "select-none bg-muted/20 object-contain object-center dark:bg-zinc-950/60",
+        "transition-opacity duration-[300ms] ease-out motion-reduce:opacity-100 motion-reduce:transition-none",
+        visible ? "opacity-100" : "opacity-0",
+        imageExtraClassName
+      )}
+      onLoadingComplete={(img) => {
+        onLoadingComplete(img);
+        setVisible(true);
+      }}
+      {...imageProps}
+    />
+  );
+}
+
 export function FeedMediaFrame({
   src,
   alt,
@@ -39,11 +78,19 @@ export function FeedMediaFrame({
 }) {
   const measureRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
-  const [intrinsic, setIntrinsic] = useState<FeedMediaDims | null>(dims?.width && dims.height ? dims : null);
+  /** WxH discovered from bitmap decode — scoped to {@link src} so optimistic → CDN swaps do not reuse stale sizing. */
+  const [decodeState, setDecodeState] = useState<{
+    src: string;
+    width: number;
+    height: number;
+  } | null>(null);
 
-  useLayoutEffect(() => {
-    if (dims?.width && dims.height) setIntrinsic({ width: dims.width, height: dims.height });
-  }, [dims?.width, dims?.height]);
+  const intrinsic: FeedMediaDims | null =
+    dims?.width && dims?.height
+      ? { width: dims.width, height: dims.height }
+      : decodeState?.src === src
+        ? { width: decodeState.width, height: decodeState.height }
+        : null;
 
   const [vhPx, setVhPx] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 812));
   useLayoutEffect(() => {
@@ -69,11 +116,16 @@ export function FeedMediaFrame({
     return () => ro.disconnect();
   }, []);
 
-  const handleLoadingComplete = useCallback((img: HTMLImageElement) => {
-    const w = img.naturalWidth;
-    const h = img.naturalHeight;
-    if (w > 0 && h > 0) setIntrinsic({ width: w, height: h });
-  }, []);
+  const handleLoadingComplete = useCallback(
+    (img: HTMLImageElement) => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (w <= 0 || h <= 0) return;
+      if (dims?.width && dims?.height) return;
+      setDecodeState({ src, width: w, height: h });
+    },
+    [dims?.width, dims?.height, src]
+  );
 
   const nw = intrinsic?.width ?? 0;
   const nh = intrinsic?.height ?? 0;
@@ -113,19 +165,14 @@ export function FeedMediaFrame({
           className="relative overflow-hidden"
           style={{ width: Math.min(fitted.widthPx, measuredW), height: fitted.heightPx, maxWidth: "100%" }}
         >
-          <Image
+          <FeedDecodedImageLayer
+            key={src}
             src={src}
             alt={alt}
-            fill
             sizes={sizes}
-            draggable={false}
-            className={cn(
-              "select-none bg-muted/20 dark:bg-zinc-950/60",
-              hasIntrinsic ? "object-cover object-center" : "object-contain object-center",
-              imageExtraClassName
-            )}
+            imageExtraClassName={imageExtraClassName}
+            imageProps={imageProps}
             onLoadingComplete={handleLoadingComplete}
-            {...imageProps}
           />
           {overlay}
         </div>

@@ -39,7 +39,7 @@ export const AR_SIDE_PANEL_SHEET = cn(
 export const AR_ACCOUNT_MENU = cn(
   "z-[80] overflow-hidden rounded-2xl border border-border/60 bg-popover/95 py-1 shadow-lg backdrop-blur-2xl",
   "dark:border-white/12 dark:bg-background/95 dark:shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)]",
-  "fixed right-3 top-[calc(var(--ar-header-height)+0.35rem)] w-[min(17rem,calc(100vw-1.5rem))]",
+  "fixed right-3 top-[calc(var(--ar-header-height)+0.28rem)] w-[min(17rem,calc(100vw-1.5rem))]",
   "max-h-[min(16rem,calc(100dvh-var(--ar-header-height)-env(safe-area-inset-bottom,0px)-0.75rem))]",
   "sm:right-4 sm:w-52"
 );

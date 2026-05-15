@@ -17,14 +17,14 @@ export function HomeDashboardHeader() {
   const greeting = atmosphereGreeting[atmosphere];
 
   return (
-    <header className="space-y-1">
-      <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground/85">
+    <header className="space-y-0.5 sm:space-y-1">
+      <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground/80 sm:text-[11px] sm:tracking-[0.22em]">
         AR Farmhouse · Property overview
       </p>
-      <h1 className="font-heading text-[clamp(1.65rem,4vw,2.25rem)] font-semibold tracking-tight text-foreground text-balance">
+      <h1 className="font-heading text-[clamp(1.42rem,3.85vw,2.1rem)] font-semibold leading-[1.14] tracking-tight text-foreground text-balance sm:leading-tight">
         {greeting}, {firstName}
       </h1>
-      <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+      <p className="max-w-xl text-[13px] leading-snug text-muted-foreground sm:text-sm sm:leading-relaxed">
         Upcoming stays, local conditions, and active work — everything you need at a glance.
       </p>
     </header>

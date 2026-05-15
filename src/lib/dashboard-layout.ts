@@ -16,7 +16,7 @@ export const AR_PAGE_CHROME_STANDARD =
   "mx-auto w-full max-w-[1400px] px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-8 lg:px-10 lg:pb-10";
 
 /** Breathing room below the header inside home (hero should not touch the nav). */
-export const AR_PAGE_BODY_HOME = "min-w-0 pt-1 sm:pt-5 lg:pt-4";
+export const AR_PAGE_BODY_HOME = "min-w-0 pt-0.5 sm:pt-5 lg:pt-4";
 
 /** Standard section stack below the header. */
 export const AR_PAGE_BODY_STANDARD = "min-w-0 space-y-6 pt-2 sm:pt-4";

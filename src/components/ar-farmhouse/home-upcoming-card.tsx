@@ -10,7 +10,7 @@ import { resolveHomeBookingSnapshot } from "@/lib/home-upcoming";
 import { cn } from "@/lib/utils";
 
 const surface =
-  "relative overflow-hidden rounded-[1.35rem] border border-border/50 bg-card/80 shadow-[var(--ar-float-elevate)] dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_24px_60px_-40px_rgba(0,0,0,0.85)]";
+  "relative overflow-hidden rounded-[1.3rem] border border-border/48 bg-card/88 shadow-[var(--ar-float-hero)] ring-1 ring-black/[0.04] backdrop-blur-[2px] dark:border-white/[0.1] dark:bg-white/[0.045] dark:shadow-[var(--ar-float-hero)] dark:ring-white/[0.07]";
 
 export function HomeUpcomingCard() {
   const { goTo, openWeekendHub } = useEcosystem();
@@ -19,7 +19,7 @@ export function HomeUpcomingCard() {
 
   if (snapshot.kind === "empty") {
     return (
-      <section className={cn(surface, "p-6 sm:p-8")} aria-label="Upcoming bookings">
+      <section className={cn(surface, "p-5 sm:p-7")} aria-label="Upcoming bookings">
         <div className="flex items-start gap-4">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-muted/60 ring-1 ring-border/50 dark:bg-white/[0.05] dark:ring-white/[0.08]">
             <CalendarRange className="size-5 text-muted-foreground" aria-hidden />
@@ -49,7 +49,7 @@ export function HomeUpcomingCard() {
   return (
     <section className={cn(surface)} aria-label="Upcoming bookings">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.06] via-transparent to-mist/[0.04]" aria-hidden />
-      <div className="relative p-6 sm:p-8">
+      <div className="relative p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-primary/90">

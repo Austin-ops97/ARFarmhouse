@@ -3,6 +3,7 @@ import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 import { getUploadMaxBytes, type ImageUploadPreset } from "@/lib/image-process";
 import { tryGetFirebaseStorage } from "@/lib/firebase";
 import { promiseWithTimeout } from "@/lib/promise-timeout";
+import type { UploadTrace } from "@/lib/upload-trace";
 import { uploadLog, uploadStage } from "@/lib/upload-log";
 import { runFirebaseResumableUpload } from "@/lib/resumable-firebase-upload";
 
@@ -51,9 +52,10 @@ export async function uploadPostImages(
   postId: string,
   files: File[],
   onProgress?: (done: number, total: number, filePercent?: number) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  trace?: UploadTrace
 ) {
-  return uploadImagesToPrefix(`posts/${postId}`, files, "feed", onProgress, signal);
+  return uploadImagesToPrefix(`posts/${postId}`, files, "feed", onProgress, signal, trace);
 }
 
 export type UploadedObject = { url: string; path: string };
@@ -62,7 +64,8 @@ export async function uploadAlbumImages(
   mediaId: string,
   files: File[],
   onProgress?: (done: number, total: number, filePercent?: number) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  trace?: UploadTrace
 ): Promise<UploadedObject[]> {
   const storage = tryGetFirebaseStorage();
   if (!storage) throw new Error("Firebase Storage unavailable. Check your connection and try again.");
@@ -85,6 +88,7 @@ export async function uploadAlbumImages(
       await uploadFileResumable(objectRef, file, {
         signal,
         label: path,
+        trace,
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
       const url = await getDownloadURLWithTimeout(objectRef, path);
@@ -106,6 +110,7 @@ async function uploadFileResumable(
   opts?: {
     signal?: AbortSignal;
     label?: string;
+    trace?: UploadTrace;
     onFilePercent?: (percent: number) => void;
   }
 ): Promise<void> {
@@ -113,6 +118,7 @@ async function uploadFileResumable(
     contentType: file.type || "image/jpeg",
     signal: opts?.signal,
     label: opts?.label,
+    trace: opts?.trace,
     onProgress: opts?.onFilePercent,
   });
 }
@@ -122,7 +128,8 @@ async function uploadImagesToPrefix(
   files: File[],
   preset: ImageUploadPreset,
   onProgress?: (done: number, total: number, filePercent?: number) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  trace?: UploadTrace
 ): Promise<string[]> {
   const storage = tryGetFirebaseStorage();
   if (!storage) throw new Error("Firebase Storage unavailable. Check your connection and try again.");
@@ -144,6 +151,7 @@ async function uploadImagesToPrefix(
       await uploadFileResumable(objectRef, file, {
         signal,
         label: storagePath,
+        trace,
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
       const url = await getDownloadURLWithTimeout(objectRef, storagePath);

@@ -15,8 +15,9 @@ import { validateRawImageFile } from "@/lib/image-input";
 import { probeImageDimensions } from "@/lib/image-dimensions";
 import { deferMediaCpuWork } from "@/lib/image-scheduler";
 import { overlayFromAlbumProgress } from "@/lib/album-upload-status";
-import { enqueueMediaUploadTask } from "@/lib/media-upload-queue";
+import { enqueueCpuBoundMediaTask } from "@/lib/media-upload-queue";
 import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
+import { startUploadTrace } from "@/lib/upload-trace";
 import {
   handoffEphemeralImageUrl,
 } from "@/lib/ephemeral-media-handoff";
@@ -25,7 +26,8 @@ import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import {
   allocateAlbumMediaDocId,
-  createAlbumMediaItems,
+  finalizeAlbumWritesFromOptimized,
+  prepareAlbumUploadArtifacts,
   type AlbumUploadProgress,
 } from "@/services/album-media";
 import { cn } from "@/lib/utils";
@@ -139,8 +141,13 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     onOpenChange(false);
     onUploaded?.();
 
-    void enqueueMediaUploadTask(async () => {
+    void (async () => {
       await deferMediaCpuWork();
+      const runId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `album-${Date.now()}`;
+      const trace = startUploadTrace(runId, "album_archive_upload");
       void Promise.all(
         filesSnapshot.map(async (file, idx) => {
           const id = mediaIds[idx];
@@ -164,7 +171,18 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
             });
           }
         });
-        await createAlbumMediaItems(snap, scheduleAlbumProgress, { mediaIds });
+        trace("album: queued for CPU-bound optimize");
+        const artifacts = await enqueueCpuBoundMediaTask(() =>
+          prepareAlbumUploadArtifacts(filesSnapshot, scheduleAlbumProgress, { trace })
+        );
+        trace("album: optimize complete — uploads outside CPU mutex", {
+          count: artifacts.length,
+        });
+        await finalizeAlbumWritesFromOptimized(snap, artifacts, {
+          mediaIds,
+          onProgress: scheduleAlbumProgress,
+          trace,
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Upload failed.";
         for (const id of mediaIds) {
@@ -174,7 +192,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
           });
         }
       }
-    });
+    })();
   };
 
   return (

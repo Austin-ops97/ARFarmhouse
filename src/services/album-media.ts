@@ -19,6 +19,7 @@ import { getUploadMaxBytes, type ProcessedImageFile } from "@/lib/image-process"
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import { uploadStage } from "@/lib/upload-log";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
+import type { UploadTrace } from "@/lib/upload-trace";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FirestoreAlbumMedia } from "@/models/album-media";
 import type { UserRole } from "@/models/user";
@@ -84,6 +85,83 @@ export type CreateAlbumArchiveInput = {
   files: File[];
 };
 
+export type AlbumFinalizeOptions = {
+  /** Predetermined Firestore doc ids aligned with optimistic UI */
+  mediaIds?: string[];
+  signal?: AbortSignal;
+  trace?: UploadTrace;
+  onProgress?: (progress: AlbumUploadProgress) => void;
+};
+
+/** CPU-heavy album optimization — call inside {@link enqueueCpuBoundMediaTask} when parallel with other uploads. */
+export async function prepareAlbumUploadArtifacts(
+  files: File[],
+  onProgress?: (progress: AlbumUploadProgress) => void,
+  options?: { signal?: AbortSignal; trace?: UploadTrace }
+): Promise<ProcessedImageFile[]> {
+  for (const file of files) {
+    validateRawImageFile(file);
+  }
+  const total = files.length;
+  const { signal, trace } = options ?? {};
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  trace?.("album compression begins", { segment: "cpu", fileCount: total });
+  const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(files, "album", {
+    signal,
+    onProgress: (p) => {
+      if (!onProgress) return;
+      if (p.phase === "optimizing") {
+        onProgress({ phase: "optimizing", done: p.done, total });
+        return;
+      }
+      if (p.phase === "ready") return;
+      onProgress({ phase: "preparing", done: p.done, total });
+    },
+  });
+  trace?.("album compression completes", {
+    segment: "cpu",
+    fileCount: total,
+    durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0),
+  });
+  return optimizedArtifacts;
+}
+
+/** Storage uploads + Firestore docs after artifacts are ready (`input.files` unused — pass metadata only). */
+export async function finalizeAlbumWritesFromOptimized(
+  input: CreateAlbumArchiveInput,
+  optimizedArtifacts: ProcessedImageFile[],
+  opts?: AlbumFinalizeOptions
+): Promise<string[]> {
+  if (!input.authorId?.trim()) throw new Error("You must be signed in to upload.");
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
+  if (optimizedArtifacts.length === 0) throw new Error("Choose at least one image.");
+
+  const optimized = optimizedArtifacts.map((a) => a.file);
+  const albumMax = getUploadMaxBytes("album");
+  for (const file of optimized) {
+    if (file.size > albumMax) {
+      throw new Error(`"${file.name}" is still too large after optimization. Try fewer photos.`);
+    }
+  }
+
+  const { mediaIds: presetIds, signal, trace, onProgress } = opts ?? {};
+
+  const itemTotal = optimizedArtifacts.length;
+
+  const ids =
+    presetIds && presetIds.length === optimizedArtifacts.length
+      ? presetIds
+      : optimizedArtifacts.map(() => allocateAlbumMediaDocId());
+
+  opts?.trace?.("album uploads begin", { segment: "storage", itemCount: itemTotal });
+  onProgress?.({ phase: "preparing", done: itemTotal, total: itemTotal });
+  onProgress?.({ phase: "uploading", done: 0, total: optimizedArtifacts.length, percent: 0 });
+  await finalizeAlbumMediaDocuments(input, optimizedArtifacts, ids, onProgress, signal, trace);
+  trace?.("album uploads + Firestore complete", { segment: "meta", idCount: ids.length });
+  return ids;
+}
+
 export function allocateAlbumMediaDocId(): string {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
@@ -95,7 +173,8 @@ async function finalizeAlbumMediaDocuments(
   optimizedArtifacts: ProcessedImageFile[],
   mediaIds: string[],
   onProgress?: (progress: AlbumUploadProgress) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  trace?: UploadTrace
 ): Promise<void> {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
@@ -116,7 +195,7 @@ async function finalizeAlbumMediaDocuments(
     const art = optimizedArtifacts[i]!;
     const uploaded = await uploadAlbumImages(id, [file], (_done, _total, percent) => {
       onProgress?.({ phase: "uploading", done: i, total, percent });
-    }, signal);
+    }, signal, trace);
     const { url, path } = uploaded[0]!;
 
     uploadStage("album: firestore sync started", { id, index: i });
@@ -150,6 +229,7 @@ export async function createAlbumMediaItems(
     /** When provided with same length as `files`, uploads merge into predetermined Firestore ids (optimistic UI). */
     mediaIds?: string[];
     signal?: AbortSignal;
+    trace?: UploadTrace;
   }
 ): Promise<string[]> {
   if (!input.authorId?.trim()) throw new Error("You must be signed in to upload.");
@@ -157,44 +237,14 @@ export async function createAlbumMediaItems(
   if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
   if (input.files.length === 0) throw new Error("Choose at least one image.");
 
-  for (const file of input.files) {
-    validateRawImageFile(file);
-  }
-
-  const total = input.files.length;
-  const { signal, mediaIds: presetIds } = opts ?? {};
-
-  const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(input.files, "album", {
+  const { signal, mediaIds: presetIds, trace } = opts ?? {};
+  const artifacts = await prepareAlbumUploadArtifacts(input.files, onProgress, { signal, trace });
+  return finalizeAlbumWritesFromOptimized(input, artifacts, {
+    mediaIds: presetIds,
     signal,
-    onProgress: (p) => {
-      if (!onProgress) return;
-      if (p.phase === "optimizing") {
-        onProgress({ phase: "optimizing", done: p.done, total });
-        return;
-      }
-      if (p.phase === "ready") return;
-      onProgress({ phase: "preparing", done: p.done, total });
-    },
+    trace,
+    onProgress,
   });
-
-  const optimized = optimizedArtifacts.map((a) => a.file);
-
-  const albumMax = getUploadMaxBytes("album");
-  for (const file of optimized) {
-    if (file.size > albumMax) {
-      throw new Error(`"${file.name}" is still too large after optimization. Try fewer photos.`);
-    }
-  }
-
-  const ids =
-    presetIds && presetIds.length === optimizedArtifacts.length
-      ? presetIds
-      : optimizedArtifacts.map(() => allocateAlbumMediaDocId());
-
-  onProgress?.({ phase: "preparing", done: total, total });
-  onProgress?.({ phase: "uploading", done: 0, total: optimizedArtifacts.length, percent: 0 });
-  await finalizeAlbumMediaDocuments(input, optimizedArtifacts, ids, onProgress, signal);
-  return ids;
 }
 
 export async function deleteAlbumMediaItem(

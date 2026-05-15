@@ -119,3 +119,31 @@ export function buildOptimisticFeedPost(opts: {
     },
   };
 }
+
+/**
+ * Fill `mediaDimensions` on an optimistic row from client-side probes so in-feed sizing matches
+ * portrait / HEIC picks before Firestore returns `mediaMeta`.
+ */
+export function patchOptimisticFeedPostMediaDimensions(
+  prev: UiFeedPost[],
+  postId: string,
+  index: number,
+  dim: { width: number; height: number }
+): UiFeedPost[] {
+  return prev.map((row) => {
+    if (row.id !== postId) return row;
+    const count =
+      row.kind === "album"
+        ? Math.max(1, row.album?.length ?? 0)
+        : row.kind === "image" || row.kind === "event_recap"
+          ? row.cover
+            ? 1
+            : 0
+          : 0;
+    if (count === 0 || index < 0 || index >= count) return row;
+    const mediaDimensions = [...(row.mediaDimensions ?? Array(count).fill(undefined))];
+    while (mediaDimensions.length < count) mediaDimensions.push(undefined);
+    mediaDimensions[index] = dim;
+    return { ...row, mediaDimensions };
+  });
+}

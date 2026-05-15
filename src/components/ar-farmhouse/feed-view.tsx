@@ -14,8 +14,9 @@ import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
 import { usePhotoAlbum } from "@/contexts/photo-album-context";
 import { useFeedPosts } from "@/contexts/feed-posts-context";
 import { FEED_LAYOUT_CLASS, FEED_RAIL_CLASS, FEED_STREAM_CLASS } from "@/lib/feed-layout";
-import { enqueueMediaUploadTask } from "@/lib/media-upload-queue";
-import { buildOptimisticFeedPost, mergeOptimisticUploadProgress } from "@/lib/optimistic-feed-post";
+import { enqueueCpuBoundMediaTask } from "@/lib/media-upload-queue";
+import { buildOptimisticFeedPost, mergeOptimisticUploadProgress, patchOptimisticFeedPostMediaDimensions } from "@/lib/optimistic-feed-post";
+import { probeImageDimensions } from "@/lib/image-dimensions";
 import { postsSignature } from "@/lib/mutation-lifecycle";
 import { deferMediaCpuWork } from "@/lib/image-scheduler";
 import {
@@ -24,9 +25,11 @@ import {
 } from "@/lib/ephemeral-media-handoff";
 import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
 import type { UiFeedPost } from "@/models/feed-post";
+import { startUploadTrace } from "@/lib/upload-trace";
 import {
   allocateFeedPostDocId,
-  finalizeFeedPostFromFiles,
+  finalizeFeedPostFromOptimizedArtifacts,
+  prepareFeedPostPublishingArtifacts,
   type CreateFeedPostInput,
   type FeedPublishProgress,
 } from "@/services/feed-posts";
@@ -119,8 +122,12 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
     abortFinalizeRef.current.set(postId, ac);
     retryFeedPayloadsRef.current.set(postId, input);
 
-    void enqueueMediaUploadTask(async () => {
+    void (async () => {
       await deferMediaCpuWork();
+      const runId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${postId}-${Date.now()}`;
+      const trace = startUploadTrace(runId, `feed_finalize:${postId}`);
+      trace("finalize job scheduled", { segment: "meta", fileCount: input.files.length });
       const scheduleProgress = createRafProgressBridge<FeedPublishProgress>((p) => {
         if (p.phase === "uploading" && p.done >= p.total && (p.percent ?? 100) >= 100) {
           setOptimisticFeed((prev) =>
@@ -145,10 +152,24 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         );
       });
       try {
-        await finalizeFeedPostFromFiles(postId, input, {
+        const finalizeOpts = {
           signal: ac.signal,
           onProgress: scheduleProgress,
-        });
+          trace,
+        } as const;
+        if (input.files.length === 0) {
+          await finalizeFeedPostFromOptimizedArtifacts(postId, input, [], finalizeOpts);
+        } else {
+          trace("waiting for CPU queue (optimize)", { segment: "cpu" });
+          const artifacts = await enqueueCpuBoundMediaTask(() =>
+            prepareFeedPostPublishingArtifacts(input.files, finalizeOpts)
+          );
+          trace("CPU queue released — uploading outside mutex", {
+            segment: "storage",
+            artifactCount: artifacts.length,
+          });
+          await finalizeFeedPostFromOptimizedArtifacts(postId, input, artifacts, finalizeOpts);
+        }
         retryFeedPayloadsRef.current.delete(postId);
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return;
@@ -170,7 +191,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
       } finally {
         abortFinalizeRef.current.delete(postId);
       }
-    });
+    })();
   }, []);
 
   const handlePublishLive = useCallback(
@@ -210,6 +231,20 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
       };
 
       setOptimisticFeed((prev) => [baseRow, ...prev]);
+      if (payload.files.length > 0) {
+        void Promise.all(
+          payload.files.map(async (file, idx) => {
+            const dims = await probeImageDimensions(file);
+            if (!dims?.width || !dims?.height) return;
+            setOptimisticFeed((prev) =>
+              patchOptimisticFeedPostMediaDimensions(prev, postId, idx, {
+                width: dims.width,
+                height: dims.height,
+              })
+            );
+          })
+        );
+      }
       runFinalizeFeedJob(postId, input);
     },
     [avatarUrl, displayName, runFinalizeFeedJob, user]

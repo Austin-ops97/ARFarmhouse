@@ -3,6 +3,7 @@ import { uploadBytesResumable } from "firebase/storage";
 
 import type { BrowserIntervalId, BrowserTimeoutId } from "@/lib/browser-timer";
 import { uploadLog, uploadStage } from "@/lib/upload-log";
+import type { UploadTrace } from "@/lib/upload-trace";
 
 /** Hard ceiling — slow networks + large albums should still finish or hit stall watchdog first. */
 const ABSOLUTE_MAX_MS = 50 * 60 * 1000;
@@ -35,10 +36,13 @@ export async function runFirebaseResumableUpload(
     /** Identifies row in logs (path used when omitted). */
     label?: string;
     stallMs?: number;
+    /** Correlation / timing (same {@link UploadTrace} as feed/album finalize). */
+    trace?: UploadTrace;
   }
 ): Promise<void> {
   const label = opts?.label ?? objectRef.fullPath;
   const stallMs = opts?.stallMs ?? DEFAULT_STALL_MS;
+  const trace = opts?.trace;
 
   if (typeof window === "undefined") {
     throw new Error("Firebase resumable uploads must run in a browser environment.");
@@ -53,9 +57,11 @@ export async function runFirebaseResumableUpload(
     bytes: data.size,
     type: opts?.contentType ?? data.type,
   });
+  trace?.("storage: blob ready", { label, bytes: data.size });
 
   const metadata = opts?.contentType ? { contentType: opts.contentType } : undefined;
   uploadStage("upload task created", { label });
+  trace?.("storage: Firebase task created", { label });
   const task = uploadBytesResumable(objectRef, data, metadata);
   const uploadStartedAt = Date.now();
 
@@ -67,6 +73,8 @@ export async function runFirebaseResumableUpload(
   let stallInterval: BrowserIntervalId | undefined;
   let deadlineTimer: BrowserTimeoutId | undefined;
   let loggedUploadRunning = false;
+  let seededPctZero = false;
+  let indeterminateNudgeSent = false;
 
   const cleanupTimers = () => {
     if (stallInterval !== undefined) {
@@ -97,7 +105,12 @@ export async function runFirebaseResumableUpload(
       };
 
       deadlineTimer = window.setTimeout(() => {
-        uploadLog("deadline_exceeded", { label });
+        uploadLog("deadline_exceeded", { label, cause: "absolute_max_ms", maxMs: ABSOLUTE_MAX_MS });
+        trace?.("storage: deadline exceeded — cancelling", {
+          label,
+          cause: "absolute_max_ms",
+          maxMs: ABSOLUTE_MAX_MS,
+        });
         cancelUploadTask(task);
         settle(() =>
           reject(
@@ -111,7 +124,9 @@ export async function runFirebaseResumableUpload(
       stallInterval = window.setInterval(() => {
         const snap = task.snapshot;
         if (!snap || snap.state !== "running") return;
-        if (snap.totalBytes > 0 && snap.bytesTransferred >= snap.totalBytes) return;
+        const finishDenom =
+          snap.totalBytes > 0 ? snap.totalBytes : data.size > 0 ? data.size : snap.bytesTransferred;
+        if (finishDenom > 0 && snap.bytesTransferred >= finishDenom) return;
 
         const zeroByteWarmup =
           snap.bytesTransferred === 0 && Date.now() - uploadStartedAt < ZERO_BYTE_GRACE_MS;
@@ -122,47 +137,90 @@ export async function runFirebaseResumableUpload(
           uploadStage("stalled during upload bytes — no snapshot progress", {
             label,
             idleMs,
+            stallMs,
             bytesTransferred: snap.bytesTransferred,
             totalBytes: snap.totalBytes,
+            blobBytes: data.size,
+            inferredTotal: finishDenom,
             state: snap.state,
+            cause: "no_byte_progress_while_running",
           });
-          uploadLog("stalled", { label, idleMs, bytesTransferred: snap.bytesTransferred });
+          uploadLog("stalled", { label, idleMs, stallMs, bytesTransferred: snap.bytesTransferred });
+          trace?.("storage: stalled — cancelling", {
+            label,
+            idleMs,
+            stallMs,
+            bytesTransferred: snap.bytesTransferred,
+            cause: "no_byte_progress_while_running",
+          });
           cancelUploadTask(task);
           settle(() =>
             reject(new Error("Upload stalled. Check your connection and try again."))
           );
         }
-      }, 12_000);
+      }, 15_000);
 
       unsubscribe = task.on(
         "state_changed",
         (snap) => {
+          const progressDenom =
+            snap.totalBytes > 0 ? snap.totalBytes : data.size > 0 ? data.size : 0;
+
           if (snap.state === "running" && !loggedUploadRunning) {
             loggedUploadRunning = true;
-            uploadStage("upload started", { label, totalBytes: snap.totalBytes });
+            uploadStage("upload started (state_running)", {
+              label,
+              firebaseTotalBytes: snap.totalBytes,
+              blobBytes: data.size,
+              progressDenom,
+            });
+            trace?.("storage: running (first snapshot)", {
+              label,
+              firebaseTotalBytes: snap.totalBytes,
+              blobBytes: data.size,
+            });
           }
+
+          if (snap.state === "running" && opts?.onProgress && !seededPctZero) {
+            seededPctZero = true;
+            opts.onProgress(0);
+          }
+
           if (snap.bytesTransferred !== lastBytes) {
             lastBytes = snap.bytesTransferred;
             lastProgressAt = Date.now();
           }
 
-          if (snap.totalBytes > 0 && opts?.onProgress) {
-            const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+          if (progressDenom > 0 && opts?.onProgress) {
+            const pct = Math.min(100, Math.round((snap.bytesTransferred / progressDenom) * 100));
             opts.onProgress(pct);
             if (pct - lastLoggedPct >= 10 || pct === 100) {
               uploadLog("progress", {
                 label,
                 pct,
                 bytesTransferred: snap.bytesTransferred,
-                totalBytes: snap.totalBytes,
+                totalBytesFirebase: snap.totalBytes,
+                progressDenomUsed: progressDenom,
               });
               lastLoggedPct = pct;
             }
+          } else if (
+            snap.bytesTransferred > 0 &&
+            progressDenom <= 0 &&
+            opts?.onProgress &&
+            !indeterminateNudgeSent
+          ) {
+            indeterminateNudgeSent = true;
+            opts.onProgress(8);
           }
         },
         (err) => {
           settle(() => {
             uploadLog("failed", { label, message: err instanceof Error ? err.message : String(err) });
+            trace?.("storage: firebase error", {
+              label,
+              message: err instanceof Error ? err.message : String(err),
+            });
             reject(err);
           });
         },
@@ -170,6 +228,7 @@ export async function runFirebaseResumableUpload(
           settle(() => {
             uploadStage("finalize success — Storage bytes complete", { label });
             uploadLog("complete", { label });
+            trace?.("storage: upload complete", { label });
             resolve();
           });
         }

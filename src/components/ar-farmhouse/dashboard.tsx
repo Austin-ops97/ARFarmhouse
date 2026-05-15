@@ -132,10 +132,10 @@ function DashboardRoutes() {
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeId}
-                initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                initial={reduceMotion ? false : { opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
-                transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 1, 0.36, 1] }}
+                exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
+                transition={{ duration: reduceMotion ? 0.12 : 0.3, ease: [0.22, 1, 0.36, 1] }}
                 className={cnDashboardPageBody(activeId === "home")}
               >
                 <ErrorBoundary title="This section needs a refresh">

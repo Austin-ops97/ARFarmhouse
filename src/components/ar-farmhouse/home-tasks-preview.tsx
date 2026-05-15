@@ -11,7 +11,7 @@ import type { TaskPriority } from "@/lib/property-operations";
 import { cn } from "@/lib/utils";
 
 const surface =
-  "h-full rounded-[1.25rem] border border-border/50 bg-card/80 p-5 shadow-[var(--ar-float-elevate)] dark:border-white/[0.08] dark:bg-white/[0.03] sm:p-6";
+  "h-full rounded-[1.125rem] border border-border/38 bg-card/62 p-4 shadow-[var(--ar-float-subtle)] backdrop-blur-[1px] dark:border-white/[0.055] dark:bg-white/[0.025] dark:shadow-[var(--ar-float-subtle)] sm:rounded-xl sm:p-[1.05rem]";
 
 const priorityLabel: Record<TaskPriority, string> = {
   low: "Low",
@@ -36,8 +36,12 @@ export function HomeTasksPreview() {
     <section className={cn(surface)} aria-label="Active tasks">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground/80">Tasks</p>
-          <h2 className="mt-1.5 font-heading text-lg font-semibold tracking-tight text-foreground">Active work</h2>
+          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground/75 sm:text-[11px] sm:tracking-[0.21em]">
+            Tasks
+          </p>
+          <h2 className="mt-1 font-heading text-base font-semibold tracking-tight text-foreground sm:text-lg">
+            Active work
+          </h2>
         </div>
         <button
           type="button"
@@ -50,7 +54,7 @@ export function HomeTasksPreview() {
       </div>
 
       {loading && (
-        <ul className="mt-5 space-y-2.5">
+        <ul className="mt-4 space-y-2">
           {[0, 1, 2].map((i) => (
             <li key={i}>
               <Skeleton className="h-14 w-full rounded-xl" />
@@ -60,11 +64,11 @@ export function HomeTasksPreview() {
       )}
 
       {!loading && error && (
-        <p className="mt-5 text-sm text-muted-foreground">Tasks could not sync. Open Tasks to retry.</p>
+        <p className="mt-4 text-[13px] leading-snug text-muted-foreground">Tasks could not sync. Open Tasks to retry.</p>
       )}
 
       {!loading && !error && top.length === 0 && (
-        <div className="mt-5 rounded-xl border border-dashed border-border/50 bg-muted/20 px-4 py-6 text-center dark:border-white/[0.08] dark:bg-white/[0.02]">
+        <div className="mt-4 rounded-xl border border-dashed border-border/45 bg-muted/15 px-3 py-5 text-center dark:border-white/[0.07] dark:bg-white/[0.02]">
           <CheckSquare className="mx-auto size-8 text-muted-foreground/50" aria-hidden />
           <p className="mt-3 text-sm font-medium text-foreground">Nothing on the board</p>
           <p className="mt-1 text-xs text-muted-foreground">Add tasks from the Tasks tab when something needs doing.</p>
@@ -72,13 +76,13 @@ export function HomeTasksPreview() {
       )}
 
       {!loading && top.length > 0 && (
-        <ul className="mt-5 space-y-2">
+        <ul className="mt-4 space-y-1.5">
           {top.map((task) => (
             <li key={task.id}>
               <button
                 type="button"
                 onClick={() => goTo("tasks")}
-                className="flex w-full items-start gap-3 rounded-xl border border-border/40 bg-muted/25 px-3.5 py-3 text-left transition hover:border-border/70 hover:bg-muted/40 dark:border-white/[0.06] dark:bg-white/[0.025] dark:hover:bg-white/[0.05]"
+                className="flex min-h-11 w-full items-start gap-2.5 rounded-lg border border-border/35 bg-muted/18 px-3 py-2.5 text-left transition hover:border-border/55 hover:bg-muted/30 dark:border-white/[0.05] dark:bg-white/[0.02] dark:hover:bg-white/[0.045]"
               >
                 <span
                   className={cn("mt-1 size-2 shrink-0 rounded-full bg-current", priorityTone[task.priority])}

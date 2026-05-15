@@ -15,7 +15,6 @@ import {
   Send,
   Sparkles,
   Trash2,
-  X,
   Loader2,
   RotateCw,
 } from "lucide-react";
@@ -409,15 +408,22 @@ export function FeedPostCard({
 
         {post.optimistic && post.optimisticUpload && post.optimisticUpload.phase !== "failed" && (
           <div className="mx-1 mb-3 sm:mx-0">
-            <div className="flex items-center gap-2.5 rounded-full border border-white/14 bg-black/40 px-3.5 py-2 text-[11px] font-medium text-white shadow-sm backdrop-blur-md dark:bg-zinc-950/70 dark:text-white/90">
-              <Loader2 className="size-3.5 shrink-0 animate-spin opacity-90" aria-hidden />
+            <div className="flex items-center gap-2.5 rounded-full border border-white/14 bg-black/36 px-3.5 py-2 text-[11px] font-medium text-white shadow-sm backdrop-blur-md dark:bg-zinc-950/72 dark:text-white/90">
+              {reduceMotion ? (
+                <span className="size-3.5 shrink-0 rounded-full bg-primary/85" aria-hidden />
+              ) : (
+                <Loader2 className="size-3.5 shrink-0 animate-spin opacity-90" aria-hidden />
+              )}
               <span className="min-w-0 flex-1 truncate">{post.optimisticUpload.message ?? "Working…"}</span>
               <span className="shrink-0 tabular-nums opacity-85">{Math.min(100, post.optimisticUpload.progress)}%</span>
             </div>
             <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10 dark:bg-white/[0.06]">
               <div
-                className="h-full rounded-full bg-primary transition-[width] duration-300"
-                style={{ width: `${Math.min(100, post.optimisticUpload.progress)}%` }}
+                className="h-full rounded-full bg-primary motion-reduce:transition-none"
+                style={{
+                  width: `${Math.min(100, post.optimisticUpload.progress)}%`,
+                  transition: "width 0.62s cubic-bezier(0.25, 0.82, 0.35, 1)",
+                }}
               />
             </div>
           </div>

@@ -70,36 +70,38 @@ export function DashboardAppHeader({
       <div className="ar-header-blur-layer" aria-hidden />
       <div
         className={cn(
-          "ar-header-content relative flex min-h-[var(--ar-header-height)] w-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-4",
+          "ar-header-content relative flex min-h-[var(--ar-header-height)] w-full items-center justify-between gap-2 px-2.5 sm:gap-3 sm:px-4",
           "pt-[var(--ar-header-safe-top)] pb-[var(--ar-header-pad-bottom)]"
         )}
       >
-      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3">
         <div className="shrink-0 lg:hidden">
           <DashboardMobileDrawerTrigger open={mobileMenuOpen} onOpenChange={onMobileMenuOpenChange} />
         </div>
-        <div className="shrink-0">
-          <ArFarmhouseLogo size={38} className="shadow-inner dark:shadow-inner dark:shadow-white/5" />
+        <div className="shrink-0 origin-left scale-[0.9] sm:scale-100">
+          <ArFarmhouseLogo size={36} className="shadow-inner dark:shadow-inner dark:shadow-white/5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-heading text-[14px] font-semibold leading-tight tracking-tight text-foreground sm:text-base">
+          <p className="truncate font-heading text-[13px] font-semibold leading-snug tracking-tight text-foreground sm:text-base">
             {activeId === "home" ? "AR Farmhouse" : activeMeta.label}
           </p>
-          <p className="truncate text-[10px] text-muted-foreground sm:text-xs">{sectionSubtitle[activeId]}</p>
+          <p className="line-clamp-1 text-[10px] leading-tight text-muted-foreground sm:text-xs sm:leading-snug">
+            {sectionSubtitle[activeId]}
+          </p>
         </div>
       </div>
-      <div className="relative flex shrink-0 items-center gap-2">
+      <div className="relative flex shrink-0 items-center gap-1.5 sm:gap-2">
         {user ? (
           <>
             <NotificationBell />
             <button
               type="button"
               onClick={() => setAccountOpen((o) => !o)}
-              className="flex max-w-[min(11rem,42vw)] items-center gap-1.5 rounded-full border border-border/60 bg-card/50 py-1 pl-1 pr-2 text-left transition-colors hover:border-border hover:bg-muted/50 sm:max-w-[220px] sm:gap-2 sm:pr-2.5 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/16 dark:hover:bg-white/[0.08]"
+              className="flex max-w-[min(10.5rem,40vw)] items-center gap-1 rounded-full border border-border/60 bg-card/50 py-0.5 pl-0.5 pr-1.5 text-left transition-colors hover:border-border hover:bg-muted/50 sm:max-w-[220px] sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2.5 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/16 dark:hover:bg-white/[0.08]"
               aria-expanded={accountOpen}
               aria-haspopup="menu"
             >
-              <Avatar size="default" className="size-8 ring-1 ring-border/60 sm:size-9 dark:ring-white/10">
+              <Avatar size="default" className="size-7 ring-1 ring-border/60 sm:size-9 dark:ring-white/10">
                 <AvatarImage src={avatarUrl ?? undefined} alt="" />
                 <AvatarFallback className="text-[10px] sm:text-xs">{displayName.slice(0, 2)}</AvatarFallback>
               </Avatar>
@@ -116,8 +118,9 @@ export function DashboardAppHeader({
                   onClick={() => setAccountOpen(false)}
                 />
                 <motion.div
-                  initial={reduceMotion ? false : { opacity: 0, y: -6 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: reduceMotion ? 0.14 : 0.22, ease: [0.22, 1, 0.36, 1] }}
                   className={AR_ACCOUNT_MENU}
                   role="menu"
                 >

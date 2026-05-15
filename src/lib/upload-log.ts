@@ -1,5 +1,8 @@
 /**
  * Structured upload tracing — enable in prod via `localStorage.setItem('ar_upload_debug','1')`.
+ *
+ * Prefer {@link import("@/lib/upload-trace")} `startUploadTrace()` for correlated runs; detail objects
+ * may include `segment: 'cpu' | 'storage' | 'firestore' | 'meta'` for pipeline grouping.
  */
 
 export function isUploadDebugEnabled(): boolean {

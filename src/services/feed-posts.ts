@@ -17,9 +17,11 @@ import { actionDebug } from "@/lib/action-debug";
 import { formatFeedTimeLabel, handleFromDisplayName } from "@/lib/datetime/relative";
 import { buildChipsFromCounts, normalizeReactionCounts } from "@/lib/reaction-counts";
 import { validateFeedImageFiles, validateOptimizedFeedFiles } from "@/lib/feed-publish";
+import type { ProcessedImageFile } from "@/lib/image-process";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import { uploadStage } from "@/lib/upload-log";
+import type { UploadTrace } from "@/lib/upload-trace";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
 import { deletePostMediaStorage, uploadPostImages } from "@/services/storage-upload";
@@ -123,47 +125,63 @@ export function allocateFeedPostDocId(): string {
   return doc(collection(db, POSTS)).id;
 }
 
-/**
- * Runs validate → optimize → Storage (resumable) → Firestore for an existing post id.
- * Used by optimistic publishing: UI appears immediately, then this finishes in the background.
- */
-export async function finalizeFeedPostFromFiles(
+export type FeedFinalizeOptions = {
+  onProgress?: (progress: FeedPublishProgress) => void;
+  signal?: AbortSignal;
+  trace?: UploadTrace;
+};
+
+/** CPU-only: validate + optimize images for a feed post (queue this separately from Storage). */
+export async function prepareFeedPostPublishingArtifacts(
+  files: File[],
+  options?: FeedFinalizeOptions
+): Promise<ProcessedImageFile[]> {
+  validateFeedImageFiles(files);
+  const total = files.length;
+  const { onProgress, signal, trace } = options ?? {};
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+    trace?.("compression begins", { segment: "cpu", fileCount: total });
+  actionDebug("feed", "optimize begin");
+  const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(files, "feed", {
+    signal,
+    onProgress: (pipe) => {
+      if (!onProgress) return;
+      if (pipe.phase === "optimizing") {
+        onProgress({ phase: "optimizing", done: pipe.done, total });
+        return;
+      }
+      if (pipe.phase === "ready") return;
+      onProgress({ phase: "preparing", done: pipe.done, total });
+    },
+  });
+  trace?.("compression completes", {
+    segment: "cpu",
+    fileCount: total,
+    durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0),
+    optimizedBytes: optimizedArtifacts.reduce((n, a) => n + a.optimizedSizeBytes, 0),
+  });
+  return optimizedArtifacts;
+}
+
+/** Storage + Firestore after optimization (or text-only with `optimizedArtifacts: []`). */
+export async function finalizeFeedPostFromOptimizedArtifacts(
   postId: string,
   input: CreateFeedPostInput,
-  options?: {
-    onProgress?: (progress: FeedPublishProgress) => void;
-    signal?: AbortSignal;
-  }
+  optimizedArtifacts: ProcessedImageFile[],
+  options?: FeedFinalizeOptions
 ): Promise<void> {
   if (!input.authorId?.trim()) throw new Error("You must be signed in to publish.");
 
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
 
-  validateFeedImageFiles(input.files);
-
   const ref = doc(db, POSTS, postId);
-  actionDebug("feed", "publish finalize start", { postId, fileCount: input.files.length });
+  const { onProgress, signal, trace } = options ?? {};
 
   let mediaUrls: string[] = [];
   let mediaMeta: NonNullable<FirestorePost["mediaMeta"]> | undefined;
 
-  if (input.files.length > 0) {
-    const total = input.files.length;
-    const { onProgress, signal } = options ?? {};
-    actionDebug("feed", "optimize begin");
-    const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(input.files, "feed", {
-      signal,
-      onProgress: (pipe) => {
-        if (!onProgress) return;
-        if (pipe.phase === "optimizing") {
-          onProgress({ phase: "optimizing", done: pipe.done, total });
-          return;
-        }
-        if (pipe.phase === "ready") return;
-        onProgress({ phase: "preparing", done: pipe.done, total });
-      },
-    });
+  if (optimizedArtifacts.length > 0) {
     const optimized = optimizedArtifacts.map((a) => a.file);
     validateOptimizedFeedFiles(optimized);
     mediaMeta = optimizedArtifacts.map((a) => ({
@@ -173,15 +191,27 @@ export async function finalizeFeedPostFromFiles(
       optimizedSizeBytes: a.optimizedSizeBytes,
       skippedOptimization: a.skippedOptimization,
     }));
+    const uploadT0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+    trace?.("upload to Storage begins", {
+      segment: "storage",
+      fileCount: optimized.length,
+      bytes: optimized.reduce((n, f) => n + f.size, 0),
+    });
     actionDebug("feed", "upload begin");
     uploadStage("firestore sync — upload to Storage starting", { postId, fileCount: optimized.length });
-    options?.onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
+    onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
     mediaUrls = await uploadPostImages(
       postId,
       optimized,
-      (done, t, percent) => options?.onProgress?.({ phase: "uploading", done, total: t, percent }),
-      signal
+      (done, t, percent) => onProgress?.({ phase: "uploading", done, total: t, percent }),
+      signal,
+      trace
     );
+    trace?.("upload to Storage completes", {
+      segment: "storage",
+      durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - uploadT0),
+      urlCount: mediaUrls.length,
+    });
     actionDebug("feed", "upload complete", { count: mediaUrls.length });
     uploadStage("firestore sync — Storage complete, writing post document", { postId, mediaCount: mediaUrls.length });
   }
@@ -203,11 +233,18 @@ export async function finalizeFeedPostFromFiles(
     reactionCounts: {},
   };
 
+  const fsT0 = typeof performance !== "undefined" ? performance.now() : Date.now();
   try {
-    if (options?.signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
+    if (signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     actionDebug("feed", "firestore write begin", { postId });
+    trace?.("Firestore setDoc begins", { segment: "firestore", postId });
     uploadStage("firestore sync started", { postId });
     await setDoc(ref, payload);
+    trace?.("Firestore setDoc completes", {
+      segment: "firestore",
+      postId,
+      durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - fsT0),
+    });
     uploadStage("firestore sync complete", { postId });
     actionDebug("feed", "firestore write complete", { postId });
   } catch (e) {
@@ -219,6 +256,26 @@ export async function finalizeFeedPostFromFiles(
     throw new Error(`Could not save the post. ${msg}`);
   }
   uploadStage("finalize success — post published", { postId });
+  trace?.("finalize success — post published", { segment: "meta", postId });
+}
+
+/**
+ * Runs validate → optimize → Storage (resumable) → Firestore for an existing post id.
+ * Used by optimistic publishing: UI appears immediately, then this finishes in the background.
+ */
+export async function finalizeFeedPostFromFiles(
+  postId: string,
+  input: CreateFeedPostInput,
+  options?: FeedFinalizeOptions
+): Promise<void> {
+  validateFeedImageFiles(input.files);
+
+  actionDebug("feed", "publish finalize start", { postId, fileCount: input.files.length });
+
+  const optimizedArtifacts =
+    input.files.length > 0 ? await prepareFeedPostPublishingArtifacts(input.files, options) : [];
+
+  await finalizeFeedPostFromOptimizedArtifacts(postId, input, optimizedArtifacts, options);
 }
 
 export async function createFeedPostWithMedia(

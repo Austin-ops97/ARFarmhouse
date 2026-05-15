@@ -45,6 +45,8 @@
   --color-glass: var(--glass);
   --shadow-ar-panel: var(--ar-panel-elevate);
   --shadow-ar-float: var(--ar-float-elevate);
+  --shadow-ar-float-subtle: var(--ar-float-subtle);
+  --shadow-ar-float-hero: var(--ar-float-hero);
   --shadow-ar-modal: var(--ar-modal-elevate);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -118,9 +120,19 @@
     inset 0 1px 0 oklch(1 0 0 / 0.5);
   --ar-inset-press: inset 0 1px 3px oklch(0.42 0.03 95 / 0.08);
 
+  /* Tiered elevation — home cards / glanceable rows (lighter than --ar-float-elevate). */
+  --ar-float-subtle:
+    0 11px 26px -17px oklch(0.38 0.04 95 / 0.11), 0 4px 14px -8px oklch(0.4 0.035 95 / 0.07),
+    inset 0 1px 0 oklch(1 0 0 / 0.42);
+  /* Hero / primary module (e.g. next stay) — soft bloom, not harsh. */
+  --ar-float-hero:
+    0 28px 58px -26px oklch(0.36 0.04 95 / 0.2), 0 10px 28px -12px oklch(0.4 0.034 95 / 0.12),
+    inset 0 1px 0 oklch(1 0 0 / 0.52);
+
   --ar-header-safe-top: max(0.5rem, env(safe-area-inset-top, 0px));
-  --ar-header-row-min: 3.5rem;
-  --ar-header-pad-bottom: 0.625rem;
+  /* Tighter on phones — more canvas for content; sm+ relaxes for tap targets. */
+  --ar-header-row-min: 3rem;
+  --ar-header-pad-bottom: 0.5rem;
   --ar-header-height: calc(var(--ar-header-safe-top) + var(--ar-header-row-min) + var(--ar-header-pad-bottom));
   --ar-mobile-sticky-top: calc(var(--ar-header-height) + 0.125rem);
   --ar-sheet-max-height: min(
@@ -132,8 +144,8 @@
 
 @media (min-width: 640px) {
   :root {
-    --ar-header-row-min: 3.875rem;
-    --ar-header-pad-bottom: 0.75rem;
+    --ar-header-row-min: 3.5rem;
+    --ar-header-pad-bottom: 0.65rem;
   }
 }
 
@@ -183,6 +195,12 @@
   --ar-float-elevate: 0 20px 50px -28px rgba(0, 0, 0, 0.72), inset 0 1px 0 oklch(0.96 0.01 95 / 0.05);
   --ar-modal-elevate: 0 40px 120px -48px rgba(0, 0, 0, 0.92), inset 0 1px 0 oklch(0.96 0.01 95 / 0.05);
   --ar-inset-press: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  --ar-float-subtle:
+    0 14px 36px -26px rgba(0, 0, 0, 0.52), 0 6px 18px -12px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 oklch(0.96 0.01 95 / 0.05);
+  --ar-float-hero:
+    0 32px 76px -38px rgba(0, 0, 0, 0.82), 0 12px 38px -18px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 oklch(0.96 0.01 95 / 0.07);
 }
 
 @layer base {
@@ -192,13 +210,18 @@
   body {
     @apply bg-background text-foreground antialiased;
     overflow-x: hidden;
-    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
+    touch-action: manipulation;
+    /* Allow vertical rubber-band on iOS while preventing horizontal bleed */
+    overscroll-behavior-y: auto;
   }
   html {
     @apply font-sans;
-    scroll-behavior: smooth;
+    /* `smooth` makes iOS scroll restoration / overlay unlock feel laggy vs native momentum. */
+    scroll-behavior: auto;
     overflow-x: hidden;
-    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: auto;
     scroll-padding-top: calc(var(--ar-header-height) + 0.35rem);
   }
 }
@@ -226,16 +249,18 @@ html.ar-scroll-lock body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.52;
+  opacity: 0.46;
   background:
-    radial-gradient(1100px 580px at 50% -14%, oklch(0.8 0.055 155 / 0.16), transparent 58%),
-    radial-gradient(920px 520px at 8% 12%, oklch(0.76 0.04 82 / 0.14), transparent 52%),
-    radial-gradient(760px 460px at 94% 6%, oklch(0.88 0.028 95 / 0.11), transparent 50%);
+    radial-gradient(1000px 520px at 50% -12%, oklch(0.8 0.048 155 / 0.13), transparent 58%),
+    radial-gradient(860px 480px at 10% 14%, oklch(0.77 0.035 82 / 0.11), transparent 54%),
+    radial-gradient(720px 440px at 92% 8%, oklch(0.88 0.024 95 / 0.09), transparent 50%);
 }
 
 .dark .ar-app-shell::before {
-  opacity: 0.55;
-  background: radial-gradient(900px 480px at 50% 0%, oklch(0.32 0.04 155 / 0.12), transparent 62%);
+  opacity: 0.5;
+  background:
+    radial-gradient(880px 520px at 50% -8%, oklch(0.3 0.035 155 / 0.1), transparent 60%),
+    radial-gradient(760px 420px at 82% 92%, oklch(0.22 0.022 155 / 0.06), transparent 54%);
 }
 
 /* Light: subtle floor glow + vignette — keeps immersion without flattening */
