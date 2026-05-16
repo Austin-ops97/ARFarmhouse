@@ -162,6 +162,9 @@ async function markAlbumFailed(mediaId: string) {
   await ref.update({ processingStatus: "failed", updatedAt: FieldValue.serverTimestamp() });
 }
 
+export { validateInviteCode } from "./invite/validate-invite-callable";
+export { onUserProfileCreatedMarkInvite } from "./invite/on-user-profile-created";
+
 export const processUploadedRawMedia = onObjectFinalized(
   {
     region: "us-central1",

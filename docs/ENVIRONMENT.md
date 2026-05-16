@@ -25,6 +25,37 @@ Read logic: `src/lib/firebase/env.ts` → `readPublicFirebaseConfig()`.
 
 Logic: `src/lib/auth-gate.ts`. **Also disable open signup in Firebase Console** for defense in depth.
 
+## Invite codes (server-only — Cloud Functions secrets)
+
+Invite codes are **never** stored in `NEXT_PUBLIC_*` env vars or frontend bundles. Validation runs in the callable Cloud Function `validateInviteCode`.
+
+| Secret | Description |
+|--------|-------------|
+| `INVITE_PEPPER` | Long random string (32+ chars). Required to verify stored hashes. |
+| `INVITE_CODE_HASHES` | Comma-separated scrypt hashes from `functions/scripts/hash-invite-code.mjs` |
+
+### Generate a hash (local; do not commit the plaintext code)
+
+```bash
+# Pick a pepper once and store it as a Firebase secret
+openssl rand -base64 32
+
+INVITE_PEPPER='your-pepper' node functions/scripts/hash-invite-code.mjs 'your-invite-code'
+```
+
+### Deploy secrets (production)
+
+```bash
+firebase functions:secrets:set INVITE_PEPPER
+firebase functions:secrets:set INVITE_CODE_HASHES
+npm run firebase:deploy:functions
+npm run firebase:deploy   # deploy Firestore rules (signupRedemptions enforcement)
+```
+
+Rotate codes by appending a new hash to `INVITE_CODE_HASHES` (multiple hashes supported), then removing old hashes after migration.
+
+Optional local emulator: set `NEXT_PUBLIC_FIREBASE_FUNCTIONS_EMULATOR=true` and run the Functions emulator with the same secrets.
+
 ## Site URL (recommended for production)
 
 | Variable | Description |

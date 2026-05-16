@@ -190,7 +190,7 @@ export async function saveUserProfile(uid: string, patch: ProfilePatch): Promise
 /** Creates a new Firestore profile on first sign-up (does not overwrite existing docs). */
 export async function bootstrapUserProfileOnSignup(
   user: User,
-  input: { displayName: string }
+  input: { displayName: string; signupRedemptionId?: string }
 ): Promise<AppUser> {
   const db = tryGetFirestoreDb();
   if (!db) {
@@ -209,6 +209,10 @@ export async function bootstrapUserProfileOnSignup(
 
   const displayName = input.displayName.trim() || user.email?.split("@")[0]?.trim() || "Member";
   const email = user.email ?? null;
+  const redemptionId = input.signupRedemptionId?.trim();
+  if (!redemptionId) {
+    throw new Error("Invalid invite code");
+  }
 
   actionDebug("profile", "bootstrap signup", { uid: user.uid });
   try {
@@ -216,6 +220,7 @@ export async function bootstrapUserProfileOnSignup(
       uid: user.uid,
       email,
       displayName,
+      signupRedemptionId: redemptionId,
       avatarUrl: null,
       profilePhotoUrl: null,
       createdAt: serverTimestamp(),

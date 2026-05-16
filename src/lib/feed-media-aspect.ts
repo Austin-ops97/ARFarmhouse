@@ -1,6 +1,9 @@
 /** Natural width / height for layout math (not CSS `aspect-ratio` order). */
 export type FeedMediaDims = { width: number; height: number };
 
+/** Locked fallback when Firestore/client dims are missing — never changes after mount. */
+export const FEED_MEDIA_FALLBACK_ASPECT = 4 / 5;
+
 export function mediaOrientation(
   nw: number,
   nh: number
@@ -71,4 +74,47 @@ export function computeFeedMediaDisplaySize(opts: {
     widthPx: Math.max(1, Math.round(widthPx)),
     heightPx: Math.max(1, Math.round(heightPx)),
   };
+}
+
+/** Width÷height for CSS `aspect-ratio` — from metadata only (never from decode). */
+export function resolveFeedAspectRatio(dims: FeedMediaDims | null | undefined): number {
+  if (dims && dims.width > 0 && dims.height > 0) {
+    return dims.width / dims.height;
+  }
+  return FEED_MEDIA_FALLBACK_ASPECT;
+}
+
+/** Max clip height for a feed slot from known dimensions and viewport. */
+export function feedMediaMaxHeightPx(dims: FeedMediaDims | null | undefined, vhPx: number): number {
+  if (dims && dims.width > 0 && dims.height > 0) {
+    return viewportMaxFeedMediaHeight(mediaOrientation(dims.width, dims.height), vhPx);
+  }
+  return viewportMaxFeedMediaHeight("portrait", vhPx);
+}
+
+/**
+ * Stable feed media box — aspect ratio and max-height are fixed at first paint.
+ * Do not update from image decode or ResizeObserver (prevents scroll CLS).
+ */
+export function feedMediaStableBoxStyle(
+  dims: FeedMediaDims | null | undefined,
+  vhPx: number
+): { aspectRatio: string; maxHeight: string } {
+  const ratio = resolveFeedAspectRatio(dims);
+  return {
+    aspectRatio: String(ratio),
+    maxHeight: `${feedMediaMaxHeightPx(dims, vhPx)}px`,
+  };
+}
+
+/** Single aspect for mobile album carousel so slides do not resize when swiping. */
+export function resolveAlbumCarouselAspect(
+  dimensions: (FeedMediaDims | null | undefined)[],
+  count: number
+): number {
+  for (let i = 0; i < count; i++) {
+    const d = dimensions[i];
+    if (d && d.width > 0 && d.height > 0) return d.width / d.height;
+  }
+  return FEED_MEDIA_FALLBACK_ASPECT;
 }

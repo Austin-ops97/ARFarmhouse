@@ -92,9 +92,28 @@ service cloud.firestore {
         );
     }
 
+    function validSignupRedemption() {
+      return request.resource.data.signupRedemptionId is string
+        && request.resource.data.signupRedemptionId.size() > 0
+        && exists(/databases/$(database)/documents/signupRedemptions/$(request.resource.data.signupRedemptionId))
+        && get(/databases/$(database)/documents/signupRedemptions/$(request.resource.data.signupRedemptionId)).data.used == false
+        && get(/databases/$(database)/documents/signupRedemptions/$(request.resource.data.signupRedemptionId)).data.expiresAt > request.time
+        && get(/databases/$(database)/documents/signupRedemptions/$(request.resource.data.signupRedemptionId)).data.emailLower
+          == request.auth.token.email.lower();
+    }
+
+    match /signupRedemptions/{redemptionId} {
+      allow read, write: if false;
+    }
+
+    match /_security/{docId} {
+      allow read, write: if false;
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSelf(userId)
+        && validSignupRedemption()
         && (!('role' in request.resource.data) || request.resource.data.role == 'user');
       allow update: if isSelf(userId)
         && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);

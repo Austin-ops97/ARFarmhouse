@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   computeFeedMediaDisplaySize,
+  feedMediaStableBoxStyle,
   mediaOrientation,
+  resolveAlbumCarouselAspect,
+  resolveFeedAspectRatio,
   viewportMaxFeedMediaHeight,
 } from "@/lib/feed-media-aspect";
 
@@ -41,5 +44,23 @@ describe("feed-media-aspect", () => {
     const l = viewportMaxFeedMediaHeight("landscape", vh);
     const p = viewportMaxFeedMediaHeight("panorama", vh);
     expect(p).toBeLessThan(l);
+  });
+
+  it("uses fallback aspect when dims missing", () => {
+    expect(resolveFeedAspectRatio(null)).toBe(0.8);
+  });
+
+  it("builds stable box style from metadata only", () => {
+    const style = feedMediaStableBoxStyle({ width: 900, height: 1600 }, 800);
+    expect(style.aspectRatio).toBe(String(900 / 1600));
+    expect(style.maxHeight).toMatch(/px$/);
+  });
+
+  it("locks album carousel to first known aspect", () => {
+    const aspect = resolveAlbumCarouselAspect(
+      [null, { width: 1600, height: 900 }],
+      2
+    );
+    expect(aspect).toBeCloseTo(1600 / 900);
   });
 });

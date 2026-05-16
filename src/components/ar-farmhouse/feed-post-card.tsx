@@ -30,7 +30,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { FeedPollBlock } from "@/components/ar-farmhouse/feed-poll-block";
-import { FeedMediaFrame } from "@/components/ar-farmhouse/feed-media-frame";
+import { FeedMediaFrame, useViewportHeightPx } from "@/components/ar-farmhouse/feed-media-frame";
 import { FeedMediaLightbox, type FeedMediaLightboxState } from "@/components/ar-farmhouse/feed-media-lightbox";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { PostShareSheet } from "@/components/ar-farmhouse/post-share-sheet";
@@ -45,7 +45,11 @@ import { reactionTotal } from "@/lib/reaction-counts";
 import { useSavedPosts } from "@/contexts/saved-posts-context";
 import { setPostSaved } from "@/services/post-engagement";
 import { buildPostDeepLink } from "@/lib/app-url";
-import type { FeedMediaDims } from "@/lib/feed-media-aspect";
+import {
+  feedMediaStableBoxStyle,
+  resolveAlbumCarouselAspect,
+  type FeedMediaDims,
+} from "@/lib/feed-media-aspect";
 import { FEED_IMAGE_SIZES, FEED_MEDIA_BLEED } from "@/lib/feed-layout";
 import { hubSlugFromLinkedEventLabel } from "@/lib/linked-event-hub";
 import { isEphemeralLocalImageUrl } from "@/lib/image-display-url";
@@ -192,6 +196,25 @@ export function FeedPostCard({
   }, [albumUrls, post.mediaFullUrls]);
 
   const album = post.album ?? [];
+
+  const vhPx = useViewportHeightPx();
+
+  const albumCarouselDims = useMemo((): FeedMediaDims | null => {
+    for (let i = 0; i < album.length; i++) {
+      const d = mediaDimsAt(post, i);
+      if (d) return d;
+    }
+    return null;
+  }, [album.length, post]);
+
+  const albumCarouselBoxStyle = useMemo(() => {
+    const dimsList = Array.from({ length: album.length }, (_, i) => mediaDimsAt(post, i));
+    const aspect = resolveAlbumCarouselAspect(dimsList, album.length);
+    const dims =
+      albumCarouselDims ??
+      ({ width: Math.max(1, Math.round(aspect * 100)), height: 100 } satisfies FeedMediaDims);
+    return feedMediaStableBoxStyle(dims, vhPx);
+  }, [album.length, albumCarouselDims, post, vhPx]);
 
   const openLightboxAt = (index: number) => {
     if (!lightboxUrls.length) return;
@@ -402,14 +425,9 @@ export function FeedPostCard({
 
   return (
     <>
-      <motion.article
+      <article
         ref={inViewRef}
         id={`feed-post-${post.id}`}
-        layout={false}
-        initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-4% 0px" }}
-        transition={{ duration: reduceMotion ? 0.2 : 0.55, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
           "touch-pan-y scroll-mt-[calc(var(--ar-header-height)+0.75rem)] pb-7 sm:scroll-mt-[calc(var(--ar-header-height)+1rem)] sm:pb-9",
           isHighlighted && "rounded-[1.5rem] ring-2 ring-primary/35 ring-offset-2 ring-offset-background sm:rounded-[1.75rem]"
@@ -505,23 +523,17 @@ export function FeedPostCard({
         {/* Media — orientation-aware containment */}
         {post.kind === "image" && post.cover && (
           <button type="button" className={cn("group/media block w-full touch-pan-y text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
-            <motion.div
-              className="relative w-full touch-pan-y"
-              whileHover={reduceMotion ? undefined : { scale: 1.006 }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <FeedMediaFrame
-                src={post.cover}
-                alt=""
-                sizes={FEED_IMAGE_SIZES}
-                dims={mediaDimsAt(post, 0)}
-                frameClassName="w-full"
-                imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(post.cover) }}
-                overlay={
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/42 via-transparent to-transparent opacity-[0.84] sm:opacity-100" />
-                }
-              />
-            </motion.div>
+            <FeedMediaFrame
+              src={post.cover}
+              alt=""
+              sizes={FEED_IMAGE_SIZES}
+              dims={mediaDimsAt(post, 0)}
+              frameClassName="w-full"
+              imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(post.cover) }}
+              overlay={
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/42 via-transparent to-transparent opacity-[0.84] sm:opacity-100" />
+              }
+            />
           </button>
         )}
 
@@ -534,24 +546,22 @@ export function FeedPostCard({
               onTouchMove={onAlbumTouchMove}
               onTouchEnd={onAlbumTouchEnd}
             >
-              <motion.div
-                key={albumNav.i}
-                initial={reduceMotion ? false : { opacity: 0.84 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.18 }}
-                className="relative w-full"
-              >
-              <button type="button" className="relative block w-full" onClick={openAlbumLightbox}>
-                  <FeedMediaFrame
-                    src={album[albumNav.i] ?? album[0]}
-                    alt=""
-                    sizes="100vw"
-                    dims={mediaDimsAt(post, albumNav.i)}
-                    frameClassName="w-full"
-                    imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(album[albumNav.i] ?? album[0]) }}
-                  />
-                </button>
-              </motion.div>
+              <div
+              className="ar-feed-media-stable relative mx-auto w-full max-w-full overflow-hidden"
+              style={albumCarouselBoxStyle}
+            >
+              <button type="button" className="absolute inset-0 block" onClick={openAlbumLightbox}>
+                <FeedMediaFrame
+                  src={album[albumNav.i] ?? album[0]}
+                  alt=""
+                  sizes="100vw"
+                  dims={mediaDimsAt(post, albumNav.i)}
+                  applyParentHeightCap
+                  frameClassName="absolute inset-0 h-full min-h-0 w-full min-w-0"
+                  imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(album[albumNav.i] ?? album[0]) }}
+                />
+              </button>
+            </div>
               {album.length > 1 && (
                 <div className="pointer-events-auto absolute bottom-2.5 left-0 right-0 z-[1] flex justify-center gap-1.5">
                   {album.map((_, idx) => (
@@ -574,19 +584,14 @@ export function FeedPostCard({
             <div className="hidden sm:block">
               {album.length === 1 && (
                 <button type="button" className="relative block w-full" onClick={() => openLightboxAt(0)}>
-                  <motion.div
-                    whileHover={reduceMotion ? undefined : { scale: 1.006 }}
-                    transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                  >
-                    <FeedMediaFrame
-                      src={album[0]}
-                      alt=""
-                      sizes={FEED_IMAGE_SIZES}
-                      dims={mediaDimsAt(post, 0)}
-                      frameClassName="w-full"
-                      imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(album[0]) }}
-                    />
-                  </motion.div>
+                  <FeedMediaFrame
+                    src={album[0]}
+                    alt=""
+                    sizes={FEED_IMAGE_SIZES}
+                    dims={mediaDimsAt(post, 0)}
+                    frameClassName="w-full"
+                    imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(album[0]) }}
+                  />
                 </button>
               )}
               {album.length === 2 && (
@@ -599,21 +604,15 @@ export function FeedPostCard({
                       onClick={() => openLightboxAt(idx)}
                     >
                       <div className="absolute inset-0 min-h-0 min-w-0">
-                        <motion.div
-                          className="h-full w-full"
-                          whileHover={reduceMotion ? undefined : { scale: 1.01 }}
-                          transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-                        >
-                          <FeedMediaFrame
-                            src={src}
-                            alt=""
-                            sizes="260px"
-                            dims={mediaDimsAt(post, idx)}
-                            applyParentHeightCap
-                            frameClassName="absolute inset-0 h-full min-h-0 w-full min-w-0"
-                            imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(src) }}
-                          />
-                        </motion.div>
+                        <FeedMediaFrame
+                          src={src}
+                          alt=""
+                          sizes="260px"
+                          dims={mediaDimsAt(post, idx)}
+                          applyParentHeightCap
+                          frameClassName="absolute inset-0 h-full min-h-0 w-full min-w-0"
+                          imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(src) }}
+                        />
                       </div>
                     </button>
                   ))}
@@ -624,21 +623,15 @@ export function FeedPostCard({
                   {album.slice(0, 3).map((src, idx) => (
                     <button key={src} type="button" className="relative aspect-square" onClick={() => openLightboxAt(idx)}>
                       <div className="absolute inset-0 min-h-0 min-w-0">
-                        <motion.div
-                          className="h-full w-full"
-                          whileHover={reduceMotion ? undefined : { scale: 1.012 }}
-                          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                        >
-                          <FeedMediaFrame
-                            src={src}
-                            alt=""
-                            sizes="180px"
-                            dims={mediaDimsAt(post, idx)}
-                            applyParentHeightCap
-                            frameClassName="absolute inset-0 h-full min-h-0 w-full min-w-0"
-                            imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(src) }}
-                          />
-                        </motion.div>
+                        <FeedMediaFrame
+                          src={src}
+                          alt=""
+                          sizes="180px"
+                          dims={mediaDimsAt(post, idx)}
+                          applyParentHeightCap
+                          frameClassName="absolute inset-0 h-full min-h-0 w-full min-w-0"
+                          imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(src) }}
+                        />
                       </div>
                     </button>
                   ))}
@@ -651,20 +644,14 @@ export function FeedPostCard({
         {post.kind === "video" && post.video && (
           <div className={mediaShell}>
             <button type="button" className="relative block w-full touch-pan-y" onClick={() => openLightboxAt(0)}>
-              <motion.div
-                className="touch-pan-y"
-                whileHover={reduceMotion ? undefined : { scale: 1.006 }}
-                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <FeedMediaFrame
-                  src={post.video.poster}
-                  alt=""
-                  sizes={FEED_IMAGE_SIZES}
-                  dims={mediaDimsAt(post, 0)}
-                  frameClassName="w-full"
-                  imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(post.video.poster) }}
-                />
-              </motion.div>
+              <FeedMediaFrame
+                src={post.video.poster}
+                alt=""
+                sizes={FEED_IMAGE_SIZES}
+                dims={mediaDimsAt(post, 0)}
+                frameClassName="w-full"
+                imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(post.video.poster) }}
+              />
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/22">
                 <span className="flex size-[3.25rem] items-center justify-center rounded-full border border-white/25 bg-background/45 text-white shadow-lg backdrop-blur-md sm:size-14 sm:border-white/28">
                   <Play className="size-6 translate-x-0.5 sm:size-7" aria-hidden />
@@ -679,20 +666,14 @@ export function FeedPostCard({
 
         {post.kind === "event_recap" && post.cover && (
           <button type="button" className={cn("relative block w-full touch-pan-y text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
-            <motion.div
-              className="relative w-full touch-pan-y"
-              whileHover={reduceMotion ? undefined : { scale: 1.006 }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <FeedMediaFrame
-                src={post.cover}
-                alt=""
-                sizes={FEED_IMAGE_SIZES}
-                dims={mediaDimsAt(post, 0)}
-                frameClassName="w-full"
-                imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(post.cover) }}
-              />
-            </motion.div>
+            <FeedMediaFrame
+              src={post.cover}
+              alt=""
+              sizes={FEED_IMAGE_SIZES}
+              dims={mediaDimsAt(post, 0)}
+              frameClassName="w-full"
+              imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(post.cover) }}
+            />
             <div className="pointer-events-none absolute bottom-2.5 left-2.5 rounded-full border border-border/55 bg-card/82 px-2.5 py-1 text-[10px] font-medium text-muted-foreground backdrop-blur-md dark:border-white/14 dark:bg-background/55 sm:bottom-3 sm:left-3 sm:text-[11px]">
               Event recap
             </div>
@@ -891,7 +872,7 @@ export function FeedPostCard({
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.article>
+      </article>
 
       <PostShareSheet
         open={shareOpen}

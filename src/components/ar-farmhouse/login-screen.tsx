@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, Lock, Mail, UserPlus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Lock, Mail, UserPlus } from "lucide-react";
 import { FormEvent, useCallback, useState } from "react";
 
 import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
@@ -35,6 +35,7 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [passwordRevealed, setPasswordRevealed] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
@@ -42,6 +43,7 @@ export function LoginScreen() {
     password?: string;
     confirmPassword?: string;
     displayName?: string;
+    inviteCode?: string;
   }>({});
   const [resetSent, setResetSent] = useState(false);
 
@@ -61,6 +63,7 @@ export function LoginScreen() {
       }
       if (next === "signIn") {
         setConfirmPassword("");
+        setInviteCode("");
       }
       setView(next);
     },
@@ -87,6 +90,9 @@ export function LoginScreen() {
     if (forRegister && password !== confirmPassword) {
       next.confirmPassword = "Passwords do not match.";
     }
+    if (forRegister && !inviteCode.trim()) {
+      next.inviteCode = "Enter your family invite code.";
+    }
     setFieldErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -112,7 +118,7 @@ export function LoginScreen() {
     setPending("auth");
     try {
       if (forRegister) {
-        await signUpWithEmail(email, password, displayName.trim());
+        await signUpWithEmail(email, password, displayName.trim(), inviteCode.trim());
       } else {
         await signInWithEmail(email, password);
       }
@@ -478,6 +484,61 @@ export function LoginScreen() {
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.2 }}
                     >
+                      <label className="sr-only" htmlFor="inviteCode">
+                        Invite code
+                      </label>
+                      <motion.div
+                        className="relative"
+                        initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.28, delay: 0.04 }}
+                      >
+                        <KeyRound className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-primary/70" />
+                        <Input
+                          id="inviteCode"
+                          name="inviteCode"
+                          type="password"
+                          autoComplete="off"
+                          spellCheck={false}
+                          placeholder="Family invite code"
+                          value={inviteCode}
+                          onChange={(ev) => {
+                            setInviteCode(ev.target.value);
+                            if (fieldErrors.inviteCode) {
+                              setFieldErrors((f) => ({ ...f, inviteCode: undefined }));
+                            }
+                          }}
+                          disabled={busy}
+                          aria-invalid={Boolean(fieldErrors.inviteCode)}
+                          className={cn(
+                            "h-11 rounded-2xl border-white/10 bg-white/[0.04] pl-10 text-[15px] placeholder:text-muted-foreground/80",
+                            "transition-[box-shadow,border-color] duration-200",
+                            "focus-visible:border-primary/35 focus-visible:shadow-[0_0_0_3px_oklch(0.55_0.08_158_/_0.22)]"
+                          )}
+                        />
+                      </motion.div>
+                      {fieldErrors.inviteCode ? (
+                        <p className="px-1 text-xs text-amber-200/95" role="status">
+                          {fieldErrors.inviteCode}
+                        </p>
+                      ) : (
+                        <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/80">
+                          Required for new accounts. Ask your family admin if you need a code.
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <AnimatePresence initial={false}>
+                  {showRegisterFields && (
+                    <motion.div
+                      className="space-y-2"
+                      initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
                       <label className="sr-only" htmlFor="confirmPassword">
                         Confirm password
                       </label>
@@ -565,9 +626,11 @@ export function LoginScreen() {
                   )
                 ) : null}
 
-                {activeView === "register" && registrationAvailable && registrationPolicy.allowlistEmails.size > 0 && (
+                {activeView === "register" && registrationAvailable && (
                   <p className="text-center text-[11px] leading-relaxed text-muted-foreground/85">
-                    Registration is limited to invited family emails.
+                    {registrationPolicy.allowlistEmails.size > 0
+                      ? "Registration requires a valid invite code and an invited family email."
+                      : "Registration requires a valid family invite code."}
                   </p>
                 )}
 

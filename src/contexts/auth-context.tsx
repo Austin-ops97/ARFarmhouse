@@ -29,6 +29,7 @@ import { getFirebaseAuthErrorCode, getFirebaseAuthErrorMessage } from "@/lib/fir
 import { isFirebaseConfigured } from "@/lib/firebase/env";
 import { tryGetFirebaseAuth } from "@/lib/firebase";
 import type { AppUser } from "@/models/user";
+import { validateInviteCodeForSignup } from "@/services/invite-validation";
 import { bootstrapUserProfileOnSignup, loadUserProfile, syncUserProfile } from "@/services/user-profile";
 
 export type AuthContextValue = {
@@ -42,7 +43,12 @@ export type AuthContextValue = {
   error: string | null;
   clearError: () => void;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
+  signUpWithEmail: (
+    email: string,
+    password: string,
+    displayName: string,
+    inviteCode: string
+  ) => Promise<void>;
   /** Sends Firebase password-reset email. Swallows `user-not-found` so response timing does not reveal whether the email is registered. */
   sendPasswordResetForEmail: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -98,6 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const profileHydrationRef = useRef<Map<string, Promise<AppUser | null>>>(new Map());
   /** Display name captured during sign-up before onAuthStateChanged may run sync. */
   const pendingSignupDisplayNameRef = useRef<Map<string, string>>(new Map());
+  /** Invite redemption id from server validation — required for Firestore profile create. */
+  const pendingSignupRedemptionRef = useRef<Map<string, string>>(new Map());
 
   useLayoutEffect(() => {
     sessionRef.current = session;
@@ -109,11 +117,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (inflight) return inflight;
 
     const signupDisplayName = pendingSignupDisplayNameRef.current.get(uid);
+    const signupRedemptionId = pendingSignupRedemptionRef.current.get(uid);
     const task = (async (): Promise<AppUser | null> => {
       try {
         if (signupDisplayName) {
           pendingSignupDisplayNameRef.current.delete(uid);
-          return await bootstrapUserProfileOnSignup(user, { displayName: signupDisplayName });
+          pendingSignupRedemptionRef.current.delete(uid);
+          return await bootstrapUserProfileOnSignup(user, {
+            displayName: signupDisplayName,
+            signupRedemptionId,
+          });
         }
         return await syncUserProfile(user);
       } finally {
@@ -212,44 +225,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registrationAvailable = useMemo(() => readRegistrationPolicy().open, []);
 
-  const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string) => {
-    setError(null);
-    const gate = evaluateRegistrationGate(email);
-    if (!gate.allowed) {
-      setError(gate.message);
-      throw new Error(gate.message);
-    }
-    const auth = tryGetFirebaseAuth();
-    if (!auth) throw new Error("Sign-in is not available. Check that this app is configured.");
-    const trimmedEmail = email.trim();
-    const name = displayName.trim() || trimmedEmail.split("@")[0] || "Member";
-
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
-      pendingSignupDisplayNameRef.current.set(cred.user.uid, name);
-      const profileTask = hydrateUserProfile(cred.user);
-
-      try {
-        await updateProfile(cred.user, { displayName: name });
-        const profile = await profileTask;
-        dispatchSession({ type: "PROFILE_SETTLED", user: cred.user, profile });
-      } catch (inner) {
-        pendingSignupDisplayNameRef.current.delete(cred.user.uid);
-        profileHydrationRef.current.delete(cred.user.uid);
-        await firebaseSignOut(auth).catch(() => {});
-        const msg =
-          inner instanceof Error && !getFirebaseAuthErrorCode(inner)
-            ? inner.message
-            : getFirebaseAuthErrorMessage(inner);
+  const signUpWithEmail = useCallback(
+    async (email: string, password: string, displayName: string, inviteCode: string) => {
+      setError(null);
+      const gate = evaluateRegistrationGate(email);
+      if (!gate.allowed) {
+        setError(gate.message);
+        throw new Error(gate.message);
+      }
+      const auth = tryGetFirebaseAuth();
+      if (!auth) throw new Error("Sign-in is not available. Check that this app is configured.");
+      const trimmedEmail = email.trim();
+      const name = displayName.trim() || trimmedEmail.split("@")[0] || "Member";
+      const trimmedInvite = inviteCode.trim();
+      if (!trimmedInvite) {
+        const msg = "Invalid invite code";
         setError(msg);
         throw new Error(msg);
       }
-    } catch (e) {
-      const msg = getFirebaseAuthErrorMessage(e);
-      setError(msg);
-      throw new Error(msg);
-    }
-  }, [hydrateUserProfile]);
+
+      let redemptionId: string;
+      try {
+        const validation = await validateInviteCodeForSignup(trimmedInvite, trimmedEmail);
+        redemptionId = validation.redemptionId;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Invalid invite code";
+        setError(msg);
+        throw new Error(msg);
+      }
+
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+        pendingSignupDisplayNameRef.current.set(cred.user.uid, name);
+        pendingSignupRedemptionRef.current.set(cred.user.uid, redemptionId);
+        const profileTask = hydrateUserProfile(cred.user);
+
+        try {
+          await updateProfile(cred.user, { displayName: name });
+          const profile = await profileTask;
+          dispatchSession({ type: "PROFILE_SETTLED", user: cred.user, profile });
+        } catch (inner) {
+          pendingSignupDisplayNameRef.current.delete(cred.user.uid);
+          pendingSignupRedemptionRef.current.delete(cred.user.uid);
+          profileHydrationRef.current.delete(cred.user.uid);
+          await firebaseSignOut(auth).catch(() => {});
+          const msg =
+            inner instanceof Error && !getFirebaseAuthErrorCode(inner)
+              ? inner.message
+              : getFirebaseAuthErrorMessage(inner);
+          setError(msg);
+          throw new Error(msg);
+        }
+      } catch (e) {
+        const msg = getFirebaseAuthErrorMessage(e);
+        setError(msg);
+        throw new Error(msg);
+      }
+    },
+    [hydrateUserProfile]
+  );
 
   const sendPasswordResetForEmail = useCallback(async (email: string) => {
     const auth = tryGetFirebaseAuth();
