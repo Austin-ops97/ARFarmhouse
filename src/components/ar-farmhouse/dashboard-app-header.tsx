@@ -10,7 +10,7 @@ import { NotificationBell } from "@/components/ar-farmhouse/notification-bell";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { DashboardMobileDrawerTrigger } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
-import { sidebarNav, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
+import { getSidebarNavForUser, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/auth-context";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
@@ -28,6 +28,7 @@ const sectionSubtitle: Record<NavId, string | null> = {
   property: null,
   profile: null,
   settings: null,
+  admin: "Moderation",
 };
 
 type DashboardAppHeaderProps = {
@@ -44,7 +45,8 @@ export function DashboardAppHeader({
   const reduceMotion = useReducedMotion();
   const router = useRouter();
   const { goTo } = useEcosystem();
-  const { user, signOut, displayName, avatarUrl } = useAuth();
+  const { user, signOut, displayName, avatarUrl, profile } = useAuth();
+  const navItems = getSidebarNavForUser(profile);
   const [accountOpen, setAccountOpen] = useState(false);
   const [elevated, setElevated] = useState(false);
   useBodyScrollLock(accountOpen);
@@ -54,7 +56,7 @@ export function DashboardAppHeader({
     setElevated(y > 10);
   });
 
-  const activeMeta = sidebarNav.find((n) => n.id === activeId) ?? sidebarNav[0];
+  const activeMeta = navItems.find((n) => n.id === activeId) ?? navItems[0];
 
   return (
     <header

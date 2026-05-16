@@ -12,7 +12,10 @@ import {
 
 import type { BrowserTimeoutId } from "@/lib/browser-timer";
 import { buildCalendarMonthMeta } from "@/lib/calendar-month-meta";
+import { mergeBookingsAndBlackoutsForMonth } from "@/lib/calendar-booking-display";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
+import type { BlackoutDate, Booking } from "@/models/booking";
+import { subscribeBlackoutDates, subscribeBookingsForMonth } from "@/services/bookings";
 import type {
   HouseTask,
   PropertyInventoryItem,
@@ -37,6 +40,8 @@ type PropertyDataContextValue = {
   tasksError: string | null;
   /** Events for the calendar month currently shown in the UI (grid, agenda for that month). */
   calendarEvents: PropertyCalendarEvent[];
+  blackoutDates: BlackoutDate[];
+  monthBookings: Booking[];
   /** Same month as wall-clock "today" — used for occupancy / on-property when the user browses other months. */
   calendarTodayMonthEvents: PropertyCalendarEvent[];
   /** Deduplicated union of the two (for operational panels). */
@@ -64,8 +69,10 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<HouseTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
-  const [calendarEvents, setCalendarEvents] = useState<PropertyCalendarEvent[]>([]);
-  const [calendarTodayMonthEvents, setCalendarTodayMonthEvents] = useState<PropertyCalendarEvent[]>([]);
+  const [monthBookings, setMonthBookings] = useState<Booking[]>([]);
+  const [blackoutDates, setBlackoutDates] = useState<BlackoutDate[]>([]);
+  const [legacyCalendarEvents, setLegacyCalendarEvents] = useState<PropertyCalendarEvent[]>([]);
+  const [todayMonthBookings, setTodayMonthBookings] = useState<Booking[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarError, setCalendarError] = useState<string | null>(null);
   const [statusCards, setStatusCards] = useState<PropertyStatusCard[]>([]);
@@ -78,6 +85,33 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
 
   const viewYear = calendarViewDate.getFullYear();
   const viewMonthIndex = calendarViewDate.getMonth();
+
+  const monthMeta = useMemo(() => buildCalendarMonthMeta(calendarViewDate), [calendarViewDate]);
+
+  const calendarEvents = useMemo(() => {
+    const unified = mergeBookingsAndBlackoutsForMonth(monthBookings, blackoutDates, monthMeta);
+    const linkedIds = new Set<string>();
+    for (const b of monthBookings) {
+      if (b.calendarEventId) linkedIds.add(b.calendarEventId);
+      linkedIds.add(b.id);
+    }
+    const legacyOnly = legacyCalendarEvents.filter((e) => {
+      const bid = (e as PropertyCalendarEvent & { bookingId?: string }).bookingId;
+      if (bid && linkedIds.has(bid)) return false;
+      if (linkedIds.has(e.id)) return false;
+      return true;
+    });
+    return [...unified, ...legacyOnly].sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
+  }, [blackoutDates, legacyCalendarEvents, monthBookings, monthMeta]);
+
+  const calendarTodayMonthEvents = useMemo(() => {
+    const now = new Date();
+    const ty = now.getFullYear();
+    const tm = now.getMonth();
+    if (ty === viewYear && tm === viewMonthIndex) return [];
+    const meta = buildCalendarMonthMeta(new Date(ty, tm, 1));
+    return mergeBookingsAndBlackoutsForMonth(todayMonthBookings, blackoutDates, meta);
+  }, [blackoutDates, todayMonthBookings, viewMonthIndex, viewYear]);
 
   const calendarEventsForOps = useMemo(() => {
     const byId = new Map<string, PropertyCalendarEvent>();
@@ -126,11 +160,11 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
     );
 
     mount(LISTENER_STAGGER_MS, () =>
-      subscribeCalendarEvents(
+      subscribeBookingsForMonth(
         viewYear,
         viewMonthIndex,
         (rows) => {
-          setCalendarEvents(rows);
+          setMonthBookings(rows);
           setCalendarLoading(false);
           setCalendarError(null);
         },
@@ -141,20 +175,34 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
       )
     );
 
+    mount(LISTENER_STAGGER_MS + 6, () =>
+      subscribeBlackoutDates(
+        (rows) => setBlackoutDates(rows),
+        (e) => setCalendarError((prev) => prev ?? e.message)
+      )
+    );
+
+    mount(LISTENER_STAGGER_MS + 12, () =>
+      subscribeCalendarEvents(
+        viewYear,
+        viewMonthIndex,
+        (rows) => setLegacyCalendarEvents(rows),
+        (e) => setCalendarError((prev) => prev ?? e.message)
+      )
+    );
+
     mount(LISTENER_STAGGER_MS + 12, () => {
       const now = new Date();
       const ty = now.getFullYear();
       const tm = now.getMonth();
       if (ty === viewYear && tm === viewMonthIndex) {
-        setCalendarTodayMonthEvents([]);
+        setTodayMonthBookings([]);
         return () => {};
       }
-      return subscribeCalendarEvents(
+      return subscribeBookingsForMonth(
         ty,
         tm,
-        (rows) => {
-          setCalendarTodayMonthEvents(rows);
-        },
+        (rows) => setTodayMonthBookings(rows),
         (e) => {
           setCalendarError((prev) => prev ?? e.message);
         }
@@ -190,6 +238,8 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
       tasksLoading,
       tasksError,
       calendarEvents,
+      blackoutDates,
+      monthBookings,
       calendarTodayMonthEvents,
       calendarEventsForOps,
       calendarLoading,
@@ -209,6 +259,8 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
       calendarViewDate,
       calendarError,
       calendarEvents,
+      blackoutDates,
+      monthBookings,
       calendarEventsForOps,
       calendarLoading,
       calendarTodayMonthEvents,

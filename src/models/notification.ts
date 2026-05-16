@@ -4,6 +4,12 @@ import type { NavId } from "@/components/ar-farmhouse/dashboard-nav";
 
 export type NotificationType =
   | "booking_created"
+  | "booking_submitted"
+  | "booking_approved"
+  | "booking_denied"
+  | "booking_cancelled"
+  | "blackout_affects_booking"
+  | "admin_message"
   | "feed_comment"
   | "feed_reply"
   | "feed_reaction"
@@ -11,7 +17,13 @@ export type NotificationType =
   | "task_created"
   | "property_update";
 
-export type NotificationEntityKind = "post" | "comment" | "calendarEvent" | "bookingRequest" | "task";
+export type NotificationEntityKind =
+  | "post"
+  | "comment"
+  | "calendarEvent"
+  | "bookingRequest"
+  | "booking"
+  | "task";
 
 export type NotificationRoute = {
   nav: NavId;

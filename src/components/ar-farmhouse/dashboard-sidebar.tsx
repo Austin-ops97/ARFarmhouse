@@ -5,7 +5,11 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
 import { cn } from "@/lib/utils";
 
-import { type NavId, sidebarNav } from "./dashboard-nav";
+import { useAuth } from "@/contexts/auth-context";
+import { usePendingBookingCount } from "@/hooks/use-pending-booking-count";
+import { isAdmin } from "@/lib/permissions";
+
+import { getSidebarNavForUser, type NavId } from "./dashboard-nav";
 
 type DashboardSidebarProps = {
   activeId: NavId;
@@ -15,6 +19,9 @@ type DashboardSidebarProps = {
 
 export function DashboardSidebar({ activeId, onSelect, liveData = false }: DashboardSidebarProps) {
   const reduceMotion = useReducedMotion();
+  const { profile } = useAuth();
+  const navItems = getSidebarNavForUser(profile);
+  const pendingCount = usePendingBookingCount(isAdmin(profile));
 
   return (
     <aside className="ar-header-blur fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-border/60 bg-sidebar/92 px-3 py-6 backdrop-blur-2xl lg:flex dark:border-white/[0.06] dark:bg-sidebar/90">
@@ -27,7 +34,7 @@ export function DashboardSidebar({ activeId, onSelect, liveData = false }: Dashb
       </div>
 
       <nav className="flex flex-1 flex-col gap-1" aria-label="Primary">
-        {sidebarNav.map((item, index) => {
+        {navItems.map((item, index) => {
           const active = activeId === item.id;
           const Icon = item.icon;
           return (
@@ -56,6 +63,11 @@ export function DashboardSidebar({ activeId, onSelect, liveData = false }: Dashb
               )}
               <Icon className="relative z-10 size-[18px] shrink-0" aria-hidden />
               <span className="relative z-10 font-medium">{item.label}</span>
+              {item.id === "admin" && pendingCount > 0 && (
+                <span className="relative z-10 ml-auto flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                  {pendingCount > 9 ? "9+" : pendingCount}
+                </span>
+              )}
             </motion.button>
           );
         })}

@@ -1,11 +1,12 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarRange, X } from "lucide-react";
+import { CalendarPlus, CalendarRange, X } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatCalendarEventRange } from "@/lib/home-upcoming";
+import { statusBadgeLabel } from "@/lib/booking-status-styles";
 import { eventsOnCalendarDay } from "@/lib/calendar-event-merge";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
@@ -30,6 +31,8 @@ type CalendarDayEventsSheetProps = {
   monthIndex: number;
   events: PropertyCalendarEvent[];
   onOpenChange: (open: boolean) => void;
+  onCreateForDay?: (day: number) => void;
+  onSelectBooking?: (bookingId: string) => void;
 };
 
 export function CalendarDayEventsSheet({
@@ -39,6 +42,8 @@ export function CalendarDayEventsSheet({
   monthIndex,
   events,
   onOpenChange,
+  onCreateForDay,
+  onSelectBooking,
 }: CalendarDayEventsSheetProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
@@ -103,6 +108,16 @@ export function CalendarDayEventsSheet({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+              {onCreateForDay && day !== null && (
+                <Button
+                  type="button"
+                  className="mb-4 min-h-11 w-full rounded-xl touch-manipulation"
+                  onClick={() => onCreateForDay(day)}
+                >
+                  <CalendarPlus className="size-4" data-icon="inline-start" />
+                  Add booking or event
+                </Button>
+              )}
               {dayEvents.length === 0 ? (
                 <p className="text-sm leading-relaxed text-muted-foreground">
                   Nothing scheduled for this day. Choose another date or add a booking.
@@ -116,13 +131,25 @@ export function CalendarDayEventsSheet({
                       e.attendeeLabels.length > 0
                         ? e.attendeeLabels.map((l) => l.replace(/ \(pet\)$/i, "")).join(", ")
                         : e.requestedByName || `${e.guests} guest${e.guests === 1 ? "" : "s"}`;
+                    const clickable = Boolean(e.bookingId && onSelectBooking);
                     return (
-                      <li
-                        key={e.id}
-                        className="rounded-2xl border border-border/50 bg-muted/25 p-4 dark:border-white/[0.08] dark:bg-white/[0.03]"
-                      >
+                      <li key={e.id}>
+                        <button
+                          type="button"
+                          disabled={!clickable}
+                          onClick={() => e.bookingId && onSelectBooking?.(e.bookingId)}
+                          className={cn(
+                            "w-full rounded-2xl border border-border/50 bg-muted/25 p-4 text-left dark:border-white/[0.08] dark:bg-white/[0.03]",
+                            clickable && "transition-colors hover:border-primary/25 hover:bg-muted/40"
+                          )}
+                        >
                         <p className="text-[10px] font-medium uppercase tracking-wide text-primary/90">
-                          {EVENT_KIND_LABEL[e.kind]} · {e.status.replace("_", " ")}
+                          {e.isBlackout
+                            ? "Blackout"
+                            : e.recordType === "event"
+                              ? "Event"
+                              : EVENT_KIND_LABEL[e.kind]}{" "}
+                          · {statusBadgeLabel(e.unifiedStatus, e.recordType)}
                         </p>
                         <p className="mt-1 font-heading text-base font-semibold text-foreground">{e.title}</p>
                         <div className="mt-3 flex flex-wrap items-start gap-2 text-sm text-muted-foreground">
@@ -145,6 +172,7 @@ export function CalendarDayEventsSheet({
                         {e.timeLabel ? (
                           <p className="mt-2 text-[13px] text-muted-foreground">Time · {e.timeLabel}</p>
                         ) : null}
+                        </button>
                       </li>
                     );
                   })}

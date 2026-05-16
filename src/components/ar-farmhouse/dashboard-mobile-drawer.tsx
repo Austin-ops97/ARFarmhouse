@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
-import { mobileDrawerLabel, sidebarNav, type NavId } from "./dashboard-nav";
+import { getSidebarNavForUser, mobileDrawerLabel, type NavId } from "./dashboard-nav";
 
 type DashboardMobileDrawerProps = {
   open: boolean;
@@ -57,7 +57,8 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
   const reduceMotion = useReducedMotion();
   const titleId = useId();
   const panelRef = useRef<HTMLElement>(null);
-  const { displayName, avatarUrl, user } = useAuth();
+  const { displayName, avatarUrl, user, profile } = useAuth();
+  const navItems = getSidebarNavForUser(profile);
 
   useBodyScrollLock(open);
 
@@ -160,7 +161,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
             </motion.div>
 
             <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto overscroll-contain pr-1" aria-label="Primary">
-              {sidebarNav.map((item, index) => {
+              {navItems.map((item, index) => {
                 const active = activeId === item.id;
                 const Icon = item.icon;
                 const label = mobileDrawerLabel[item.id];

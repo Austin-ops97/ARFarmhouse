@@ -2,10 +2,13 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CalendarPlus, ChevronLeft, ChevronRight, Home, Sparkles, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
+import { BookingDetailSheet } from "@/components/ar-farmhouse/booking-detail-sheet";
 import { CalendarBookingSheet } from "@/components/ar-farmhouse/calendar-booking-sheet";
 import { CalendarDayEventsSheet } from "@/components/ar-farmhouse/calendar-day-events-sheet";
+import { CalendarFilterBar } from "@/components/ar-farmhouse/calendar-filter-bar";
 import { CalendarOccupancyPanel } from "@/components/ar-farmhouse/calendar-occupancy-panel";
 import { CalendarSharedGrocerPanel } from "@/components/ar-farmhouse/calendar-shared-grocer-panel";
 import {
@@ -19,7 +22,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildUpcomingStays, mergeEventsIntoMonthMeta } from "@/lib/calendar-event-merge";
 import type { CalendarGridDay } from "@/lib/calendar-month-meta";
+import { useAuth } from "@/contexts/auth-context";
 import { useCalendarMonthMeta, usePropertyData } from "@/contexts/property-data-context";
+import { defaultCalendarFilters, filterCalendarEvents } from "@/lib/calendar-filters";
 import { cn } from "@/lib/utils";
 
 const surface = cn(
@@ -48,22 +53,55 @@ function rowIndexForDay(day: number, rows: (number | null)[][]) {
 
 export function CalendarPropertyView() {
   const reduceMotion = useReducedMotion();
-  const { calendarEvents, calendarEventsForOps, calendarError, calendarLoading, shiftCalendarMonth, calendarViewDate } =
-    usePropertyData();
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const {
+    calendarEvents,
+    calendarEventsForOps,
+    calendarError,
+    calendarLoading,
+    shiftCalendarMonth,
+    calendarViewDate,
+    blackoutDates,
+    monthBookings,
+  } = usePropertyData();
   const baseMonth = useCalendarMonthMeta();
   const [mode, setMode] = useState<CalendarSurfaceMode>("month");
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingSeedDay, setBookingSeedDay] = useState<{ start: number; end: number } | null>(null);
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [filters, setFilters] = useState(defaultCalendarFilters);
+  const [detailBookingId, setDetailBookingId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const filteredEvents = useMemo(
+    () => filterCalendarEvents(calendarEvents, filters, user?.uid),
+    [calendarEvents, filters, user?.uid]
+  );
+
+  useEffect(() => {
+    const bookingParam = searchParams.get("booking");
+    if (bookingParam) {
+      setDetailBookingId(bookingParam);
+      setDetailOpen(true);
+    }
+  }, [searchParams]);
 
   const calendarMonth = useMemo(
-    () => mergeEventsIntoMonthMeta(baseMonth, calendarEvents),
-    [baseMonth, calendarEvents]
+    () => mergeEventsIntoMonthMeta(baseMonth, filteredEvents),
+    [baseMonth, filteredEvents]
   );
   const upcomingStays = useMemo(
     () => buildUpcomingStays(calendarEventsForOps, calendarViewDate),
     [calendarEventsForOps, calendarViewDate]
   );
+
+  const openBookingDetail = (bookingId: string | null | undefined) => {
+    if (!bookingId) return;
+    setDetailBookingId(bookingId);
+    setDetailOpen(true);
+  };
   const rows = useMemo(
     () => monthWeekRows(calendarMonth.leadingBlanks, calendarMonth.daysInMonth),
     [calendarMonth.leadingBlanks, calendarMonth.daysInMonth]
@@ -83,6 +121,17 @@ export function CalendarPropertyView() {
   const handleDaySheetOpen = (open: boolean) => {
     setDaySheetOpen(open);
     if (!open) setSelectedDay(null);
+  };
+
+  const openCreateSheet = (day?: number) => {
+    if (day) setBookingSeedDay({ start: day, end: day });
+    else setBookingSeedDay(null);
+    setBookingOpen(true);
+  };
+
+  const handleBookingOpenChange = (open: boolean) => {
+    setBookingOpen(open);
+    if (!open) setBookingSeedDay(null);
   };
 
   return (
@@ -119,7 +168,7 @@ export function CalendarPropertyView() {
             <Button
               type="button"
               className="min-h-11 w-full rounded-xl touch-manipulation sm:w-auto"
-              onClick={() => setBookingOpen(true)}
+              onClick={() => openCreateSheet()}
             >
               <CalendarPlus className="size-4" data-icon="inline-start" />
               New booking
@@ -156,6 +205,7 @@ export function CalendarPropertyView() {
             </Button>
           </div>
 
+          <CalendarFilterBar filters={filters} onChange={setFilters} />
           <CalendarViewModeTabs mode={mode} onModeChange={setMode} />
 
           {calendarLoading ? (
@@ -182,7 +232,7 @@ export function CalendarPropertyView() {
                     calendarMonth={calendarMonth}
                     dayMap={dayMap as Map<number, CalendarGridDay>}
                     statusStyles={statusStyles}
-                    events={calendarEvents}
+                    events={filteredEvents}
                     selectedDay={selectedDay}
                     onDaySelect={(d) => {
                       setSelectedDay(d);
@@ -201,7 +251,7 @@ export function CalendarPropertyView() {
                 >
                   <CalendarWeekStrip
                     calendarMonth={calendarMonth}
-                    events={calendarEvents}
+                    events={filteredEvents}
                     weekIndex={weekIndex}
                     onWeekChange={setWeekIndex}
                   />
@@ -215,7 +265,11 @@ export function CalendarPropertyView() {
                   exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <CalendarAgendaList events={calendarEvents} monthLabel={calendarMonth.label} />
+                  <CalendarAgendaList
+                    events={filteredEvents}
+                    monthLabel={calendarMonth.label}
+                    onSelectBooking={openBookingDetail}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -269,7 +323,7 @@ export function CalendarPropertyView() {
         <div className="min-w-0 space-y-5 xl:sticky xl:self-start xl:top-[calc(var(--ar-header-height)+0.75rem)] xl:space-y-4">
           <CalendarOccupancyPanel
             calendarMonth={calendarMonth}
-            gridEvents={calendarEvents}
+            gridEvents={filteredEvents}
             opsEvents={calendarEventsForOps}
           />
         </div>
@@ -281,13 +335,30 @@ export function CalendarPropertyView() {
         day={selectedDay}
         year={calendarMonth.year}
         monthIndex={calendarMonth.monthIndex}
-        events={calendarEvents}
+        events={filteredEvents}
+        onSelectBooking={openBookingDetail}
+        onCreateForDay={(d) => {
+          handleDaySheetOpen(false);
+          openCreateSheet(d);
+        }}
+      />
+      <BookingDetailSheet
+        bookingId={detailBookingId}
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open);
+          if (!open) setDetailBookingId(null);
+        }}
       />
       <CalendarBookingSheet
         open={bookingOpen}
-        onOpenChange={setBookingOpen}
+        onOpenChange={handleBookingOpenChange}
         viewDate={calendarViewDate}
         existingEvents={calendarEvents}
+        blackoutDates={blackoutDates}
+        monthBookings={monthBookings}
+        initialStartDay={bookingSeedDay?.start}
+        initialEndDay={bookingSeedDay?.end}
       />
     </div>
   );

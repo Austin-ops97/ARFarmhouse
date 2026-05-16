@@ -9,7 +9,14 @@ export function eventIsActive(event: PropertyCalendarEvent): boolean {
 
 /** Confirmed stays only — pending requests are not treated as occupying the property. */
 export function eventOccupiesPhysicalProperty(event: PropertyCalendarEvent): boolean {
+  if (event.isBlackout) return true;
+  if (event.unifiedStatus) return event.unifiedStatus === "approved";
   return event.status === "confirmed";
+}
+
+/** Whether a day cell should show reserved / busy styling (not just a dot). */
+export function eventReservesCalendarDay(event: PropertyCalendarEvent): boolean {
+  return eventOccupiesPhysicalProperty(event);
 }
 
 export function eventSpansDay(event: PropertyCalendarEvent, day: number): boolean {
@@ -61,7 +68,7 @@ export function dayOccupancyHeat(
   monthIndex: number,
   events: readonly PropertyCalendarEvent[]
 ): DayOccupancyHeat {
-  const onDay = eventsOnCalendarDay(day, year, monthIndex, events);
+  const onDay = eventsOnCalendarDay(day, year, monthIndex, events).filter(eventReservesCalendarDay);
   if (onDay.length === 0) return 0;
   const guestLoad = onDay.reduce((sum, e) => sum + (e.guests || 0), 0);
   if (onDay.length >= 2 || guestLoad >= 10) return 3;
@@ -75,7 +82,7 @@ function dayStatusFromEvents(
   monthIndex: number,
   events: readonly PropertyCalendarEvent[]
 ): CalendarGridDay["status"] {
-  const onDay = eventsOnCalendarDay(day, year, monthIndex, events);
+  const onDay = eventsOnCalendarDay(day, year, monthIndex, events).filter(eventReservesCalendarDay);
   if (onDay.length === 0) return "open";
   const heat = dayOccupancyHeat(day, year, monthIndex, events);
   if (heat >= 3) return "busy";

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, LayoutGrid, List, Rows3 } from "lucide-react
 import { useMemo, useRef } from "react";
 
 import type { CalendarGridDay, CalendarMonthMeta } from "@/lib/calendar-month-meta";
+import { dayCellOverlayClass, statusAccentClass } from "@/lib/booking-status-styles";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import { cn } from "@/lib/utils";
 
@@ -14,15 +15,9 @@ const weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"] as const;
 
 export type CalendarSurfaceMode = "month" | "week" | "agenda";
 
-const accentDot: Record<PropertyCalendarEvent["accent"], string> = {
-  mint: "bg-emerald-400/80",
-  amber: "bg-amber-300/85",
-  rose: "bg-rose-400/80",
-  sky: "bg-sky-400/80",
-  violet: "bg-violet-400/75",
-  slate: "bg-zinc-400/70",
-  emerald: "bg-emerald-300/85",
-};
+function eventDotClass(ev: PropertyCalendarEvent): string {
+  return statusAccentClass(ev);
+}
 
 function eventsForDay(day: number, events: PropertyCalendarEvent[]) {
   return events.filter((e) => {
@@ -147,6 +142,7 @@ export function CalendarMonthBoard({
               const isToday = calendarMonth.todayDay !== null && day === calendarMonth.todayDay;
               const dayEvents = eventsForDay(day, events);
               const preview = selectedDay === day;
+              const hasBlackout = dayEvents.some((e) => e.isBlackout);
               return (
                 <motion.button
                   key={day}
@@ -156,15 +152,18 @@ export function CalendarMonthBoard({
                   whileTap={reduceMotion ? undefined : { scale: 0.98 }}
                   className={cn(
                     "relative flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center rounded-md border p-0.5 text-[9px] font-medium transition-colors sm:aspect-square sm:min-h-0 sm:rounded-xl sm:text-[11px]",
-                    statusStyles[st] ?? statusStyles.open,
+                    hasBlackout
+                      ? "border-zinc-500/40 bg-zinc-700/35 text-zinc-200"
+                      : (statusStyles[st] ?? statusStyles.open),
                     isToday && "ring-2 ring-primary/45",
-                    preview && "ring-1 ring-sky-400/50"
+                    preview && "ring-1 ring-sky-400/50",
+                    hasBlackout && dayCellOverlayClass({ isBlackout: true } as PropertyCalendarEvent)
                   )}
                 >
                   <span className={cn("tabular-nums sm:text-[12px]", isToday && "text-primary")}>{day}</span>
                   <div className="mt-0.5 flex max-w-full flex-wrap justify-center gap-px sm:mt-1 sm:gap-0.5">
                     {dayEvents.slice(0, 3).map((ev) => (
-                      <span key={ev.id} className={cn("size-1.5 rounded-full", accentDot[ev.accent])} title={ev.title} />
+                      <span key={ev.id} className={cn("size-1.5 rounded-full", eventDotClass(ev))} title={ev.title} />
                     ))}
                     {dayEvents.length > 3 && (
                       <span className="text-[8px] font-medium text-muted-foreground">+{dayEvents.length - 3}</span>
@@ -278,7 +277,7 @@ export function CalendarWeekStrip({
                       className="truncate rounded-lg border border-border/55 bg-card/85 px-2 py-1.5 text-[11px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]"
                       title={ev.title}
                     >
-                      <span className={cn("mr-1 inline-block size-1.5 rounded-full align-middle", accentDot[ev.accent])} />
+                      <span className={cn("mr-1 inline-block size-1.5 rounded-full align-middle", eventDotClass(ev))} />
                       {ev.title}
                     </div>
                   ))}
@@ -319,7 +318,7 @@ export function CalendarWeekStrip({
                         className="truncate rounded-lg border border-border/55 bg-card/85 px-1.5 py-1 text-[9px] text-muted-foreground sm:text-[9px] dark:border-white/10 dark:bg-white/[0.05]"
                         title={ev.title}
                       >
-                        <span className={cn("mr-1 inline-block size-1.5 rounded-full align-middle", accentDot[ev.accent])} />
+                        <span className={cn("mr-1 inline-block size-1.5 rounded-full align-middle", eventDotClass(ev))} />
                         {ev.title}
                       </div>
                     ))}
@@ -338,9 +337,11 @@ export function CalendarWeekStrip({
 export function CalendarAgendaList({
   events,
   monthLabel,
+  onSelectBooking,
 }: {
   events: PropertyCalendarEvent[];
   monthLabel: string;
+  onSelectBooking?: (bookingId: string) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const monthName = monthLabel.split(" ")[0] ?? "Month";
@@ -358,13 +359,19 @@ export function CalendarAgendaList({
           </p>
         ) : (
           rows.map((ev, idx) => (
-            <motion.div
+            <motion.button
               key={ev.id}
+              type="button"
+              disabled={!ev.bookingId || !onSelectBooking}
+              onClick={() => ev.bookingId && onSelectBooking?.(ev.bookingId)}
               initial={reduceMotion ? false : { opacity: 0, x: -8 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true, margin: "-5%" }}
               transition={{ delay: Math.min(idx * 0.03, 0.24) }}
-              className="flex min-h-[3.25rem] gap-2 px-4 py-3 sm:min-h-0 sm:gap-3 sm:px-5 sm:py-3.5"
+              className={cn(
+                "flex min-h-[3.25rem] w-full gap-2 px-4 py-3 text-left sm:min-h-0 sm:gap-3 sm:px-5 sm:py-3.5",
+                ev.bookingId && onSelectBooking && "hover:bg-muted/30 dark:hover:bg-white/[0.03]"
+              )}
             >
               <div className="flex w-[4.5rem] shrink-0 flex-col sm:w-24">
                 <span className="text-[11px] font-medium text-muted-foreground">{ev.rangeLabel}</span>
@@ -377,8 +384,8 @@ export function CalendarAgendaList({
                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{ev.attendeeLabels.join(", ")}</p>
                 )}
               </div>
-              <span className={cn("mt-1 size-2 shrink-0 rounded-full", accentDot[ev.accent])} />
-            </motion.div>
+              <span className={cn("mt-1 size-2 shrink-0 rounded-full", eventDotClass(ev))} />
+            </motion.button>
           ))
         )}
       </div>

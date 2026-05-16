@@ -17,7 +17,12 @@ service firebase.storage {
           request.resource.contentType.matches('image/.*')
           || request.resource.contentType == 'application/octet-stream'
           || request.resource.contentType == ''
-        );
+        )
+        && !request.resource.contentType.matches('image/svg\\+xml');
+    }
+
+    function notDangerousUpload() {
+      return !request.resource.name.matches('.*\\.(exe|bat|cmd|sh|msi|apk|dmg|js|html)(\\.|$).*');
     }
 
     /*
@@ -43,7 +48,8 @@ service firebase.storage {
 
       allow write: if isOwner(uid)
         && validUploadSize()
-        && validImageContentType();
+        && validImageContentType()
+        && notDangerousUpload();
 
       allow delete: if isOwner(uid);
     }
@@ -60,7 +66,8 @@ service firebase.storage {
 
       allow write: if isOwner(uid)
         && validUploadSize()
-        && validImageContentType();
+        && validImageContentType()
+        && notDangerousUpload();
 
       allow delete: if isOwner(uid);
     }

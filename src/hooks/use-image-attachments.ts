@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPreviewObjectUrl, revokePreviewUrl } from "@/lib/image-preview";
 import { isImageFileName } from "@/lib/image-input";
 import { uploadStage } from "@/lib/upload-log";
+import { validateImageUpload } from "@/platform/security/upload-validation";
 
 export type ImageAttachment = {
   id: string;
@@ -44,9 +45,15 @@ export function useImageAttachments({ maxCount }: UseImageAttachmentsOptions) {
 
   const addFiles = useCallback(
     (incoming: FileList | File[]) => {
-      const list = Array.from(incoming).filter(
-        (f) => f.type.startsWith("image/") || isImageFileName(f.name)
-      );
+      const list = Array.from(incoming).filter((f) => {
+        if (!f.type.startsWith("image/") && !isImageFileName(f.name)) return false;
+        const check = validateImageUpload(f);
+        if (!check.ok) {
+          uploadStage("reject", { reason: check.reason });
+          return false;
+        }
+        return true;
+      });
       if (!list.length) return;
 
       const gen = ++generationRef.current;

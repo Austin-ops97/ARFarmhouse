@@ -1,13 +1,13 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarRange, Home, Loader2, Minus, Plus, Sparkles, Users, X } from "lucide-react";
+import { CalendarRange, Home, Loader2, Minus, PartyPopper, Plus, Sparkles, Users, X } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, startTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { dayOccupancyHeat, findEventOverlappingRange } from "@/lib/calendar-event-merge";
+import { dayOccupancyHeat } from "@/lib/calendar-event-merge";
 import { buildCalendarMonthMeta } from "@/lib/calendar-month-meta";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import { BookingAttendeePicker } from "@/components/ar-farmhouse/booking-attendee-picker";
@@ -18,7 +18,15 @@ import {
   countBookingGuests,
   type BookingAttendeeSelection,
 } from "@/models/family-profile";
-import { createBookingRequest } from "@/services/property-data";
+import {
+  BLACKOUT_BLOCK_MESSAGE,
+  resolveBookingCreateConflict,
+} from "@/lib/booking-conflict-engine";
+import { calendarDayRangeToDates } from "@/lib/booking-dates";
+import type { BlackoutDate, Booking, BookingType } from "@/models/booking";
+import { createBooking } from "@/services/booking-mutations";
+import { ActionToastBanner } from "@/components/ui/action-toast";
+import { useActionToast } from "@/hooks/use-action-toast";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +48,10 @@ type CalendarBookingSheetProps = {
   onOpenChange: (open: boolean) => void;
   viewDate?: Date;
   existingEvents?: PropertyCalendarEvent[];
+  blackoutDates?: BlackoutDate[];
+  monthBookings?: Booking[];
+  initialStartDay?: number;
+  initialEndDay?: number;
 };
 
 export function CalendarBookingSheet({
@@ -47,7 +59,12 @@ export function CalendarBookingSheet({
   onOpenChange,
   viewDate,
   existingEvents = [],
+  blackoutDates = [],
+  monthBookings = [],
+  initialStartDay,
+  initialEndDay,
 }: CalendarBookingSheetProps) {
+  const { toast, showToast } = useActionToast();
   const reduceMotion = useReducedMotion();
   useBodyScrollLock(open);
   const titleId = useId();
@@ -57,6 +74,7 @@ export function CalendarBookingSheet({
     () => buildCalendarMonthMeta(viewDate ?? new Date()),
     [viewDate]
   );
+  const [recordType, setRecordType] = useState<BookingType>("booking");
   const [tripId, setTripId] = useState<string>(TRIP_TYPES[0].id);
   const [guests, setGuests] = useState(4);
   const [attendees, setAttendees] = useState<BookingAttendeeSelection>({
@@ -90,6 +108,14 @@ export function CalendarBookingSheet({
   }, [open]);
 
   useEffect(() => {
+    if (!open) return;
+    if (initialStartDay) {
+      setStartDay(initialStartDay);
+      setEndDay(initialEndDay ?? initialStartDay);
+    }
+  }, [open, initialStartDay, initialEndDay]);
+
+  useEffect(() => {
     if (!profile) return;
     setAttendees({ includeSelf: true, memberIds: [], petIds: [] });
   }, [open, profile?.uid]);
@@ -119,9 +145,20 @@ export function CalendarBookingSheet({
       setSubmitError("Select at least one person for this stay.");
       return;
     }
-    const conflict = findEventOverlappingRange(existingEvents, lo, hi);
-    if (conflict) {
-      setSubmitError(`Those dates overlap "${conflict.title}". Pick different days.`);
+    const { startDate, endDate } = calendarDayRangeToDates(
+      calendarMonth.year,
+      calendarMonth.monthIndex,
+      lo,
+      hi
+    );
+    const conflictResult = resolveBookingCreateConflict(
+      blackoutDates,
+      monthBookings,
+      startDate,
+      endDate
+    );
+    if (conflictResult.blocked) {
+      setSubmitError(BLACKOUT_BLOCK_MESSAGE);
       return;
     }
 
@@ -133,21 +170,22 @@ export function CalendarBookingSheet({
       "booking",
       "submit",
       () =>
-        createBookingRequest({
-          tripId,
-          guests: guestCount,
-          roomId,
-          startDay: lo,
-          endDay: hi,
-          notes: notes.trim(),
-          tripPurpose: tripPurpose.trim(),
-          tripTitle: tripTitle.trim() || undefined,
+        createBooking({
+          type: recordType,
+          title: tripTitle.trim() || tripPurpose.trim(),
+          description: notes.trim() || tripPurpose.trim(),
           year: calendarMonth.year,
           monthIndex: calendarMonth.monthIndex,
-          requestedBy: user.uid,
-          requestedByName: displayName,
-          requestedByAvatarUrl: avatarUrl,
-          ownerUid: user.uid,
+          startDay: lo,
+          endDay: hi,
+          createdBy: user.uid,
+          createdByName: displayName,
+          actorAvatarUrl: avatarUrl,
+          tripId: recordType === "booking" ? tripId : "event",
+          guests: guestCount,
+          roomId,
+          notes: notes.trim(),
+          tripPurpose: tripPurpose.trim(),
           includeSelf: profile ? attendees.includeSelf : true,
           attendeeMemberIds: profile ? attendees.memberIds : [],
           attendeePetIds: profile ? attendees.petIds : [],
@@ -158,8 +196,13 @@ export function CalendarBookingSheet({
           setSubmitError(null);
           setSubmitting(true);
         },
-        onSuccess: () => {
+        onSuccess: (result) => {
           if (submitEpochRef.current !== epoch) return;
+          if (result.status === "pending_conflict") {
+            showToast("Submitted with conflict flag — awaiting admin review.", "success");
+          } else {
+            showToast("Request submitted — pending approval.", "success");
+          }
           startTransition(() => setSubmitted(true));
         },
         onError: (e) => {
@@ -189,7 +232,9 @@ export function CalendarBookingSheet({
     startDay,
     submitting,
     tripId,
-    existingEvents,
+    blackoutDates,
+    monthBookings,
+    recordType,
     tripPurpose,
     tripTitle,
     user,
@@ -271,9 +316,11 @@ export function CalendarBookingSheet({
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/45 px-4 pb-3 pt-3 sm:px-5 sm:pb-4 dark:border-white/10">
               <div>
                 <p id={titleId} className="font-heading text-lg font-semibold tracking-tight text-foreground">
-                  Book a stay
+                  New request
                 </p>
-                <p className="text-xs text-muted-foreground">Requests save to the shared calendar for family review.</p>
+                <p className="text-xs text-muted-foreground">
+                  Submissions stay pending until an admin approves them.
+                </p>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={close} aria-label="Close">
                 <X className="size-4" />
@@ -290,18 +337,46 @@ export function CalendarBookingSheet({
                   <span className="flex size-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/15 text-primary">
                     <Sparkles className="size-7" aria-hidden />
                   </span>
-                  <p className="font-heading text-xl font-semibold text-foreground">On the calendar</p>
+                  <p className="font-heading text-xl font-semibold text-foreground">Request submitted</p>
                   <p className="max-w-sm text-sm text-muted-foreground">
-                    Your stay is saved and visible on the shared calendar for {calendarMonth.label}. It will still be
-                    here after you refresh.
+                    Your {recordType === "event" ? "event" : "booking"} is on the calendar as pending for {calendarMonth.label}.
+                    An admin will review it before dates are fully reserved.
                   </p>
                   <Button type="button" className="rounded-xl" onClick={close}>
                     Done
                   </Button>
                 </motion.div>
               ) : (
-                <div className="space-y-6">
-                  <div>
+                <motion.div className="space-y-6">
+                  <motion.div layout className="grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        { id: "booking" as const, label: "Booking", icon: Home },
+                        { id: "event" as const, label: "Event", icon: PartyPopper },
+                      ] as const
+                    ).map((opt) => {
+                      const Icon = opt.icon;
+                      const active = recordType === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setRecordType(opt.id)}
+                          className={cn(
+                            "flex min-h-12 items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-medium transition-colors touch-manipulation",
+                            active
+                              ? "border border-primary/35 bg-primary/12 text-foreground"
+                              : "ar-nested-well hover:border-border/70 dark:hover:border-white/16"
+                          )}
+                        >
+                          <Icon className="size-4 shrink-0 text-primary" aria-hidden />
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                  {recordType === "booking" && (
+                  <motion.div layout>
                     <p className="text-xs font-medium text-muted-foreground">Trip type</p>
                     <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
                       {TRIP_TYPES.map((t) => {
@@ -324,13 +399,14 @@ export function CalendarBookingSheet({
                         );
                       })}
                     </div>
-                  </div>
+                  </motion.div>
+                  )}
 
                   <div>
-                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <motion.div layout className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                       <CalendarRange className="size-3.5" aria-hidden />
                       Dates · {calendarMonth.label}
-                    </div>
+                    </motion.div>
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       Tap start, then end. Occupancy shading activates when real bookings exist.
                     </p>
@@ -510,13 +586,14 @@ export function CalendarBookingSheet({
                         Saving to calendar…
                       </>
                     ) : (
-                      "Send booking request"
+                      recordType === "event" ? "Submit event" : "Submit booking"
                     )}
                   </Button>
-                </div>
+                </motion.div>
               )}
             </div>
           </motion.div>
+          <ActionToastBanner toast={toast} />
         </motion.div>
       )}
     </AnimatePresence>

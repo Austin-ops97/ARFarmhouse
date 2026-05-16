@@ -5,7 +5,8 @@ import { actionDebug } from "@/lib/action-debug";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import { handleFromDisplayName } from "@/lib/datetime/relative";
 import type { FamilyMember, FamilyPet } from "@/models/family-profile";
-import type { AppUser, FirestoreUserProfile, ThemePreference, UserRole } from "@/models/user";
+import type { AppUser, FirestoreUserProfile, ThemePreference } from "@/models/user";
+import { normalizeUserRole } from "@/models/user";
 
 const USERS = "users";
 
@@ -101,7 +102,7 @@ function mapFirestoreUser(uid: string, d: Partial<FirestoreUserProfile>): AppUse
     hometown: d.hometown ?? null,
     phone: d.phone ?? null,
     birthday: d.birthday ?? null,
-    role: (d.role as UserRole) ?? "member",
+    role: normalizeUserRole(d.role),
     themePreference: normalizeThemePreference(d.themePreference),
     favoriteWeekends: Array.isArray(d.favoriteWeekends) ? d.favoriteWeekends : [],
     familyBranch: d.familyBranch ?? null,
@@ -219,7 +220,7 @@ export async function bootstrapUserProfileOnSignup(
       profilePhotoUrl: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      role: "member" satisfies UserRole,
+      role: "user",
       themePreference: readBootstrapThemePreference(),
       favoriteWeekends: [],
       bio: null,
@@ -276,7 +277,7 @@ export async function syncUserProfile(user: User): Promise<AppUser | null> {
       profilePhotoUrl: avatarUrl,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      role: "member" satisfies UserRole,
+      role: "user",
       themePreference: readBootstrapThemePreference(),
       favoriteWeekends: [],
       bio: null,

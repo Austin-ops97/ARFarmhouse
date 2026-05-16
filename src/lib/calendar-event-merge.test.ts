@@ -37,15 +37,21 @@ describe("dayOccupancyHeat", () => {
     expect(dayOccupancyHeat(5, 2026, 4, [])).toBe(0);
   });
 
-  it("returns elevated heat for heavy guest load", () => {
-    expect(dayOccupancyHeat(10, 2026, 4, [sampleEvent({ guests: 10 })])).toBeGreaterThanOrEqual(2);
+  it("returns elevated heat for heavy guest load on approved stays", () => {
+    expect(
+      dayOccupancyHeat(10, 2026, 4, [sampleEvent({ guests: 10, status: "confirmed", unifiedStatus: "approved" })])
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("ignores pending requests for occupancy heat", () => {
+    expect(dayOccupancyHeat(10, 2026, 4, [sampleEvent({ guests: 10 })])).toBe(0);
   });
 });
 
 describe("mergeEventsIntoMonthMeta", () => {
-  it("marks span days as booked", () => {
+  it("marks span days as booked for approved stays", () => {
     const base = buildCalendarMonthMeta(new Date(2026, 4, 15));
-    const merged = mergeEventsIntoMonthMeta(base, [sampleEvent()]);
+    const merged = mergeEventsIntoMonthMeta(base, [sampleEvent({ status: "confirmed", unifiedStatus: "approved" })]);
     expect(merged.days.find((d) => d.day === 10)?.status).toBe("booked");
     expect(merged.days.find((d) => d.day === 11)?.status).toBe("booked");
     expect(merged.busyWeekends.length).toBeGreaterThan(0);

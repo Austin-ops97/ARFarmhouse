@@ -15,13 +15,15 @@ export function useNotificationNavigation() {
     (notification: FamilyNotification) => {
       const target = navigationTargetFromNotification(notification);
       goTo(target.nav);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("post");
+      url.searchParams.delete("booking");
       if (target.postId) {
-        router.replace(`/?post=${encodeURIComponent(target.postId)}`);
-      } else {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("post");
-        router.replace(url.pathname + url.search);
+        url.searchParams.set("post", target.postId);
+      } else if (target.bookingId) {
+        url.searchParams.set("booking", target.bookingId);
       }
+      router.replace(url.pathname + url.search);
     },
     [goTo, router]
   );

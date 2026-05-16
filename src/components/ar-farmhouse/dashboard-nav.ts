@@ -8,8 +8,12 @@ import {
   Map,
   MessageSquare,
   Settings,
+  Shield,
   UserRound,
 } from "lucide-react";
+
+import { isAdmin } from "@/lib/permissions";
+import type { AppUser } from "@/models/user";
 
 export type NavId =
   | "home"
@@ -21,20 +25,33 @@ export type NavId =
   | "album"
   | "property"
   | "profile"
-  | "settings";
+  | "settings"
+  | "admin";
 
-export const sidebarNav = [
-  { id: "home" as const, label: "Home", icon: Home },
-  { id: "feed" as const, label: "Feed", icon: MessageSquare },
-  { id: "calendar" as const, label: "Calendar", icon: Calendar },
-  { id: "guide" as const, label: "Guide", icon: Compass },
-  { id: "map" as const, label: "Map", icon: Map },
-  { id: "tasks" as const, label: "Tasks", icon: CheckSquare },
-  { id: "album" as const, label: "Photo Album", icon: Images },
-  { id: "property" as const, label: "Property", icon: Building2 },
-  { id: "profile" as const, label: "Profile", icon: UserRound },
-  { id: "settings" as const, label: "Settings", icon: Settings },
-] satisfies ReadonlyArray<{ id: NavId; label: string; icon: typeof Home }>;
+export type NavItem = { id: NavId; label: string; icon: typeof Home };
+
+export const sidebarNav: readonly NavItem[] = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "feed", label: "Feed", icon: MessageSquare },
+  { id: "calendar", label: "Calendar", icon: Calendar },
+  { id: "guide", label: "Guide", icon: Compass },
+  { id: "map", label: "Map", icon: Map },
+  { id: "tasks", label: "Tasks", icon: CheckSquare },
+  { id: "album", label: "Photo Album", icon: Images },
+  { id: "property", label: "Property", icon: Building2 },
+  { id: "profile", label: "Profile", icon: UserRound },
+  { id: "settings", label: "Settings", icon: Settings },
+];
+
+/** Admin-only nav entry (inserted before Settings when the user is an admin). */
+export const adminNavItem: NavItem = { id: "admin", label: "Admin", icon: Shield };
+
+/** Returns primary nav items visible for the signed-in user (admin tab gated by role). */
+export function getSidebarNavForUser(profile: Pick<AppUser, "role"> | null): NavItem[] {
+  if (!isAdmin(profile)) return [...sidebarNav];
+  const withoutSettings = sidebarNav.filter((item) => item.id !== "settings");
+  return [...withoutSettings, adminNavItem, sidebarNav.find((item) => item.id === "settings")!];
+}
 
 /** Long-form labels for the mobile slide-out drawer */
 export const mobileDrawerLabel: Record<NavId, string> = {
@@ -48,4 +65,5 @@ export const mobileDrawerLabel: Record<NavId, string> = {
   property: "Property",
   profile: "Profile",
   settings: "Settings",
+  admin: "Admin",
 };

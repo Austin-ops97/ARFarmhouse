@@ -18,11 +18,15 @@ export type PropertyCalendarEventAccent =
   | "slate"
   | "emerald";
 
+import type { BookingStatus, BookingType } from "@/models/booking";
+
 export type CalendarEventStatus = "pending" | "confirmed" | "cancelled";
 
 /** Month-scoped coordination item (day numbers are 1…daysInMonth for the viewed month). */
 export type PropertyCalendarEvent = {
   id: string;
+  /** Unified `bookings` document id when sourced from Phase 2 data. */
+  bookingId?: string | null;
   title: string;
   startDay: number;
   endDay: number;
@@ -30,6 +34,11 @@ export type PropertyCalendarEvent = {
   kind: PropertyCalendarEventKind;
   accent: PropertyCalendarEventAccent;
   status: CalendarEventStatus;
+  /** Full approval workflow status from unified bookings. */
+  unifiedStatus?: BookingStatus;
+  recordType?: BookingType;
+  conflictsWith?: string[];
+  isBlackout?: boolean;
   guests: number;
   tripId: string;
   tripPurpose: string;

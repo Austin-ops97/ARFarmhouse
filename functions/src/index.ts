@@ -57,6 +57,7 @@ async function renderWebpVariant(
 ): Promise<{ bytes: Buffer; width?: number; height?: number }> {
   const { data, info } = await sharp(input)
     .rotate()
+    .withMetadata({ exif: undefined, icc: undefined })
     .resize({
       width: maxEdge,
       height: maxEdge,

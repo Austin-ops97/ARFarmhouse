@@ -9,6 +9,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     /** Signed-in family members (private beta). Property seed data may be empty. */
     function isFamilyMember() {
       return isSignedIn();
@@ -22,16 +26,51 @@ service cloud.firestore {
       return resource.data.commentCount is int ? resource.data.commentCount : 0;
     }
 
-    /** Family owners may moderate album uploads (delete any albumMedia row). */
-    function familyOwner() {
+    /** App admins (`admin`) and legacy family owners (`owner`). */
+    function isAppAdmin() {
       return isSignedIn()
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+        && userDoc().role in ['admin', 'owner'];
+    }
+
+    function isBookingOwner() {
+      return isSignedIn() && resource.data.createdBy == request.auth.uid;
+    }
+
+    function isCalendarEventOwner() {
+      return isSignedIn() && resource.data.requestedBy == request.auth.uid;
+    }
+
+    function validBookingStatus(status) {
+      return status in ['pending', 'pending_conflict', 'approved', 'denied', 'cancelled'];
+    }
+
+    function validBookingType(type) {
+      return type in ['booking', 'event'];
+    }
+
+    function validOptionalPropertyId() {
+      return !('propertyId' in request.resource.data)
+        || (request.resource.data.propertyId is string
+          && request.resource.data.propertyId.size() > 0
+          && request.resource.data.propertyId.size() <= 64);
+    }
+
+    function validPostBody() {
+      return request.resource.data.body is string
+        && request.resource.data.body.size() <= 12000;
+    }
+
+    function validPostTitle() {
+      return !('title' in request.resource.data)
+        || (request.resource.data.title == null)
+        || (request.resource.data.title is string
+          && request.resource.data.title.size() <= 200);
     }
 
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSelf(userId)
-        && (!('role' in request.resource.data) || request.resource.data.role == 'member');
+        && (!('role' in request.resource.data) || request.resource.data.role == 'user');
       allow update: if isSelf(userId)
         && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
       allow delete: if false;
@@ -57,7 +96,9 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.authorId == request.auth.uid
         && request.resource.data.authorDisplayName is string
-        && request.resource.data.body is string;
+        && validPostBody()
+        && validPostTitle()
+        && validOptionalPropertyId();
 
       allow update: if isSignedIn() && (
         (resource.data.authorId == request.auth.uid
@@ -109,6 +150,56 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
     }
 
+    match /bookings/{bookingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName is string
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 160
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 2000
+        && validBookingType(request.resource.data.type)
+        && validBookingStatus(request.resource.data.status)
+        && request.resource.data.status in ['pending', 'pending_conflict']
+        && request.resource.data.startDate is timestamp
+        && request.resource.data.endDate is timestamp
+        && request.resource.data.endDate >= request.resource.data.startDate
+        && validOptionalPropertyId();
+      allow update: if isSignedIn() && (
+        (isBookingOwner()
+          && unchanged('createdBy')
+          && request.resource.data.status in ['pending', 'pending_conflict', 'cancelled'])
+        || isAppAdmin()
+      );
+      allow delete: if isSignedIn() && isAppAdmin();
+    }
+
+    match /blackoutDates/{blackoutId} {
+      allow read: if isSignedIn();
+      allow create: if isAppAdmin()
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 160
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.startDate is timestamp
+        && request.resource.data.endDate is timestamp
+        && request.resource.data.endDate >= request.resource.data.startDate
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAppAdmin()
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 160
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.startDate is timestamp
+        && request.resource.data.endDate is timestamp
+        && request.resource.data.endDate >= request.resource.data.startDate;
+      allow delete: if isAppAdmin();
+    }
+
     match /calendarEvents/{eventId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
@@ -134,13 +225,15 @@ service cloud.firestore {
             && request.resource.data.endDay <= 31
           )
         );
-      allow update: if isSignedIn()
-        && resource.data.requestedBy == request.auth.uid
-        && unchanged('requestedBy')
-        && unchanged('bookingRequestId')
-        && unchanged('year')
-        && unchanged('monthIndex');
-      allow delete: if isSignedIn() && resource.data.requestedBy == request.auth.uid;
+      allow update: if isSignedIn() && (
+        (isCalendarEventOwner()
+          && unchanged('requestedBy')
+          && unchanged('bookingRequestId')
+          && unchanged('year')
+          && unchanged('monthIndex'))
+        || isAppAdmin()
+      );
+      allow delete: if isSignedIn() && (isCalendarEventOwner() || isAppAdmin());
     }
 
     match /albumMedia/{mediaId} {
@@ -167,7 +260,7 @@ service cloud.firestore {
           )
         );
       allow delete: if isSignedIn()
-        && (resource.data.authorId == request.auth.uid || familyOwner());
+        && (resource.data.authorId == request.auth.uid || isAppAdmin());
     }
 
     match /bookingRequests/{requestId} {
@@ -217,6 +310,12 @@ service cloud.firestore {
     match /propertyInventory/{itemId} {
       allow read: if isFamilyMember();
       allow create, update, delete: if isFamilyMember();
+    }
+
+    match /systemSettings/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isAppAdmin();
+      allow delete: if false;
     }
 
     match /sharedGroceryItems/{itemId} {

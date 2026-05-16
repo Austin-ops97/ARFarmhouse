@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 function FeedDecodedImageLayer({
   src,
+  thumbnailSrc,
   alt,
   sizes,
   imageExtraClassName,
@@ -21,6 +22,7 @@ function FeedDecodedImageLayer({
   onLoadingComplete,
 }: {
   src: string;
+  thumbnailSrc?: string | null;
   alt: string;
   sizes: string;
   imageExtraClassName?: string;
@@ -28,31 +30,47 @@ function FeedDecodedImageLayer({
   onLoadingComplete: (img: HTMLImageElement) => void;
 }) {
   const [visible, setVisible] = useState(false);
+  const showThumb = Boolean(thumbnailSrc && thumbnailSrc !== src && !visible);
 
   return (
-    <Image
-      src={src}
-      alt={alt}
-      fill
-      sizes={sizes}
-      draggable={false}
-      className={cn(
-        "select-none bg-muted/20 object-contain object-center dark:bg-zinc-950/60",
-        "transition-opacity duration-[300ms] ease-out motion-reduce:opacity-100 motion-reduce:transition-none",
-        visible ? "opacity-100" : "opacity-0",
-        imageExtraClassName
-      )}
-      onLoadingComplete={(img) => {
-        onLoadingComplete(img);
-        setVisible(true);
-      }}
-      {...imageProps}
-    />
+    <>
+      {showThumb ? (
+        <Image
+          src={thumbnailSrc!}
+          alt=""
+          aria-hidden
+          fill
+          sizes={sizes}
+          className="select-none object-cover object-center blur-md scale-105 opacity-80"
+          unoptimized
+        />
+      ) : null}
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes={sizes}
+        loading="lazy"
+        draggable={false}
+        className={cn(
+          "select-none bg-muted/20 object-contain object-center dark:bg-zinc-950/60",
+          "transition-opacity duration-[300ms] ease-out motion-reduce:opacity-100 motion-reduce:transition-none",
+          visible ? "opacity-100" : "opacity-0",
+          imageExtraClassName
+        )}
+        onLoadingComplete={(img) => {
+          onLoadingComplete(img);
+          setVisible(true);
+        }}
+        {...imageProps}
+      />
+    </>
   );
 }
 
 export function FeedMediaFrame({
   src,
+  thumbnailSrc,
   alt,
   sizes,
   dims,
@@ -64,6 +82,8 @@ export function FeedMediaFrame({
   applyParentHeightCap = false,
 }: {
   src: string;
+  /** Thumb URL for progressive blur-up when backend variants exist. */
+  thumbnailSrc?: string | null;
   alt: string;
   sizes: string;
   /** Backing dimensions when known — keeps first paint tight before decode. */
@@ -168,6 +188,7 @@ export function FeedMediaFrame({
           <FeedDecodedImageLayer
             key={src}
             src={src}
+            thumbnailSrc={thumbnailSrc}
             alt={alt}
             sizes={sizes}
             imageExtraClassName={imageExtraClassName}

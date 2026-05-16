@@ -1,6 +1,15 @@
 import type { FamilyMember, FamilyPet } from "@/models/family-profile";
 
-export type UserRole = "member" | "owner" | "guest";
+/** App access role stored on `users/{uid}`. */
+export type UserRole = "user" | "admin";
+
+/** Legacy values still present in older Firestore documents. */
+export type LegacyUserRole = "member" | "owner" | "guest";
+
+export function normalizeUserRole(raw: unknown): UserRole {
+  if (raw === "admin" || raw === "owner") return "admin";
+  return "user";
+}
 
 export type ThemePreference = "system" | "light" | "dark";
 

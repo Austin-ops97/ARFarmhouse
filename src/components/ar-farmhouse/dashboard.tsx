@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import dynamic from "next/dynamic";
-import { Suspense, startTransition, useEffect, useMemo, useState } from "react";
+import { Suspense, startTransition, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { DashboardAppHeader } from "@/components/ar-farmhouse/dashboard-app-header";
@@ -11,7 +11,12 @@ import { DashboardViewFallback } from "@/components/ar-farmhouse/dashboard-view-
 import { EcosystemProvider } from "@/components/ar-farmhouse/ecosystem-context";
 import { DashboardMobileDrawer } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { DashboardSidebar } from "@/components/ar-farmhouse/dashboard-sidebar";
+import { AdminView } from "@/components/ar-farmhouse/admin-view";
 import type { NavId } from "@/components/ar-farmhouse/dashboard-nav";
+import { OfflineStatusBar } from "@/components/ar-farmhouse/offline-status-bar";
+import { isAdmin } from "@/lib/permissions";
+import { dashboardViewSpring, dashboardViewTransition } from "@/platform/navigation/transitions";
+import { useAppStore } from "@/platform/state/app-store";
 import { PropertyDataScope } from "@/components/ar-farmhouse/property-data-scope";
 import { FeedPostsProvider } from "@/contexts/feed-posts-context";
 import { PhotoAlbumLightboxHost } from "@/components/ar-farmhouse/photo-album-lightbox-host";
@@ -65,18 +70,20 @@ const RouteWeekendHubPortal = dynamic(
 );
 
 function DashboardRoutes() {
-  const { configured } = useAuth();
+  const { configured, profile } = useAuth();
   const searchParams = useSearchParams();
   const highlightPostId = searchParams.get("post");
-  const [activeId, setActiveId] = useState<NavId>("home");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const activeId = useAppStore((s) => s.activeNavId);
+  const setActiveId = useAppStore((s) => s.setActiveNavId);
+  const mobileMenuOpen = useAppStore((s) => s.mobileMenuOpen);
+  const setMobileMenuOpen = useAppStore((s) => s.setMobileMenuOpen);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const pid = searchParams.get("post");
     if (!pid) return;
     startTransition(() => setActiveId("feed"));
-  }, [searchParams]);
+  }, [searchParams, setActiveId]);
 
   useEffect(() => {
     if (activeId !== "feed" || !highlightPostId) return;
@@ -111,6 +118,8 @@ function DashboardRoutes() {
         return <RouteProfileView />;
       case "settings":
         return <RouteSettingsView />;
+      case "admin":
+        return isAdmin(profile) ? <AdminView /> : <DashboardHomeView />;
       default:
         return null;
     }
@@ -127,15 +136,20 @@ function DashboardRoutes() {
             mobileMenuOpen={mobileMenuOpen}
             onMobileMenuOpenChange={setMobileMenuOpen}
           />
+          <OfflineStatusBar />
 
           <main className={cnDashboardMain(activeId === "home")}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeId}
-                initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
-                transition={{ duration: reduceMotion ? 0.12 : 0.3, ease: [0.22, 1, 0.36, 1] }}
+                initial={reduceMotion ? false : dashboardViewTransition.initial}
+                animate={dashboardViewTransition.animate}
+                exit={reduceMotion ? undefined : dashboardViewTransition.exit}
+                transition={
+                  reduceMotion
+                    ? { duration: 0.12 }
+                    : dashboardViewSpring
+                }
                 className={cnDashboardPageBody(activeId === "home")}
               >
                 <ErrorBoundary title="This section needs a refresh">

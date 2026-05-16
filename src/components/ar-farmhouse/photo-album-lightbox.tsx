@@ -9,6 +9,7 @@ import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { isAdmin } from "@/lib/permissions";
 import { albumBucketLabel, type AlbumMediaItem } from "@/lib/photo-album-media";
 import { deleteAlbumMediaItem } from "@/services/album-media";
 import { cn } from "@/lib/utils";
@@ -105,14 +106,12 @@ export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: Photo
   const handleDelete = async () => {
     if (!user || !current || current.source !== "upload" || !current.storagePath) return;
     const authorId = current.uploadedBy ?? "";
-    const allowed =
-      authorId === user.uid ||
-      profile?.role === "owner";
+    const allowed = authorId === user.uid || isAdmin(profile);
     if (!allowed) return;
     if (!window.confirm("Remove this photo from the family album?")) return;
     setDeleting(true);
     try {
-      await deleteAlbumMediaItem(current.id, user.uid, authorId, current.storagePath, profile?.role ?? null);
+      await deleteAlbumMediaItem(current.id, user.uid, authorId, current.storagePath, profile);
       onClose();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "Could not delete photo.");
@@ -141,7 +140,7 @@ export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: Photo
     Boolean(user) &&
     current.source === "upload" &&
     Boolean(current.storagePath) &&
-    (current.uploadedBy === user!.uid || profile?.role === "owner");
+    (current.uploadedBy === user!.uid || isAdmin(profile));
 
   return (
     <AnimatePresence>

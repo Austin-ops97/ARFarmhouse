@@ -29,7 +29,8 @@ import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import type { UploadTrace } from "@/lib/upload-trace";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FirestoreAlbumMedia } from "@/models/album-media";
-import type { UserRole } from "@/models/user";
+import { isAdmin } from "@/lib/permissions";
+import type { AppUser } from "@/models/user";
 import {
   deleteAlbumMediaArtifacts,
   scheduleBackgroundStorageUrlHydration,
@@ -332,9 +333,9 @@ export async function deleteAlbumMediaItem(
   viewerUid: string,
   authorId: string,
   storagePath?: string,
-  viewerRole?: UserRole | null
+  viewer?: Pick<AppUser, "uid" | "role"> | null
 ) {
-  const canModerate = viewerRole === "owner";
+  const canModerate = isAdmin(viewer);
   if (viewerUid !== authorId && !canModerate) {
     throw new Error("You don't have permission to remove this photo.");
   }

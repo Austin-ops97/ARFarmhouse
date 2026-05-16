@@ -5,6 +5,7 @@ export type NotificationNavigationTarget = {
   nav: FamilyNotification["route"]["nav"];
   postId?: string;
   eventId?: string;
+  bookingId?: string;
 };
 
 export function navigationTargetFromNotification(n: FamilyNotification): NotificationNavigationTarget {
@@ -12,5 +13,6 @@ export function navigationTargetFromNotification(n: FamilyNotification): Notific
     nav: n.route.nav,
     postId: n.route.postId,
     eventId: n.route.eventId,
+    bookingId: n.route.bookingId,
   };
 }

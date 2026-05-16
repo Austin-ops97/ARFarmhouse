@@ -16,7 +16,9 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
+import { calendarDayRangeToTimestamps } from "@/lib/booking-dates";
 import { notifyBookingCreated, notifyTaskCreated } from "@/lib/notification-fanout";
+import { BOOKINGS_COLLECTION } from "@/models/booking";
 import { actionDebug } from "@/lib/action-debug";
 import { bookingEventTitle, TRIP_CALENDAR_META } from "@/lib/booking-calendar";
 import {
@@ -272,6 +274,7 @@ export type BookingRequestPayload = {
 };
 
 export type BookingSubmitResult = {
+  bookingId: string;
   bookingRequestId: string;
   calendarEventId: string;
 };
@@ -308,8 +311,10 @@ export async function createBookingRequest(input: BookingRequestPayload): Promis
 
   const bookingRef = doc(collection(db, "bookingRequests"));
   const eventRef = doc(collection(db, "calendarEvents"));
+  const unifiedBookingRef = doc(collection(db, BOOKINGS_COLLECTION));
   requireDocumentRef(bookingRef, "bookingRequests");
   requireDocumentRef(eventRef, "calendarEvents");
+  requireDocumentRef(unifiedBookingRef, BOOKINGS_COLLECTION);
 
   try {
     const monthEventsQuery = query(
@@ -333,6 +338,14 @@ export async function createBookingRequest(input: BookingRequestPayload): Promis
       );
     }
 
+    const description = input.notes.trim() || input.tripPurpose.trim();
+    const { startDate, endDate } = calendarDayRangeToTimestamps(
+      input.year,
+      input.monthIndex,
+      startDay,
+      endDay
+    );
+
     const batch = writeBatch(db);
     batch.set(bookingRef, {
       ...input,
@@ -340,6 +353,7 @@ export async function createBookingRequest(input: BookingRequestPayload): Promis
       endDay,
       status: "pending",
       calendarEventId: eventRef.id,
+      bookingId: unifiedBookingRef.id,
       createdAt: serverTimestamp(),
     });
     batch.set(eventRef, {
@@ -366,12 +380,33 @@ export async function createBookingRequest(input: BookingRequestPayload): Promis
       requestedBy: input.requestedBy,
       requestedByName: input.requestedByName,
       bookingRequestId: bookingRef.id,
+      bookingId: unifiedBookingRef.id,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    batch.set(unifiedBookingRef, {
+      title,
+      description,
+      type: "booking",
+      startDate,
+      endDate,
+      status: "pending",
+      createdBy: input.requestedBy,
+      createdByName: input.requestedByName,
+      approvedBy: null,
+      approvedAt: null,
+      deniedReason: null,
+      calendarEventId: eventRef.id,
+      legacyBookingRequestId: bookingRef.id,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
     await batch.commit();
 
+    const bookingId = unifiedBookingRef.id;
+
     actionDebug("booking", "submit complete", {
+      bookingId,
       bookingRequestId: bookingRef.id,
       calendarEventId: eventRef.id,
     });
@@ -391,7 +426,11 @@ export async function createBookingRequest(input: BookingRequestPayload): Promis
       bookingRequestId: bookingRef.id,
     });
 
-    return { bookingRequestId: bookingRef.id, calendarEventId: eventRef.id };
+    return {
+      bookingId,
+      bookingRequestId: bookingRef.id,
+      calendarEventId: eventRef.id,
+    };
   } catch (e) {
     actionDebug("booking", "submit failed", e);
     if (e instanceof Error) {
