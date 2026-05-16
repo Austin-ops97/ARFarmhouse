@@ -45,9 +45,10 @@ export type FirestoreBooking = PropertyScoped & {
 };
 
 export type FirestoreBookingPolicyAcknowledgment = {
-  policyVersion: number;
-  acceptedAt: Timestamp;
-  acknowledgedIds: string[];
+  generalAcknowledged: boolean;
+  firearmsAcknowledged: boolean;
+  acknowledgmentTimestamp: Timestamp;
+  acknowledgmentVersion: number;
 };
 
 export type Booking = PropertyScoped & {
@@ -77,9 +78,10 @@ export type Booking = PropertyScoped & {
 };
 
 export type BookingPolicyAcknowledgment = {
-  policyVersion: number;
-  acceptedAt: Date;
-  acknowledgedIds: string[];
+  generalAcknowledged: boolean;
+  firearmsAcknowledged: boolean;
+  acknowledgmentTimestamp: Date;
+  acknowledgmentVersion: number;
 };
 
 export type FirestoreBlackoutDate = {

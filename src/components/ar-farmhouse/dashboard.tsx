@@ -47,6 +47,10 @@ const RouteTasksView = dynamic(
   () => import("@/components/ar-farmhouse/tasks-view").then((m) => m.TasksView),
   { loading: () => <DashboardViewFallback /> }
 );
+const RouteChecklistsView = dynamic(
+  () => import("@/components/ar-farmhouse/checklists-view").then((m) => m.ChecklistsView),
+  { loading: () => <DashboardViewFallback /> }
+);
 const RoutePhotoAlbumView = dynamic(
   () => import("@/components/ar-farmhouse/photo-album-view").then((m) => m.PhotoAlbumView),
   { loading: () => <DashboardViewFallback /> }
@@ -110,6 +114,8 @@ function DashboardRoutes() {
         return <RoutePropertyMapView />;
       case "tasks":
         return <RouteTasksView />;
+      case "checklists":
+        return <RouteChecklistsView />;
       case "album":
         return <RoutePhotoAlbumView />;
       case "property":

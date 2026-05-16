@@ -224,6 +224,35 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
     }
 
+    function validChecklistPercent(field) {
+      return request.resource.data[field] is int
+        && request.resource.data[field] >= 0
+        && request.resource.data[field] <= 100;
+    }
+
+    match /checklists/{submissionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.submittedBy == request.auth.uid
+        && request.resource.data.submittedByName is string
+        && request.resource.data.submittedByName.size() > 0
+        && request.resource.data.submittedByName.size() <= 120
+        && validChecklistPercent('propaneLevel')
+        && validChecklistPercent('deerFeederLevel')
+        && validChecklistPercent('fishFeederLevel')
+        && request.resource.data.doorsLocked is bool
+        && request.resource.data.houseLightsOff is bool
+        && request.resource.data.electronicsUnplugged is bool
+        && request.resource.data.wellBreakerOff is bool
+        && request.resource.data.windmillValveClosed is bool
+        && request.resource.data.trashcanLidsClosed is bool
+        && request.resource.data.trashOut is bool
+        && request.resource.data.gasCansFilled is bool
+        && request.resource.data.imageUrls is map;
+      allow update: if false;
+      allow delete: if isAppAdmin();
+    }
+
     match /bookings/{bookingId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()

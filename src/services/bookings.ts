@@ -29,14 +29,15 @@ function mapPolicyAcknowledgment(
 ): BookingPolicyAcknowledgment | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Partial<FirestoreBookingPolicyAcknowledgment>;
-  const acceptedAt = timestampToDate(row.acceptedAt);
-  if (!acceptedAt || typeof row.policyVersion !== "number") return null;
+  const acknowledgmentTimestamp = timestampToDate(row.acknowledgmentTimestamp);
+  if (!acknowledgmentTimestamp || typeof row.acknowledgmentVersion !== "number") {
+    return null;
+  }
   return {
-    policyVersion: row.policyVersion,
-    acceptedAt,
-    acknowledgedIds: Array.isArray(row.acknowledgedIds)
-      ? row.acknowledgedIds.filter((id): id is string => typeof id === "string")
-      : [],
+    generalAcknowledged: row.generalAcknowledged === true,
+    firearmsAcknowledged: row.firearmsAcknowledged === true,
+    acknowledgmentTimestamp,
+    acknowledgmentVersion: row.acknowledgmentVersion,
   };
 }
 

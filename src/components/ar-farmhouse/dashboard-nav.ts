@@ -2,6 +2,7 @@ import {
   Building2,
   Calendar,
   CheckSquare,
+  ClipboardList,
   Compass,
   Home,
   Images,
@@ -22,6 +23,7 @@ export type NavId =
   | "guide"
   | "map"
   | "tasks"
+  | "checklists"
   | "album"
   | "property"
   | "profile"
@@ -37,6 +39,7 @@ export const sidebarNav: readonly NavItem[] = [
   { id: "guide", label: "Guide", icon: Compass },
   { id: "map", label: "Map", icon: Map },
   { id: "tasks", label: "Tasks", icon: CheckSquare },
+  { id: "checklists", label: "Checklists", icon: ClipboardList },
   { id: "album", label: "Photo Album", icon: Images },
   { id: "property", label: "Property", icon: Building2 },
   { id: "profile", label: "Profile", icon: UserRound },
@@ -61,6 +64,7 @@ export const mobileDrawerLabel: Record<NavId, string> = {
   guide: "Local Guide",
   map: "Map",
   tasks: "Tasks",
+  checklists: "Checklists",
   album: "Photo Album",
   property: "Property",
   profile: "Profile",

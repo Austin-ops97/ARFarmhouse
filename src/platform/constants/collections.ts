@@ -10,6 +10,7 @@ export const COLLECTIONS = {
   calendarEvents: "calendarEvents",
   bookingRequests: "bookingRequests",
   houseTasks: "houseTasks",
+  checklists: "checklists",
   albumMedia: "albumMedia",
   propertyStatus: "propertyStatus",
   propertyMapPins: "propertyMapPins",

@@ -24,6 +24,7 @@ const sectionSubtitle: Record<NavId, string | null> = {
   guide: "Mena area",
   map: null,
   tasks: null,
+  checklists: "Last Man Out",
   album: null,
   property: null,
   profile: null,

@@ -131,6 +131,24 @@ service firebase.storage {
 
     /*
     ==================================================
+    CHECKLIST WALKTHROUGH PHOTOS
+    ==================================================
+    */
+
+    match /checklists/{submissionId}/{fieldName}/{allPaths=**} {
+
+      allow read: if signedIn();
+
+      allow write: if signedIn()
+        && validUploadSize()
+        && validImageContentType()
+        && notDangerousUpload();
+
+      allow delete: if isAppAdmin();
+    }
+
+    /*
+    ==================================================
     PROCESSED MEDIA
     ==================================================
 

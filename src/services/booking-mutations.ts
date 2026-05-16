@@ -238,9 +238,12 @@ async function createBookingInner(input: CreateBookingInput): Promise<CreateBook
   const policyAcknowledgment =
     input.type === "booking" && input.policyAcknowledgment
       ? {
-          policyVersion: input.policyAcknowledgment.policyVersion,
-          acceptedAt: Timestamp.fromDate(new Date(input.policyAcknowledgment.acceptedAt)),
-          acknowledgedIds: input.policyAcknowledgment.acknowledgedIds,
+          generalAcknowledged: input.policyAcknowledgment.generalAcknowledged,
+          firearmsAcknowledged: input.policyAcknowledgment.firearmsAcknowledged,
+          acknowledgmentTimestamp: Timestamp.fromDate(
+            new Date(input.policyAcknowledgment.acknowledgmentTimestamp)
+          ),
+          acknowledgmentVersion: input.policyAcknowledgment.acknowledgmentVersion,
         }
       : null;
   const status = conflict.status;
