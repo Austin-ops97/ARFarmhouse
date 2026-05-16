@@ -14,6 +14,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_FULLSCREEN_OVERLAY } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 export type FeedMediaLightboxState = { urls: string[]; index: number } | null;
@@ -365,9 +366,8 @@ export function FeedMediaLightbox({
             y: pullingCloseMotionTransition(reduceMotion),
           }}
           className={cn(
-            "fixed inset-0 z-[100] flex cursor-default flex-col outline-none overscroll-none",
-            "bg-black/[0.94] backdrop-blur-xl",
-            "pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]"
+            AR_FULLSCREEN_OVERLAY,
+            "cursor-default outline-none overscroll-none bg-black/[0.94] backdrop-blur-xl"
           )}
           onClick={onClose}
         >

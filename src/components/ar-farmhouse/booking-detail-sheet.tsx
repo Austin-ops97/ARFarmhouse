@@ -18,7 +18,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ActionToastBanner } from "@/components/ui/action-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_BOTTOM_SHEET_HOST, AR_MOBILE_SHEET, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
+import { cn } from "@/lib/utils";
 import { activityLabel } from "@/lib/booking-activity";
 import { formatBookingDateRange } from "@/lib/booking-dates";
 import { formatLocalDateTime } from "@/lib/datetime/time";
@@ -155,13 +158,14 @@ export function BookingDetailSheet({ bookingId, open, onOpenChange }: BookingDet
     <>
       <AnimatePresence>
         {open && bookingId && (
+          <OverlayPortal>
           <motion.div
-            className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-5"
+            className={cn(AR_BOTTOM_SHEET_HOST, "z-[70]")}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <button type="button" className="ar-scrim absolute inset-0" aria-label="Close" onClick={close} />
+            <button type="button" className={AR_OVERLAY_SCRIM} aria-label="Close" onClick={close} />
             <motion.div
               role="dialog"
               aria-modal="true"
@@ -170,7 +174,7 @@ export function BookingDetailSheet({ bookingId, open, onOpenChange }: BookingDet
               animate={{ y: 0, opacity: 1 }}
               exit={reduceMotion ? undefined : { y: 32, opacity: 0 }}
               transition={{ type: "spring", stiffness: 420, damping: 36 }}
-              className="ar-modal-shell relative z-10 flex max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-bottom,0px)-1rem))] w-full max-w-lg min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] sm:max-h-[min(90dvh,760px)] sm:rounded-[1.75rem]"
+              className={cn(AR_MOBILE_SHEET, "sm:max-h-[min(90dvh,760px)]")}
             >
               <motion.div layout={!reduceMotion} className="flex items-center justify-between gap-3 border-b border-border/45 px-5 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-white/10">
                 <p id={titleId} className="font-heading text-lg font-semibold tracking-tight text-foreground">
@@ -353,6 +357,7 @@ export function BookingDetailSheet({ bookingId, open, onOpenChange }: BookingDet
               <ActionToastBanner toast={toast} />
             </motion.div>
           </motion.div>
+          </OverlayPortal>
         )}
       </AnimatePresence>
 

@@ -135,11 +135,18 @@
   --ar-header-pad-bottom: 0.625rem;
   --ar-header-height: calc(var(--ar-header-safe-top) + var(--ar-header-row-min) + var(--ar-header-pad-bottom));
   --ar-mobile-sticky-top: calc(var(--ar-header-height) + 0.125rem);
-  --ar-sheet-max-height: min(
-    85dvh,
-    calc(100dvh - env(safe-area-inset-bottom, 0px))
+  --ar-overlay-top: max(0.5rem, env(safe-area-inset-top, 0px));
+  --ar-overlay-bottom-base: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  --ar-visual-bottom-inset: 0px;
+  --ar-overlay-bottom: max(
+    var(--ar-overlay-bottom-base),
+    var(--ar-visual-bottom-inset)
   );
-  --ar-safe-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  --ar-sheet-max-height: min(
+    85svh,
+    calc(100svh - var(--ar-overlay-bottom) - var(--ar-overlay-top))
+  );
+  --ar-safe-bottom: var(--ar-overlay-bottom);
 }
 
 @media (max-width: 639px) {
@@ -442,6 +449,18 @@ html.ar-theme-transitioning .ar-app-shell {
   .dark .ar-modal-shell {
     border-color: oklch(0.94 0.01 95 / 0.12);
     background-color: color-mix(in oklch, var(--popover) 98%, transparent);
+  }
+
+  /* Overlay hosts: small viewport on phones so sheets clear Safari toolbars. */
+  .ar-overlay-viewport {
+    height: 100svh;
+    max-height: 100svh;
+  }
+  @media (min-width: 640px) {
+    .ar-overlay-viewport {
+      height: auto;
+      max-height: none;
+    }
   }
 
   .ar-scrim {

@@ -272,14 +272,12 @@ export const ChecklistToggleRow = memo(function ChecklistToggleRow({
 
 export const ChecklistMediaUploadCard = memo(function ChecklistMediaUploadCard({
   label,
-  required,
   image,
   disabled,
   onImagePick,
   onImageClear,
 }: {
   label: string;
-  required?: boolean;
   image?: LocalChecklistImage | null;
   disabled?: boolean;
   onImagePick: (file: File) => void;
@@ -314,7 +312,6 @@ export const ChecklistMediaUploadCard = memo(function ChecklistMediaUploadCard({
         />
         <div className="mb-3">
           <p className="text-[15px] font-semibold text-foreground">{label}</p>
-          {required ? <p className="mt-0.5 text-sm text-muted-foreground">Photo required before submit</p> : null}
         </div>
         {image ? (
           <div className="relative overflow-hidden rounded-2xl ring-1 ring-border/50 dark:ring-white/10">

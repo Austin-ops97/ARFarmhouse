@@ -3,10 +3,10 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, Copy, Link2, Share2, X } from "lucide-react";
 import { startTransition, useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { Button } from "@/components/ui/button";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_ACTION_SHEET, AR_BOTTOM_SHEET_HOST, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
 import { buildPostDeepLink } from "@/lib/app-url";
 import { cn } from "@/lib/utils";
 
@@ -72,16 +72,13 @@ export function PostShareSheet({ open, onOpenChange, postId, title, summary }: P
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onOpenChange]);
 
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
+  return (
     <AnimatePresence>
       {open && (
+        <OverlayPortal>
         <motion.div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Share post"
-          className="fixed inset-0 z-[110] flex items-end justify-center sm:items-center sm:p-5"
+          role="presentation"
+          className={cn(AR_BOTTOM_SHEET_HOST, "z-[110]")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -89,18 +86,21 @@ export function PostShareSheet({ open, onOpenChange, postId, title, summary }: P
         >
           <button
             type="button"
-            className="absolute inset-0 bg-background/75 backdrop-blur-md"
+            className={AR_OVERLAY_SCRIM}
             aria-label="Close"
             onClick={() => onOpenChange(false)}
           />
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Share post"
             initial={reduceMotion ? false : { y: 28, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={reduceMotion ? undefined : { y: 20, opacity: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 32 }}
             className={cn(
-              "ar-modal-shell relative z-10 w-full max-w-md max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] min-h-0 overflow-hidden rounded-t-[1.5rem] border border-border/60 bg-card/95 shadow-[var(--ar-modal-elevate)]",
-              "dark:border-white/12 dark:bg-zinc-950/95 sm:rounded-[1.35rem]"
+              AR_ACTION_SHEET,
+              "border border-border/60 bg-card/95 shadow-[var(--ar-modal-elevate)] dark:border-white/12 dark:bg-zinc-950/95 sm:rounded-[1.35rem]"
             )}
             onClick={(e) => e.stopPropagation()}
           >
@@ -126,7 +126,7 @@ export function PostShareSheet({ open, onOpenChange, postId, title, summary }: P
               )}
             </div>
             {copyError ? <p className="px-4 text-xs text-red-400/95">{copyError}</p> : null}
-            <div className="flex flex-col gap-2 border-t border-border/50 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-white/10">
+            <div className="flex flex-col gap-2 border-t border-border/50 px-4 py-4 dark:border-white/10">
               {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
                 <Button type="button" className="h-11 w-full rounded-xl" onClick={() => void nativeShare()}>
                   <Share2 className="mr-2 size-4" aria-hidden />
@@ -149,8 +149,8 @@ export function PostShareSheet({ open, onOpenChange, postId, title, summary }: P
             </div>
           </motion.div>
         </motion.div>
+        </OverlayPortal>
       )}
-    </AnimatePresence>,
-    document.body
+    </AnimatePresence>
   );
 }

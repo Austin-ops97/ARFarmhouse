@@ -16,7 +16,9 @@ import {
   POLL_OPTION_MIN,
   type FeedPostCategory,
 } from "@/models/feed-post-category";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_BOTTOM_SHEET_HOST, AR_MOBILE_SHEET, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 const postTypes: { id: FeedPostCategory; label: string }[] = [
@@ -296,8 +298,9 @@ export function CreatePostDialog({
   return (
     <AnimatePresence>
       {open && (
+        <OverlayPortal>
         <motion.div
-          className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6"
+          className={cn(AR_BOTTOM_SHEET_HOST, "z-[60]")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -305,7 +308,7 @@ export function CreatePostDialog({
         >
           <button
             type="button"
-            className="absolute inset-0 bg-background/70 backdrop-blur-xl"
+            className={AR_OVERLAY_SCRIM}
             aria-label="Close"
             onClick={closeDialog}
             disabled={isPublishing}
@@ -319,8 +322,8 @@ export function CreatePostDialog({
             exit={reduceMotion ? undefined : { y: 18, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 320, damping: 30 }}
             className={cn(
-              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-xl min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] border border-white/12 sm:max-h-[min(92dvh,900px)]",
-              "bg-background/90 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:rounded-[1.75rem]"
+              AR_MOBILE_SHEET,
+              "max-w-xl border border-white/12 bg-background/90 shadow-[0_40px_120px_-48px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:max-h-[min(92dvh,900px)]"
             )}
           >
             <motion.div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
@@ -626,7 +629,7 @@ export function CreatePostDialog({
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-white/10 bg-background/80 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:pb-4">
+            <div className="flex items-center justify-end gap-2 border-t border-white/10 bg-background/80 px-5 py-4 backdrop-blur-xl sm:pb-4">
               <Button type="button" variant="outline" className="rounded-xl" onClick={closeDialog} disabled={isPublishing}>
                 Cancel
               </Button>
@@ -648,6 +651,7 @@ export function CreatePostDialog({
             </div>
           </motion.div>
         </motion.div>
+        </OverlayPortal>
       )}
     </AnimatePresence>
   );

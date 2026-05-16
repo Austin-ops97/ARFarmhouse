@@ -22,7 +22,7 @@ export type ChecklistToggleFieldDef = {
 export type ChecklistMediaFieldDef = {
   key: ChecklistMediaOnlyFieldKey;
   label: string;
-  requiredImage: true;
+  optionalImage: true;
 };
 
 export const CHECKLIST_SLIDER_FIELDS: readonly ChecklistSliderFieldDef[] = [
@@ -53,7 +53,7 @@ export const CHECKLIST_TOGGLE_FIELDS: readonly ChecklistToggleFieldDef[] = [
 ] as const;
 
 export const CHECKLIST_MEDIA_FIELDS: readonly ChecklistMediaFieldDef[] = [
-  { key: "firewoodPile", label: "Firewood Pile", requiredImage: true },
+  { key: "firewoodPile", label: "Firewood Pile", optionalImage: true },
 ] as const;
 
 export type ChecklistHistoryRow = {

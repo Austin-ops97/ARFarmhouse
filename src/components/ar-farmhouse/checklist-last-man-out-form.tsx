@@ -52,9 +52,6 @@ export function ChecklistLastManOutForm({ userId, displayName, onSubmitted }: Ch
     };
   }, [images]);
 
-  const firewoodReady = Boolean(images.firewoodPile?.file);
-  const canSubmit = firewoodReady && !submitting;
-
   const applyUploadProgress = useCallback((progress: ChecklistUploadProgress) => {
     setImages((prev) => {
       const current = prev[progress.field];
@@ -67,7 +64,7 @@ export function ChecklistLastManOutForm({ userId, displayName, onSubmitted }: Ch
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmit || submitLock.current) return;
+    if (submitting || submitLock.current) return;
     submitLock.current = true;
     setSubmitting(true);
     setError(null);
@@ -107,7 +104,7 @@ export function ChecklistLastManOutForm({ userId, displayName, onSubmitted }: Ch
       setSubmitting(false);
       submitLock.current = false;
     }
-  }, [applyUploadProgress, canSubmit, displayName, images, onSubmitted, userId, values]);
+  }, [applyUploadProgress, displayName, images, onSubmitted, submitting, userId, values]);
 
   const sliderRows = useMemo(
     () =>
@@ -147,7 +144,7 @@ export function ChecklistLastManOutForm({ userId, displayName, onSubmitted }: Ch
   return (
     <div className="space-y-6">
       <p className="text-sm leading-relaxed text-muted-foreground">
-        Complete this walkthrough before leaving the property. Photos are optional except for the firewood pile.
+        Complete this walkthrough before leaving the property. Log whatever you checked or photographed.
       </p>
 
       <ChecklistSection title="Levels">{sliderRows}</ChecklistSection>
@@ -158,7 +155,6 @@ export function ChecklistLastManOutForm({ userId, displayName, onSubmitted }: Ch
         <ChecklistMediaUploadCard
           key={field.key}
           label={field.label}
-          required={field.requiredImage}
           image={images[field.key]}
           disabled={submitting}
           onImagePick={(file) => onPick(field.key, file)}
@@ -179,7 +175,7 @@ export function ChecklistLastManOutForm({ userId, displayName, onSubmitted }: Ch
         <Button
           type="button"
           size="lg"
-          disabled={!canSubmit}
+          disabled={submitting}
           onClick={() => void handleSubmit()}
           className={cn(
             "h-14 w-full rounded-2xl text-base font-semibold shadow-[var(--ar-float-hero)]",
@@ -195,9 +191,6 @@ export function ChecklistLastManOutForm({ userId, displayName, onSubmitted }: Ch
             "Submit Checklist"
           )}
         </Button>
-        {!firewoodReady && !submitting ? (
-          <p className="mt-2 text-center text-xs text-muted-foreground">Add a firewood pile photo to submit.</p>
-        ) : null}
       </div>
     </div>
   );

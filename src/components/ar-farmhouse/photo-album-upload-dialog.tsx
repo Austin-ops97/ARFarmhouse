@@ -19,7 +19,9 @@ import { enqueueCpuBoundMediaTask } from "@/lib/media-upload-queue";
 import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
 import { startUploadTrace } from "@/lib/upload-trace";
 import { handoffEphemeralImageFromFile } from "@/lib/ephemeral-media-handoff";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_BOTTOM_SHEET_HOST, AR_MOBILE_SHEET, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
 import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import {
@@ -199,13 +201,14 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
   return (
     <AnimatePresence>
       {open ? (
+        <OverlayPortal>
         <motion.div
-          className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-6"
+          className={cn(AR_BOTTOM_SHEET_HOST, "z-[70]")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <button type="button" className="ar-scrim absolute inset-0" aria-label="Dismiss" onClick={dismiss} />
+          <button type="button" className={AR_OVERLAY_SCRIM} aria-label="Dismiss" onClick={dismiss} />
           <motion.div
             role="dialog"
             aria-modal="true"
@@ -214,10 +217,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
             animate={{ y: 0, opacity: 1 }}
             exit={reduceMotion ? undefined : { y: 16, opacity: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 34 }}
-            className={cn(
-              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-lg min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] sm:max-h-[min(92dvh,880px)]",
-              "sm:rounded-[1.75rem]"
-            )}
+            className={cn(AR_MOBILE_SHEET, "sm:max-h-[min(92dvh,880px)]")}
           >
             <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
               <div>
@@ -327,7 +327,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
               </div>
             </div>
 
-            <div className="flex gap-2 border-t border-border/50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div className="flex gap-2 border-t border-border/50 px-4 py-3">
               <Button type="button" variant="outline" className="flex-1 rounded-xl" onClick={dismiss}>
                 Cancel
               </Button>
@@ -338,6 +338,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
             </div>
           </motion.div>
         </motion.div>
+        </OverlayPortal>
       ) : null}
     </AnimatePresence>
   );

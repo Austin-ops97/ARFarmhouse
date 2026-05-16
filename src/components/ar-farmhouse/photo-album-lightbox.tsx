@@ -8,7 +8,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_FULLSCREEN_OVERLAY } from "@/lib/mobile-overlay";
 import { isAdmin } from "@/lib/permissions";
 import { albumBucketLabel, type AlbumMediaItem } from "@/lib/photo-album-media";
 import { deleteAlbumMediaItem } from "@/services/album-media";
@@ -145,8 +147,9 @@ export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: Photo
   return (
     <AnimatePresence>
       {open ? (
+        <OverlayPortal>
         <motion.div
-          className="fixed inset-0 z-[80] flex flex-col bg-black/94 backdrop-blur-xl"
+          className={cn(AR_FULLSCREEN_OVERLAY, "z-[80] bg-black/94 backdrop-blur-xl")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -286,6 +289,7 @@ export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: Photo
             </div>
           </footer>
         </motion.div>
+        </OverlayPortal>
       ) : null}
     </AnimatePresence>
   );

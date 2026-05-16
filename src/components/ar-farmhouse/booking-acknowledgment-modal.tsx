@@ -11,7 +11,9 @@ import {
   createBookingPolicyAcknowledgment,
   type BookingPolicyAcknowledgment,
 } from "@/lib/booking-acknowledgments";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_CENTERED_MODAL_HOST, AR_MOBILE_SHEET, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 type BookingAcknowledgmentModalProps = {
@@ -120,8 +122,9 @@ export function BookingAcknowledgmentModal({
   return (
     <AnimatePresence>
       {open && (
+        <OverlayPortal>
         <motion.div
-          className="fixed inset-0 z-[85] flex items-end justify-center p-0 sm:items-center sm:p-4 md:p-6"
+          className={cn(AR_CENTERED_MODAL_HOST, "z-[85]")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -129,7 +132,7 @@ export function BookingAcknowledgmentModal({
         >
           <button
             type="button"
-            className="ar-scrim absolute inset-0"
+            className={AR_OVERLAY_SCRIM}
             aria-label="Close confirmation"
             onClick={() => !submitting && onClose()}
             disabled={submitting}
@@ -143,11 +146,7 @@ export function BookingAcknowledgmentModal({
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={reduceMotion ? undefined : { y: 28, opacity: 0, scale: 0.99 }}
             transition={{ type: "spring", stiffness: 340, damping: 34 }}
-            className={cn(
-              "ar-modal-shell relative z-10 flex w-full max-w-lg min-h-0 flex-col overflow-hidden",
-              "max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)))]",
-              "rounded-t-[1.75rem] sm:max-h-[min(88dvh,760px)] sm:rounded-[1.75rem]"
-            )}
+            className={cn(AR_MOBILE_SHEET, "max-h-[min(92svh,var(--ar-sheet-max-height))] sm:max-h-[min(88svh,760px)]")}
           >
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, y: -4 }}
@@ -220,7 +219,7 @@ export function BookingAcknowledgmentModal({
               initial={reduceMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: reduceMotion ? 0 : 0.14, duration: 0.22 }}
-              className="shrink-0 border-t border-border/45 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-4 dark:border-white/10"
+              className="shrink-0 border-t border-border/45 px-5 pb-[var(--ar-overlay-bottom)] pt-4 dark:border-white/10"
             >
               <motion.div layout={!reduceMotion} className="flex gap-2.5">
                 <Button
@@ -254,6 +253,7 @@ export function BookingAcknowledgmentModal({
             </motion.div>
           </motion.div>
         </motion.div>
+        </OverlayPortal>
       )}
     </AnimatePresence>
   );

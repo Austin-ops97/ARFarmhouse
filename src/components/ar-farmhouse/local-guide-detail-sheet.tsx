@@ -8,7 +8,9 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { LocalGuideMapPreview } from "@/components/ar-farmhouse/local-guide-map-preview";
 import type { LocalGuideRow } from "@/lib/local-guide-types";
 import { familyRecommendations, isVerifiedRow } from "@/lib/local-guide";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_BOTTOM_SHEET_HOST, AR_MOBILE_SHEET, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 type LocalGuideDetailSheetProps = {
@@ -41,14 +43,15 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
   return (
     <AnimatePresence>
       {place && (
+        <OverlayPortal>
         <motion.div
-          className="fixed inset-0 z-[75] flex items-end justify-center sm:items-center sm:p-5"
+          className={cn(AR_BOTTOM_SHEET_HOST, "z-[75]")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0.1 : 0.16 }}
         >
-          <button type="button" className="ar-scrim absolute inset-0" aria-label="Close" onClick={close} />
+          <button type="button" className={AR_OVERLAY_SCRIM} aria-label="Close" onClick={close} />
           <motion.div
             role="dialog"
             aria-modal="true"
@@ -57,9 +60,7 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
             animate={{ y: 0, opacity: 1 }}
             exit={reduceMotion ? undefined : { y: 28, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 36 }}
-            className={cn(
-              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-lg min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] touch-manipulation sm:max-h-[min(92dvh,880px)] sm:rounded-[1.75rem]"
-            )}
+            className={cn(AR_MOBILE_SHEET, "sm:max-h-[min(92dvh,880px)]")}
           >
             <div className="flex items-center justify-between gap-3 border-b border-border/45 px-5 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-white/10">
               <div className="min-w-0">
@@ -154,6 +155,7 @@ export function LocalGuideDetailSheet({ place, onClose }: LocalGuideDetailSheetP
             </div>
           </motion.div>
         </motion.div>
+        </OverlayPortal>
       )}
     </AnimatePresence>
   );

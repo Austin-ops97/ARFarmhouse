@@ -12,7 +12,9 @@ import {
   processAvatarFromCrop,
   type AvatarCropPixels,
 } from "@/lib/image-avatar-process";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_CENTERED_MODAL_HOST, AR_MOBILE_SHEET, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 export type AvatarPhotoCropDialogProps = {
@@ -106,8 +108,9 @@ export function AvatarPhotoCropDialog({
   return (
     <AnimatePresence>
       {open && imageSrc ? (
+        <OverlayPortal>
         <motion.div
-          className="fixed inset-0 z-[70] flex items-end justify-center overscroll-contain sm:items-center sm:p-5"
+          className={cn(AR_CENTERED_MODAL_HOST, "z-[70] overscroll-contain")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -115,7 +118,7 @@ export function AvatarPhotoCropDialog({
         >
           <button
             type="button"
-            className="absolute inset-0 bg-background/75 backdrop-blur-xl"
+            className={AR_OVERLAY_SCRIM}
             aria-label="Close"
             onClick={dismiss}
             disabled={busy}
@@ -129,8 +132,8 @@ export function AvatarPhotoCropDialog({
             exit={reduceMotion ? undefined : { y: 16, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 340, damping: 32 }}
             className={cn(
-              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-lg min-h-0 flex-col overflow-hidden sm:max-h-[min(94dvh,720px)]",
-              "rounded-t-[1.5rem] border border-border/60 bg-card/95 shadow-[var(--ar-modal-elevate)] backdrop-blur-2xl sm:rounded-[1.5rem] dark:border-white/10"
+              AR_MOBILE_SHEET,
+              "max-w-lg rounded-t-[1.5rem] border border-border/60 bg-card/95 shadow-[var(--ar-modal-elevate)] backdrop-blur-2xl sm:max-h-[min(94dvh,720px)] sm:rounded-[1.5rem] dark:border-white/10"
             )}
             onClick={(e) => e.stopPropagation()}
           >
@@ -255,6 +258,7 @@ export function AvatarPhotoCropDialog({
             </div>
           </motion.div>
         </motion.div>
+        </OverlayPortal>
       ) : null}
     </AnimatePresence>
   );

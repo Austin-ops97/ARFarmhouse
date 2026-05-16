@@ -20,7 +20,9 @@ import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useHubPropertyOps } from "@/hooks/use-hub-property-ops";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_BOTTOM_SHEET_HOST, AR_MOBILE_SHEET, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
 import { resolveWeekendHubBundle } from "@/lib/weekend-hub-hydrate";
 import type { WeekendHubSlug } from "@/lib/weekend-hub-slug";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
@@ -87,8 +89,13 @@ export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: We
   return (
     <AnimatePresence>
       {open ? (
+        <OverlayPortal>
         <motion.div
-          className="fixed inset-0 z-[52] flex items-end justify-center sm:items-end sm:justify-center sm:p-4 md:items-center md:p-6 lg:p-8"
+          className={cn(
+            AR_BOTTOM_SHEET_HOST,
+            "z-[52] sm:items-end md:items-center",
+            "sm:p-4 md:p-6 lg:p-8"
+          )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -96,7 +103,7 @@ export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: We
         >
           <button
             type="button"
-            className="ar-scrim absolute inset-0"
+            className={AR_OVERLAY_SCRIM}
             aria-label="Close"
             onClick={onClose}
           />
@@ -109,7 +116,8 @@ export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: We
             exit={reduceMotion ? undefined : { y: 20, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 34 }}
             className={cn(
-              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-[100vw] min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] touch-manipulation",
+              AR_MOBILE_SHEET,
+              "max-w-[100vw] touch-manipulation",
               "sm:max-h-[min(94dvh,920px)] sm:max-w-2xl sm:rounded-[1.75rem]"
             )}
           >
@@ -346,6 +354,7 @@ export function WeekendHubSheet({ open, slug, calendarEvents = [], onClose }: We
             </div>
           </motion.div>
         </motion.div>
+        </OverlayPortal>
       ) : null}
     </AnimatePresence>
   );

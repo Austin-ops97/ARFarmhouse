@@ -29,7 +29,9 @@ import type { BlackoutDate, Booking, BookingType } from "@/models/booking";
 import { createBooking } from "@/services/booking-mutations";
 import { ActionToastBanner } from "@/components/ui/action-toast";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AR_BOTTOM_SHEET_HOST, AR_MOBILE_SHEET, AR_OVERLAY_SCRIM } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
 const TRIP_TYPES = [
@@ -338,8 +340,9 @@ export function CalendarBookingSheet({
   return (
     <AnimatePresence>
       {open && (
+        <OverlayPortal>
         <motion.div
-          className="fixed inset-0 z-[70] flex items-end justify-center sm:items-end sm:justify-center sm:p-4 md:items-center md:p-6"
+          className={cn(AR_BOTTOM_SHEET_HOST, "z-[70] sm:items-end md:items-center", "sm:p-4 md:p-6")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -347,7 +350,7 @@ export function CalendarBookingSheet({
         >
           <button
             type="button"
-            className="ar-scrim absolute inset-0"
+            className={AR_OVERLAY_SCRIM}
             aria-label="Close"
             onClick={close}
             disabled={submitting}
@@ -361,8 +364,8 @@ export function CalendarBookingSheet({
             exit={reduceMotion ? undefined : { y: 22, opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className={cn(
-              "ar-modal-shell relative z-10 flex max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-bottom,0px)))] w-full max-w-[100vw] min-h-0 flex-col overflow-hidden rounded-t-[1.75rem] touch-manipulation",
-              "sm:max-h-[min(92dvh,920px)] sm:max-w-lg md:max-w-xl md:rounded-[1.75rem]"
+              AR_MOBILE_SHEET,
+              "max-w-[100vw] touch-manipulation sm:max-h-[min(92dvh,920px)] sm:max-w-lg md:max-w-xl"
             )}
           >
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/45 px-4 pb-3 pt-3 sm:px-5 sm:pb-4 dark:border-white/10">
@@ -379,7 +382,7 @@ export function CalendarBookingSheet({
               </Button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:px-5 sm:py-5">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
               {submitted ? (
                 <motion.div
                   initial={reduceMotion ? false : { opacity: 0, y: 8 }}
@@ -656,6 +659,7 @@ export function CalendarBookingSheet({
           />
           <ActionToastBanner toast={toast} />
         </motion.div>
+        </OverlayPortal>
       )}
     </AnimatePresence>
   );
