@@ -11,7 +11,7 @@ import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { DashboardMobileDrawerTrigger } from "@/components/ar-farmhouse/dashboard-mobile-drawer";
 import { OverlayPortal } from "@/components/ar-farmhouse/overlay-portal";
 import { getSidebarNavForUser, type NavId } from "@/components/ar-farmhouse/dashboard-nav";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { useAuth } from "@/contexts/auth-context";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AR_ACCOUNT_MENU } from "@/lib/mobile-overlay";
@@ -45,7 +45,7 @@ export function DashboardAppHeader({
   const reduceMotion = useReducedMotion();
   const router = useRouter();
   const { goTo } = useEcosystem();
-  const { user, signOut, displayName, avatarUrl, profile } = useAuth();
+  const { user, signOut, displayName, avatarColor, profile } = useAuth();
   const navItems = getSidebarNavForUser(profile);
   const [accountOpen, setAccountOpen] = useState(false);
   const [elevated, setElevated] = useState(false);
@@ -114,10 +114,14 @@ export function DashboardAppHeader({
               aria-expanded={accountOpen}
               aria-haspopup="menu"
             >
-              <Avatar size="default" className="size-8 ring-1 ring-border/60 sm:size-9 dark:ring-white/10">
-                <AvatarImage src={avatarUrl ?? undefined} alt="" />
-                <AvatarFallback className="text-xs sm:text-xs">{displayName.slice(0, 2)}</AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                name={displayName}
+                colorId={avatarColor}
+                uid={user.uid}
+                size="default"
+                className="size-8 ring-1 ring-border/60 sm:size-9 dark:ring-white/10"
+                fallbackClassName="text-xs"
+              />
               <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground sm:text-xs">
                 {displayName}
               </span>

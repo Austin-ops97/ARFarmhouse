@@ -3,8 +3,7 @@
 import { updateProfile } from "firebase/auth";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Camera, Heart, Loader2, PawPrint, Plus, Sparkles, Trash2, UserRound } from "lucide-react";
-import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
 
 import { MediaSourcePicker } from "@/components/ar-farmhouse/media-source-picker";
 import { validateRawImageFile } from "@/lib/image-input";
@@ -18,8 +17,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/auth-context";
+import { AVATAR_COLOR_PRESETS } from "@/lib/avatar-colors";
 import { tryGetFirebaseAuth } from "@/lib/firebase";
 import {
   createFamilyMemberId,
@@ -30,18 +31,8 @@ import {
   type FamilyRelationship,
 } from "@/models/family-profile";
 import type { AppUser } from "@/models/user";
-import { profileHandle } from "@/services/user-profile";
-import { isProfilePhotoUploadAvailable, uploadProfilePhoto } from "@/services/profile-storage";
-import { saveUserProfile, subscribeUserProfile } from "@/services/user-profile";
+import { profileHandle, saveUserProfile, subscribeUserProfile } from "@/services/user-profile";
 import { cn } from "@/lib/utils";
-
-const AvatarPhotoCropDialog = dynamic(
-  () =>
-    import("@/components/ar-farmhouse/avatar-photo-crop-dialog").then((m) => ({
-      default: m.AvatarPhotoCropDialog,
-    })),
-  { ssr: false }
-);
 
 const surface = "ar-surface-raised overflow-hidden rounded-[1.35rem]";
 
@@ -103,17 +94,10 @@ export function ProfileView() {
   const [profile, setProfile] = useState<AppUser | null>(authProfile);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [stagingMemberPhotoUrl, setStagingMemberPhotoUrl] = useState<Record<string, string>>({});
   const [stagingPetPhotoUrl, setStagingPetPhotoUrl] = useState<Record<string, string>>({});
-  const [cropOpen, setCropOpen] = useState(false);
-  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
-  const [cropFileName, setCropFileName] = useState<string | undefined>();
-  const cropObjectUrlRef = useRef<string | null>(null);
-  const photoUploadAvailable = isProfilePhotoUploadAvailable();
   const [photoPickerTarget, setPhotoPickerTarget] = useState<
-    { kind: "avatar" } | { kind: "member"; id: string } | { kind: "pet"; id: string } | null
+    { kind: "member"; id: string } | { kind: "pet"; id: string } | null
   >(null);
 
   const [displayName, setDisplayName] = useState("");
@@ -151,10 +135,6 @@ export function ProfileView() {
     }
   }, [authProfile, syncForm]);
 
-  useEffect(() => {
-    void import("@/components/ar-farmhouse/avatar-photo-crop-dialog").catch(() => {});
-  }, []);
-
   const persist = useCallback(
     async (patch: Parameters<typeof saveUserProfile>[1]) => {
       if (!user) return;
@@ -170,10 +150,9 @@ export function ProfileView() {
         syncForm(next);
         await refreshProfile();
         const auth = tryGetFirebaseAuth();
-        if (auth?.currentUser && (patch.displayName !== undefined || patch.avatar !== undefined)) {
+        if (auth?.currentUser && patch.displayName !== undefined) {
           await updateProfile(auth.currentUser, {
             displayName: next?.displayName ?? auth.currentUser.displayName,
-            photoURL: next?.avatar ?? auth.currentUser.photoURL,
           });
         }
       } catch (e) {
@@ -183,75 +162,6 @@ export function ProfileView() {
       }
     },
     [configured, refreshProfile, syncForm, user]
-  );
-
-  const clearCropSource = useCallback(() => {
-    if (cropObjectUrlRef.current) {
-      URL.revokeObjectURL(cropObjectUrlRef.current);
-      cropObjectUrlRef.current = null;
-    }
-    setCropImageSrc(null);
-    setCropFileName(undefined);
-  }, []);
-
-  const onProfilePhotoSelected = useCallback(
-    (file: File) => {
-      if (!user) return;
-      if (!photoUploadAvailable) {
-        setSaveError(
-          "Photo uploads are not available yet. Firebase Storage may still be setting up — you can save other profile details in the meantime."
-        );
-        return;
-      }
-      try {
-        validateRawImageFile(file);
-      } catch (e) {
-        setSaveError(e instanceof Error ? e.message : "That file is not supported.");
-        return;
-      }
-      clearCropSource();
-      const url = URL.createObjectURL(file);
-      cropObjectUrlRef.current = url;
-      setCropImageSrc(url);
-      setCropFileName(file.name);
-      setSaveError(null);
-      setCropOpen(true);
-    },
-    [clearCropSource, photoUploadAvailable, user]
-  );
-
-  const onCropDialogOpenChange = useCallback(
-    (open: boolean) => {
-      setCropOpen(open);
-      if (!open) clearCropSource();
-    },
-    [clearCropSource]
-  );
-
-  const onProfilePhotoCropped = useCallback(
-    (file: File, previewUrl: string) => {
-      if (!user) return;
-      const previousAvatar = profile?.avatar ?? null;
-      setSaveError(null);
-      setProfile((prev) => (prev ? { ...prev, avatar: previewUrl } : prev));
-      setUploadingPhoto(true);
-      setUploadProgress(0);
-      void enqueueMediaUploadTask(async () => {
-        await deferMediaCpuWork();
-        try {
-          const url = await uploadProfilePhoto(user.uid, file, (pct) => setUploadProgress(pct));
-          await persist({ avatar: url });
-        } catch (e) {
-          setProfile((prev) => (prev ? { ...prev, avatar: previousAvatar } : prev));
-          setSaveError(e instanceof Error ? e.message : "Photo upload failed.");
-        } finally {
-          URL.revokeObjectURL(previewUrl);
-          setUploadingPhoto(false);
-          setUploadProgress(null);
-        }
-      });
-    },
-    [persist, profile?.avatar, user]
   );
 
   const members = useMemo(() => profile?.familyMembers ?? [], [profile?.familyMembers]);
@@ -315,11 +225,6 @@ export function ProfileView() {
       if (!file || !target || !user) return;
       setPhotoPickerTarget(null);
 
-      if (target.kind === "avatar") {
-        onProfilePhotoSelected(file);
-        return;
-      }
-
       setSaveError(null);
       try {
         validateRawImageFile(file);
@@ -377,18 +282,11 @@ export function ProfileView() {
         }
       });
     },
-    [members, pets, onProfilePhotoSelected, photoPickerTarget, updateMember, updatePet, user]
+    [members, pets, photoPickerTarget, updateMember, updatePet, user]
   );
 
   const photoPickerCopy =
-    photoPickerTarget?.kind === "avatar"
-      ? {
-          title: "Profile photo",
-          subtitle: "Take a new shot or choose from your library",
-          takePhotoLabel: "Take Photo",
-          uploadLabel: "Choose From Library",
-        }
-      : photoPickerTarget?.kind === "member"
+    photoPickerTarget?.kind === "member"
         ? {
             title: "Family member photo",
             subtitle: "Capture or upload a photo for this person",
@@ -417,7 +315,7 @@ export function ProfileView() {
     );
   }
 
-  const onboarding = !profile?.avatar || !profile.displayName?.trim();
+  const onboarding = !profile?.displayName?.trim();
 
   return (
     <div className="pb-24 pt-1">
@@ -427,20 +325,11 @@ export function ProfileView() {
           if (!open) setPhotoPickerTarget(null);
         }}
         onFiles={(files) => void onPhotoPickerFiles(files)}
-        disabled={uploadingPhoto || (photoPickerTarget?.kind === "avatar" && !photoUploadAvailable)}
+        disabled={false}
         sheetTitle={photoPickerCopy.title}
         sheetSubtitle={photoPickerCopy.subtitle}
         takePhotoLabel={photoPickerCopy.takePhotoLabel}
         uploadLabel={photoPickerCopy.uploadLabel}
-      />
-
-      <AvatarPhotoCropDialog
-        open={cropOpen}
-        imageSrc={cropImageSrc}
-        fileName={cropFileName}
-        displayName={displayName}
-        onOpenChange={onCropDialogOpenChange}
-        onComplete={onProfilePhotoCropped}
       />
 
       <motion.header
@@ -463,7 +352,7 @@ export function ProfileView() {
         <div className="mt-6 max-w-3xl">
           <EmptyHint>
             <Heart className="mx-auto mb-2 size-5 text-primary/80" aria-hidden />
-            Complete your family profile — add a photo and name so posts and bookings show the real you.
+            Add your name so posts and bookings show the real you.
           </EmptyHint>
         </div>
       ) : null}
@@ -471,43 +360,42 @@ export function ProfileView() {
       <div className="mt-8 flex max-w-3xl flex-col gap-5">
         <section className={cn(surface, "p-5")}>
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-            <div className="relative">
-              <Avatar className="size-24 rounded-[1.25rem] ring-2 ring-background sm:size-28">
-                <AvatarImage src={profile?.avatar ?? undefined} alt="" className="object-cover" />
-                <AvatarFallback className="rounded-[1.25rem] text-2xl font-semibold">
-                  {displayName.slice(0, 1) || "?"}
-                </AvatarFallback>
-              </Avatar>
-              <button
-                type="button"
-                disabled={uploadingPhoto || !photoUploadAvailable}
-                onClick={() => setPhotoPickerTarget({ kind: "avatar" })}
-                className={cn(
-                  "absolute -bottom-1 -right-1 flex size-9 items-center justify-center rounded-xl border border-border/60 bg-card shadow-sm dark:border-white/12 dark:bg-background",
-                  photoUploadAvailable
-                    ? "cursor-pointer transition hover:border-primary/35 hover:bg-primary/10"
-                    : "cursor-not-allowed opacity-60"
-                )}
-                aria-label="Change profile photo"
-              >
-                {uploadingPhoto ? (
-                  <Loader2 className="size-4 animate-spin text-primary" aria-hidden />
-                ) : (
-                  <Camera className="size-4 text-primary" aria-hidden />
-                )}
-              </button>
-            </div>
-            <div className="min-w-0 flex-1 text-center sm:text-left">
-              <p className="font-heading text-xl font-semibold text-foreground">{displayName || "Member"}</p>
-              {handle ? <p className="mt-0.5 text-sm text-muted-foreground">@{handle}</p> : null}
-              {user.email ? <p className="mt-1 text-[13px] text-muted-foreground">{user.email}</p> : null}
-              {!photoUploadAvailable ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Photo uploads will work once Firebase Storage is enabled for this project.
-                </p>
-              ) : uploadProgress !== null ? (
-                <p className="mt-2 text-xs text-muted-foreground">Uploading… {uploadProgress}%</p>
-              ) : null}
+            <UserAvatar
+              name={displayName || "Member"}
+              colorId={profile?.avatarColor}
+              uid={user.uid}
+              className="size-24 rounded-[1.25rem] ring-2 ring-background sm:size-28"
+              fallbackClassName="rounded-[1.25rem] text-2xl"
+            />
+            <div className="min-w-0 flex-1 space-y-3 text-center sm:text-left">
+              <div>
+                <p className="font-heading text-xl font-semibold text-foreground">{displayName || "Member"}</p>
+                {handle ? <p className="mt-0.5 text-sm text-muted-foreground">@{handle}</p> : null}
+                {user.email ? <p className="mt-1 text-[13px] text-muted-foreground">{user.email}</p> : null}
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Avatar color</p>
+                <motion.div className="flex flex-wrap justify-center gap-2 sm:justify-start">
+                  {AVATAR_COLOR_PRESETS.map((preset) => {
+                    const selected = profile?.avatarColor === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        aria-label={`${preset.label} background`}
+                        aria-pressed={selected}
+                        disabled={saving}
+                        onClick={() => void persist({ avatarColor: preset.id })}
+                        className={cn(
+                          "size-9 rounded-full ring-2 ring-offset-2 ring-offset-background transition",
+                          preset.bg,
+                          selected ? preset.ring : "ring-transparent opacity-75 hover:opacity-100"
+                        )}
+                      />
+                    );
+                  })}
+                </motion.div>
+              </div>
             </div>
           </div>
         </section>

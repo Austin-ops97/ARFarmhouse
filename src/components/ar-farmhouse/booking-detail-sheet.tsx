@@ -50,7 +50,7 @@ type ModerationMode = "deny" | "delete" | null;
 export function BookingDetailSheet({ bookingId, open, onOpenChange }: BookingDetailSheetProps) {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
-  const { user, profile, displayName, avatarUrl } = useAuth();
+  const { user, profile, displayName } = useAuth();
   const { toast, showToast } = useActionToast();
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(false);
@@ -94,7 +94,7 @@ export function BookingDetailSheet({ bookingId, open, onOpenChange }: BookingDet
   const close = () => onOpenChange(false);
 
   const actor = user
-    ? { uid: user.uid, displayName: displayName || "Member", avatarUrl }
+    ? { uid: user.uid, displayName: displayName || "Member", avatarUrl: null }
     : null;
 
   const runAction = async (

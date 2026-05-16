@@ -28,6 +28,9 @@ import { evaluateRegistrationGate, readRegistrationPolicy } from "@/lib/auth-gat
 import { getFirebaseAuthErrorCode, getFirebaseAuthErrorMessage } from "@/lib/firebase/auth-errors";
 import { isFirebaseConfigured } from "@/lib/firebase/env";
 import { tryGetFirebaseAuth } from "@/lib/firebase";
+import type { AvatarColorId } from "@/lib/avatar-colors";
+import { DEFAULT_AVATAR_COLOR_ID } from "@/lib/avatar-colors";
+import { resolveAvatarColor } from "@/models/user";
 import type { AppUser } from "@/models/user";
 import { validateInviteCodeForSignup } from "@/services/invite-validation";
 import { bootstrapUserProfileOnSignup, loadUserProfile, syncUserProfile } from "@/services/user-profile";
@@ -55,7 +58,9 @@ export type AuthContextValue = {
   /** Reload Firestore profile into session after profile edits. */
   refreshProfile: () => Promise<void>;
   displayName: string;
-  avatarUrl: string | null;
+  /** @deprecated Profile photos removed — use {@link avatarColor}. */
+  avatarUrl: null;
+  avatarColor: AvatarColorId;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -325,7 +330,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session.user?.email?.split("@")[0]?.trim() ||
     "Member";
 
-  const avatarUrl = session.profile?.avatar ?? session.user?.photoURL ?? null;
+  const avatarColor = session.profile
+    ? resolveAvatarColor(session.profile)
+    : DEFAULT_AVATAR_COLOR_ID;
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -342,10 +349,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       refreshProfile,
       displayName,
-      avatarUrl,
+      avatarUrl: null,
+      avatarColor,
     }),
     [
-      avatarUrl,
+      avatarColor,
       clearError,
       configured,
       displayName,

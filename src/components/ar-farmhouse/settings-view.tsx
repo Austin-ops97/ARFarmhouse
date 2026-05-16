@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { useAuth } from "@/contexts/auth-context";
 import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
 import { useTheme } from "@/contexts/theme-context";
@@ -66,7 +66,7 @@ export function SettingsView() {
   const router = useRouter();
   const { goTo } = useEcosystem();
   const { theme, setTheme, ready } = useTheme();
-  const { displayName, avatarUrl, user, signOut } = useAuth();
+  const { displayName, avatarColor, user, signOut } = useAuth();
   const { prefs, patch } = useSettingsPrefs();
 
   return (
@@ -83,10 +83,13 @@ export function SettingsView() {
       <div className="mt-8 flex max-w-3xl flex-col gap-4">
         <SettingsGroup title="Account">
           <div className="flex items-center gap-4 py-4">
-            <Avatar className="size-14 shrink-0 rounded-2xl ring-2 ring-background">
-              <AvatarImage src={avatarUrl ?? undefined} alt="" className="object-cover" />
-              <AvatarFallback className="rounded-2xl text-lg font-semibold">{displayName.slice(0, 1)}</AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              name={displayName}
+              colorId={avatarColor}
+              uid={user?.uid}
+              className="size-14 shrink-0 rounded-2xl ring-2 ring-background"
+              fallbackClassName="rounded-2xl text-lg"
+            />
             <div className="min-w-0 flex-1">
               <p className="text-[15px] font-medium text-foreground">{displayName}</p>
               {user?.email ? <p className="mt-0.5 truncate text-sm text-muted-foreground">{user.email}</p> : null}

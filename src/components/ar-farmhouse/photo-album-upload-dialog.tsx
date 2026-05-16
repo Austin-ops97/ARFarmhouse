@@ -41,7 +41,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
   const reduceMotion = useReducedMotion();
   useBodyScrollLock(open);
   const inputId = useId();
-  const { user, displayName, avatarUrl } = useAuth();
+  const { user, displayName } = useAuth();
   const { attachments, files, addFiles, removeAt, clear: clearAttachments } = useImageAttachments({
     maxCount: 12,
   });
@@ -124,7 +124,7 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     const snap = {
       authorId: user.uid,
       authorDisplayName: authorName,
-      authorPhotoUrl: avatarUrl ?? user.photoURL ?? null,
+      authorPhotoUrl: null,
       caption,
       albumKey,
       linkedEvent: eventLink.trim() || null,

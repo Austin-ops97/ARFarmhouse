@@ -3,7 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Bell, CheckCheck, X } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/contexts/notifications-context";
 import { useNotificationNavigation } from "@/hooks/use-notification-navigation";
@@ -137,12 +137,13 @@ export function NotificationCenterSheet({ open, onOpenChange }: NotificationCent
                             onClick={() => void handleOpen(n.id)}
                             className="flex min-w-0 flex-1 gap-3 px-3 py-3"
                           >
-                            <Avatar size="default" className="size-10 shrink-0">
-                              <AvatarImage src={n.actorAvatarUrl ?? undefined} alt="" />
-                              <AvatarFallback className="text-[10px]">
-                                {n.actorDisplayName.slice(0, 2)}
-                              </AvatarFallback>
-                            </Avatar>
+                            <UserAvatar
+                              name={n.actorDisplayName}
+                              uid={n.actorId}
+                              size="default"
+                              className="size-10 shrink-0"
+                              fallbackClassName="text-[10px]"
+                            />
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium leading-snug text-foreground">{n.title}</p>
                               <p className="mt-0.5 line-clamp-2 text-[12px] text-muted-foreground">{n.body}</p>

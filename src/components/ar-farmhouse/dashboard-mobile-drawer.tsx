@@ -5,7 +5,7 @@ import { Menu, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef } from "react";
 
 import { ArFarmhouseLogo } from "@/components/ar-farmhouse/ar-farmhouse-logo";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { useAuth } from "@/contexts/auth-context";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
@@ -18,14 +18,6 @@ type DashboardMobileDrawerProps = {
   activeId: NavId;
   onSelect: (id: NavId) => void;
 };
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2);
-}
 
 export function DashboardMobileDrawerTrigger({
   open,
@@ -57,7 +49,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
   const reduceMotion = useReducedMotion();
   const titleId = useId();
   const panelRef = useRef<HTMLElement>(null);
-  const { displayName, avatarUrl, user, profile } = useAuth();
+  const { displayName, avatarColor, user, profile } = useAuth();
   const navItems = getSidebarNavForUser(profile);
 
   useBodyScrollLock(open);
@@ -149,10 +141,13 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
 
             <motion.div className="ar-surface-float mt-4 rounded-2xl p-4">
               <div className="flex items-center gap-3">
-                <Avatar size="lg" className="ring-2 ring-background/80">
-                  <AvatarImage src={avatarUrl ?? undefined} alt="" />
-                  <AvatarFallback>{initials(displayName)}</AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  name={displayName}
+                  colorId={avatarColor}
+                  uid={user?.uid}
+                  size="lg"
+                  className="ring-2 ring-background/80"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
                   <p className="truncate text-sm text-muted-foreground md:text-xs">{user?.email ?? "Signed in"}</p>

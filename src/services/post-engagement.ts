@@ -76,7 +76,7 @@ export type FeedComment = {
   id: string;
   authorId: string;
   author: string;
-  authorAvatarUrl: string | null;
+  authorAvatarColor: string;
   text: string;
   parentId: string | null;
   createdAtMs: number;
@@ -93,7 +93,10 @@ function mapCommentDoc(id: string, data: Record<string, unknown>): FeedComment {
     id,
     authorId: (data.authorId as string) ?? "",
     author: (data.authorName as string) ?? "Member",
-    authorAvatarUrl: (data.authorAvatarUrl as string | null) ?? null,
+    authorAvatarColor:
+      typeof data.authorAvatarColor === "string" && data.authorAvatarColor
+        ? data.authorAvatarColor
+        : "slate",
     text: (data.text as string) ?? "",
     parentId: (data.parentId as string | null) ?? null,
     createdAtMs,
@@ -110,7 +113,7 @@ export async function addFeedComment(input: {
   postId: string;
   uid: string;
   authorName: string;
-  authorAvatarUrl: string | null;
+  authorAvatarColor: string;
   text: string;
   parentId?: string | null;
 }) {
@@ -123,7 +126,7 @@ export async function addFeedComment(input: {
   batch.set(cref, {
     authorId: input.uid,
     authorName: input.authorName,
-    authorAvatarUrl: input.authorAvatarUrl,
+    authorAvatarColor: input.authorAvatarColor,
     text: trimmed,
     parentId: input.parentId ?? null,
     edited: false,

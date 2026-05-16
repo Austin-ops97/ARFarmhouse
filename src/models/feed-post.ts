@@ -44,7 +44,7 @@ export type UiFeedPost = {
   authorId: string;
   category: FeedPostCategory;
   layout: "hero" | "standard" | "tall";
-  author: { name: string; handle: string; avatar: string };
+  author: { name: string; handle: string; avatarColor: string };
   timeLabel: string;
   location?: string;
   title?: string;
@@ -90,7 +90,8 @@ export type FeedMediaAttachmentMeta = {
 export type FirestorePost = {
   authorId: string;
   authorDisplayName: string;
-  authorPhotoUrl: string | null;
+  authorPhotoUrl?: string | null;
+  authorAvatarColor?: string | null;
   contentType?: FeedPostContentType;
   category: FeedPostCategory;
   title?: string | null;

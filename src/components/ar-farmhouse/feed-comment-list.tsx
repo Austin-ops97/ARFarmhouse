@@ -3,20 +3,12 @@
 import { Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useState } from "react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { FeedComment } from "@/services/post-engagement";
 import { commentTimeLabel } from "@/services/post-engagement";
 import { cn } from "@/lib/utils";
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2);
-}
 
 type FeedCommentListProps = {
   comments: FeedComment[];
@@ -72,10 +64,13 @@ function CommentRow({
 
   return (
     <div className={cn("flex gap-2.5", depth > 0 && "ml-5 border-l border-border/50 pl-3 dark:border-white/10")}>
-      <Avatar className={cn("shrink-0 rounded-full", depth > 0 ? "size-7" : "size-8")}>
-        <AvatarImage src={comment.authorAvatarUrl ?? undefined} alt="" />
-        <AvatarFallback className="rounded-full text-[9px]">{initials(comment.author)}</AvatarFallback>
-      </Avatar>
+      <UserAvatar
+        name={comment.author}
+        colorId={comment.authorAvatarColor}
+        uid={comment.authorId}
+        className={cn("shrink-0", depth > 0 ? "size-7" : "size-8")}
+        fallbackClassName="rounded-full text-[9px]"
+      />
       <div className="min-w-0 flex-1 pt-0.5">
         {editing ? (
           <div className="space-y-2">

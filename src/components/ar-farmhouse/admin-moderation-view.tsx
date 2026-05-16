@@ -35,7 +35,7 @@ type ModerationTarget = { booking: Booking; mode: "deny" | "delete" };
 
 export function AdminModerationView({ embedded = false }: { embedded?: boolean }) {
   const reduceMotion = useReducedMotion();
-  const { user, profile, displayName, avatarUrl } = useAuth();
+  const { user, profile, displayName } = useAuth();
   const { toast, showToast } = useActionToast();
   const [pending, setPending] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +114,7 @@ export function AdminModerationView({ embedded = false }: { embedded?: boolean }
   }
 
   const actor = user
-    ? { uid: user.uid, displayName: displayName || "Admin", avatarUrl }
+    ? { uid: user.uid, displayName: displayName || "Admin", avatarUrl: null }
     : null;
 
   return (

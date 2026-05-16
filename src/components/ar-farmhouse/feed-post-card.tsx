@@ -34,7 +34,7 @@ import { FeedMediaFrame } from "@/components/ar-farmhouse/feed-media-frame";
 import { FeedMediaLightbox, type FeedMediaLightboxState } from "@/components/ar-farmhouse/feed-media-lightbox";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { PostShareSheet } from "@/components/ar-farmhouse/post-share-sheet";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { FeedCommentList } from "@/components/ar-farmhouse/feed-comment-list";
@@ -71,14 +71,6 @@ const categoryLabel: Record<UiFeedPost["category"], string> = {
   poll: "Poll",
 };
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2);
-}
-
 function useAlbumIndex(length: number) {
   const [i, setI] = useState(0);
   const next = useCallback(() => setI((v) => (v + 1) % length), [length]);
@@ -108,7 +100,7 @@ export function FeedPostCard({
 }) {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
-  const { user, profile, displayName, avatarUrl, configured } = useAuth();
+  const { user, profile, displayName, avatarColor, configured } = useAuth();
   const { isSaved } = useSavedPosts();
   const { ref: inViewRef, inView: engagementActive } = useInViewReady("280px 0px");
   const interactionsLive = configured && !!user?.uid && !post.optimistic;
@@ -137,7 +129,7 @@ export function FeedPostCard({
     postId: post.id,
     uid: user?.uid,
     displayName,
-    avatarUrl,
+    avatarColor,
     reactionCounts: post.reactionCounts,
     commentsOpen,
     engagementActive: engagementActive || commentsOpen,
@@ -419,10 +411,13 @@ export function FeedPostCard({
         )}
       >
         <header className="flex items-start gap-3 px-0.5 pb-3 sm:gap-2.5 sm:px-0 sm:pb-2.5">
-          <Avatar className="size-11 ring-2 ring-border/55 dark:ring-white/10 sm:size-12">
-            <AvatarImage src={post.author.avatar} alt="" />
-            <AvatarFallback>{initials(post.author.name)}</AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            name={post.author.name}
+            colorId={post.author.avatarColor}
+            uid={post.authorId}
+            className="size-11 ring-2 ring-border/55 dark:ring-white/10 sm:size-12"
+            fallbackClassName="text-sm"
+          />
           <div className="min-w-0 flex-1 pt-0.5">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <span className="text-base font-semibold tracking-tight text-foreground sm:text-[15px]">{post.author.name}</span>

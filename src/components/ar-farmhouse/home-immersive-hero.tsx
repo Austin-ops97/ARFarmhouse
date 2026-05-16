@@ -6,7 +6,7 @@ import { ArrowUpRight, CloudSun } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { PROPERTY_HERO_IMAGE_URL } from "@/lib/brand";
@@ -42,7 +42,7 @@ export function HomeImmersiveHero() {
   void minute;
   const narrative = resolveHomeHeroNarrative(new Date());
   const { openWeekendHub, goTo } = useEcosystem();
-  const { displayName, avatarUrl } = useAuth();
+  const { displayName, avatarColor, user } = useAuth();
   const heroImage = PROPERTY_HERO_IMAGE_URL;
   const firstName = displayName.split(/\s+/)[0] ?? displayName;
 
@@ -140,10 +140,14 @@ export function HomeImmersiveHero() {
           <div className="rounded-2xl bg-white/[0.08] px-4 py-4 ring-1 ring-white/14 backdrop-blur-xl">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-white/88">Household</p>
             <div className="mt-4 flex items-center gap-4">
-              <Avatar className="ring-2 ring-black/30" size="lg">
-                <AvatarImage src={avatarUrl ?? undefined} alt="" />
-                <AvatarFallback className="text-sm font-medium">{firstName.slice(0, 1)}</AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                name={displayName}
+                colorId={avatarColor}
+                uid={user?.uid}
+                size="lg"
+                className="ring-2 ring-black/30"
+                fallbackClassName="text-sm"
+              />
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium text-white">Signed in as {displayName}</p>
                 <p className="text-xs font-medium text-white/88">

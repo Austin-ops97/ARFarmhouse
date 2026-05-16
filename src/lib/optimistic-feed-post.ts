@@ -1,3 +1,4 @@
+import { normalizeAvatarColorId } from "@/lib/avatar-colors";
 import { formatFeedTimeLabel, handleFromDisplayName } from "@/lib/datetime/relative";
 import { buildChipsFromCounts, normalizeReactionCounts } from "@/lib/reaction-counts";
 import { newPollOptionId } from "@/lib/poll-id";
@@ -48,7 +49,7 @@ export function buildOptimisticFeedPost(opts: {
   id: string;
   authorId: string;
   authorDisplayName: string;
-  authorPhotoUrl: string | null;
+  authorAvatarColor: string;
   caption: string;
   location: string;
   postType: FeedPostCategory;
@@ -59,7 +60,7 @@ export function buildOptimisticFeedPost(opts: {
     id,
     authorId,
     authorDisplayName,
-    authorPhotoUrl,
+    authorAvatarColor,
     caption,
     location,
     postType,
@@ -96,7 +97,7 @@ export function buildOptimisticFeedPost(opts: {
     author: {
       name: authorDisplayName || "Member",
       handle: handleFromDisplayName(authorDisplayName ?? "member"),
-      avatar: authorPhotoUrl ?? "",
+      avatarColor: normalizeAvatarColorId(authorAvatarColor),
     },
     timeLabel: formatFeedTimeLabel(now),
     location: location.trim() ? location : undefined,
@@ -126,7 +127,7 @@ export function buildOptimisticPollPost(opts: {
   id: string;
   authorId: string;
   authorDisplayName: string;
-  authorPhotoUrl: string | null;
+  authorAvatarColor: string;
   question: string;
   optionTexts: string[];
   allowMultiple: boolean;
@@ -152,7 +153,7 @@ export function buildOptimisticPollPost(opts: {
     author: {
       name: opts.authorDisplayName || "Member",
       handle: handleFromDisplayName(opts.authorDisplayName ?? "member"),
-      avatar: opts.authorPhotoUrl ?? "",
+      avatarColor: normalizeAvatarColorId(opts.authorAvatarColor),
     },
     timeLabel: formatFeedTimeLabel(now),
     location: opts.location.trim() ? opts.location : undefined,

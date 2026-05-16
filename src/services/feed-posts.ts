@@ -15,6 +15,7 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
+import { avatarColorIdForUid, normalizeAvatarColorId } from "@/lib/avatar-colors";
 import { actionDebug } from "@/lib/action-debug";
 import { formatFeedTimeLabel, handleFromDisplayName } from "@/lib/datetime/relative";
 import { buildChipsFromCounts, normalizeReactionCounts } from "@/lib/reaction-counts";
@@ -47,6 +48,16 @@ import {
 
 const POSTS = "posts";
 const FIRESTORE_BATCH_LIMIT = 500;
+
+function mapPostAuthor(d: Partial<FirestorePost>, authorId: string) {
+  return {
+    name: d.authorDisplayName ?? "Member",
+    handle: handleFromDisplayName(d.authorDisplayName ?? "member"),
+    avatarColor: normalizeAvatarColorId(
+      d.authorAvatarColor ?? (authorId ? avatarColorIdForUid(authorId) : null)
+    ),
+  };
+}
 
 function resolveFeedPostAuthorId(data: Record<string, unknown>): string {
   if (typeof data.authorId === "string" && data.authorId.trim()) return data.authorId.trim();
@@ -144,18 +155,15 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
   const poll = contentType === "poll" ? mapPollData(d.poll) : undefined;
 
   if (contentType === "poll" && poll) {
+    const authorId = resolveFeedPostAuthorId(d as Record<string, unknown>);
     const reactionCounts = normalizeReactionCounts(d.reactionCounts);
     return {
       id: snapshot.id,
-      authorId: resolveFeedPostAuthorId(d as Record<string, unknown>),
+      authorId,
       contentType: "poll",
       category: "poll",
       layout: "standard",
-      author: {
-        name: d.authorDisplayName ?? "Member",
-        handle: handleFromDisplayName(d.authorDisplayName ?? "member"),
-        avatar: d.authorPhotoUrl ?? "",
-      },
+      author: mapPostAuthor(d, authorId),
       timeLabel: formatFeedTimeLabel(created),
       location: d.location ?? undefined,
       title: d.title ?? undefined,
@@ -213,17 +221,15 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
   });
   const hasFull = mediaFullUrls.some((x) => typeof x === "string");
 
+  const authorId = resolveFeedPostAuthorId(d as Record<string, unknown>);
+
   return {
     id: snapshot.id,
-    authorId: resolveFeedPostAuthorId(d as Record<string, unknown>),
+    authorId,
     contentType: "standard",
     category: (d.category as FeedPostCategory) ?? "update",
     layout,
-    author: {
-      name: d.authorDisplayName ?? "Member",
-      handle: handleFromDisplayName(d.authorDisplayName ?? "member"),
-      avatar: d.authorPhotoUrl ?? "",
-    },
+    author: mapPostAuthor(d, authorId),
     timeLabel: formatFeedTimeLabel(created),
     location: d.location ?? undefined,
     title: d.title ?? undefined,
@@ -271,7 +277,7 @@ export type FeedPublishProgress =
 export type CreateFeedPostInput = {
   authorId: string;
   authorDisplayName: string;
-  authorPhotoUrl: string | null;
+  authorAvatarColor: string;
   category: FeedPostCategory;
   title?: string;
   body: string;
@@ -283,7 +289,7 @@ export type CreateFeedPostInput = {
 export type CreatePollFeedPostInput = {
   authorId: string;
   authorDisplayName: string;
-  authorPhotoUrl: string | null;
+  authorAvatarColor: string;
   question: string;
   optionTexts: string[];
   allowMultiple: boolean;
@@ -403,7 +409,7 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
   const payload: Record<string, unknown> = {
     authorId: input.authorId,
     authorDisplayName: input.authorDisplayName,
-    authorPhotoUrl: input.authorPhotoUrl ?? null,
+    authorAvatarColor: normalizeAvatarColorId(input.authorAvatarColor),
     category: input.category,
     title: input.title?.trim() || null,
     body: input.body.trim(),
@@ -549,7 +555,7 @@ export async function createPollFeedPost(postId: string, input: CreatePollFeedPo
   const payload: Record<string, unknown> = {
     authorId: input.authorId,
     authorDisplayName: input.authorDisplayName,
-    authorPhotoUrl: input.authorPhotoUrl ?? null,
+    authorAvatarColor: normalizeAvatarColorId(input.authorAvatarColor),
     contentType: "poll",
     category: "poll",
     title: null,

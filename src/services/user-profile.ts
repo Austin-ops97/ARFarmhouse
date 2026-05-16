@@ -1,6 +1,7 @@
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, type Unsubscribe } from "firebase/firestore";
 import type { User } from "firebase/auth";
 
+import { DEFAULT_AVATAR_COLOR_ID, normalizeAvatarColorId } from "@/lib/avatar-colors";
 import { actionDebug } from "@/lib/action-debug";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import { handleFromDisplayName } from "@/lib/datetime/relative";
@@ -20,6 +21,7 @@ export type ProfilePatch = Partial<
     | "phone"
     | "birthday"
     | "avatar"
+    | "avatarColor"
     | "familyMembers"
     | "pets"
     | "themePreference"
@@ -82,11 +84,6 @@ function normalizePet(raw: unknown): FamilyPet | null {
 }
 
 function mapFirestoreUser(uid: string, d: Partial<FirestoreUserProfile>): AppUser {
-  const avatar =
-    (d.profilePhotoUrl as string | null | undefined) ??
-    (d.avatarUrl as string | null | undefined) ??
-    (d.avatar as string | null | undefined) ??
-    null;
   const members = Array.isArray(d.familyMembers)
     ? d.familyMembers.map(normalizeMember).filter((m): m is FamilyMember => m !== null)
     : [];
@@ -96,7 +93,8 @@ function mapFirestoreUser(uid: string, d: Partial<FirestoreUserProfile>): AppUse
     uid,
     email: d.email ?? null,
     displayName: d.displayName?.trim() || "Member",
-    avatar,
+    avatar: null,
+    avatarColor: normalizeAvatarColorId(d.avatarColor ?? DEFAULT_AVATAR_COLOR_ID),
     username: typeof d.username === "string" ? d.username.trim() || null : null,
     bio: d.bio ?? null,
     hometown: d.hometown ?? null,
@@ -159,9 +157,8 @@ export async function saveUserProfile(uid: string, patch: ProfilePatch): Promise
   if (patch.hometown !== undefined) data.hometown = patch.hometown?.trim() || null;
   if (patch.phone !== undefined) data.phone = patch.phone?.trim() || null;
   if (patch.birthday !== undefined) data.birthday = patch.birthday?.trim() || null;
-  if (patch.avatar !== undefined) {
-    data.avatarUrl = patch.avatar;
-    data.profilePhotoUrl = patch.avatar;
+  if (patch.avatarColor !== undefined) {
+    data.avatarColor = normalizeAvatarColorId(patch.avatarColor);
   }
   if (patch.familyMembers !== undefined) data.familyMembers = patch.familyMembers;
   if (patch.pets !== undefined) data.pets = patch.pets;
@@ -223,6 +220,7 @@ export async function bootstrapUserProfileOnSignup(
       signupRedemptionId: redemptionId,
       avatarUrl: null,
       profilePhotoUrl: null,
+      avatarColor: DEFAULT_AVATAR_COLOR_ID,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       role: "user",
@@ -266,20 +264,14 @@ export async function syncUserProfile(user: User): Promise<AppUser | null> {
     user.displayName?.trim() ||
     email?.split("@")[0]?.trim() ||
     "Member";
-  const avatarUrl =
-    existing?.profilePhotoUrl ??
-    existing?.avatarUrl ??
-    existing?.avatar ??
-    user.photoURL ??
-    null;
-
   if (!snap.exists()) {
     await setDoc(ref, {
       uid: user.uid,
       email,
       displayName,
-      avatarUrl,
-      profilePhotoUrl: avatarUrl,
+      avatarUrl: null,
+      profilePhotoUrl: null,
+      avatarColor: normalizeAvatarColorId(existing?.avatarColor ?? DEFAULT_AVATAR_COLOR_ID),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       role: "user",
@@ -303,9 +295,8 @@ export async function syncUserProfile(user: User): Promise<AppUser | null> {
     if (!existing?.displayName?.trim()) {
       patch.displayName = displayName;
     }
-    if (!existing?.profilePhotoUrl && !existing?.avatarUrl && !existing?.avatar) {
-      patch.avatarUrl = avatarUrl;
-      patch.profilePhotoUrl = avatarUrl;
+    if (!existing?.avatarColor) {
+      patch.avatarColor = DEFAULT_AVATAR_COLOR_ID;
     }
     await setDoc(ref, patch, { merge: true });
   }

@@ -68,7 +68,7 @@ export function CalendarBookingSheet({
   const reduceMotion = useReducedMotion();
   useBodyScrollLock(open);
   const titleId = useId();
-  const { user, profile, displayName, avatarUrl, loading: authLoading, configured } = useAuth();
+  const { user, profile, displayName, loading: authLoading, configured } = useAuth();
   const submitEpochRef = useRef(0);
   const calendarMonth = useMemo(
     () => buildCalendarMonthMeta(viewDate ?? new Date()),
@@ -180,7 +180,7 @@ export function CalendarBookingSheet({
           endDay: hi,
           createdBy: user.uid,
           createdByName: displayName,
-          actorAvatarUrl: avatarUrl,
+          actorAvatarUrl: null,
           tripId: recordType === "booking" ? tripId : "event",
           guests: guestCount,
           roomId,

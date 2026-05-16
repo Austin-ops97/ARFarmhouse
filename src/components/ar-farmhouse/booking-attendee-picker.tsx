@@ -2,6 +2,7 @@
 
 import { PawPrint, UserRound } from "lucide-react";
 
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { FamilyMember } from "@/models/family-profile";
 import { RELATIONSHIP_LABELS } from "@/models/family-profile";
@@ -24,6 +25,8 @@ function Chip({
   label,
   sub,
   photoUrl,
+  avatarColor,
+  avatarUid,
   fallback,
   icon,
 }: {
@@ -32,6 +35,8 @@ function Chip({
   label: string;
   sub?: string;
   photoUrl?: string | null;
+  avatarColor?: string | null;
+  avatarUid?: string | null;
   fallback: string;
   icon?: React.ReactNode;
 }) {
@@ -46,10 +51,20 @@ function Chip({
           : "border-border/60 bg-muted/30 hover:border-border dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/16"
       )}
     >
-      <Avatar className="size-9 shrink-0 rounded-xl">
-        {photoUrl ? <AvatarImage src={photoUrl} alt="" className="object-cover" /> : null}
-        <AvatarFallback className="rounded-xl text-xs font-semibold">{fallback}</AvatarFallback>
-      </Avatar>
+      {photoUrl ? (
+        <Avatar className="size-9 shrink-0 rounded-xl">
+          <AvatarImage src={photoUrl} alt="" className="object-cover" />
+          <AvatarFallback className="rounded-xl text-xs font-semibold">{fallback}</AvatarFallback>
+        </Avatar>
+      ) : (
+        <UserAvatar
+          name={label}
+          colorId={avatarColor}
+          uid={avatarUid}
+          className="size-9 shrink-0 rounded-xl"
+          fallbackClassName="rounded-xl text-xs"
+        />
+      )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-foreground">{label}</span>
         {sub ? <span className="block truncate text-[11px] text-muted-foreground">{sub}</span> : null}
@@ -121,7 +136,8 @@ export function BookingAttendeePicker({ profile, value, onChange }: BookingAtten
           onClick={() => onChange({ ...value, includeSelf: !value.includeSelf })}
           label={profile.displayName}
           sub="You"
-          photoUrl={profile.avatar}
+          avatarColor={profile.avatarColor}
+          avatarUid={profile.uid}
           fallback={profile.displayName.slice(0, 1)}
           icon={<UserRound className="size-4 shrink-0 text-primary/80" aria-hidden />}
         />

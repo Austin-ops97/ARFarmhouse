@@ -1,3 +1,5 @@
+import type { AvatarColorId } from "@/lib/avatar-colors";
+import { DEFAULT_AVATAR_COLOR_ID, normalizeAvatarColorId } from "@/lib/avatar-colors";
 import type { FamilyMember, FamilyPet } from "@/models/family-profile";
 
 /** App access role stored on `users/{uid}`. */
@@ -17,10 +19,11 @@ export type FirestoreUserProfile = {
   uid: string;
   displayName: string;
   email: string | null;
-  avatarUrl: string | null;
+  avatarUrl?: string | null;
   profilePhotoUrl?: string | null;
-  /** Legacy field — prefer `avatarUrl` / `profilePhotoUrl` */
+  /** Legacy — no longer used for display */
   avatar?: string | null;
+  avatarColor?: string | null;
   username?: string | null;
   bio: string | null;
   hometown: string | null;
@@ -40,7 +43,9 @@ export type AppUser = {
   uid: string;
   email: string | null;
   displayName: string;
+  /** @deprecated Profile photos removed — use {@link avatarColor} + initials. */
   avatar: string | null;
+  avatarColor: AvatarColorId;
   username: string | null;
   bio: string | null;
   hometown: string | null;
@@ -54,13 +59,11 @@ export type AppUser = {
   pets: FamilyPet[];
 };
 
-export function resolveProfilePhoto(profile: Pick<AppUser, "avatar">): string | null {
-  return profile.avatar;
-}
-
 export function isProfileOnboardingComplete(profile: AppUser | null): boolean {
   if (!profile) return false;
-  const hasName = Boolean(profile.displayName?.trim());
-  const hasPhoto = Boolean(profile.avatar);
-  return hasName && hasPhoto;
+  return Boolean(profile.displayName?.trim());
+}
+
+export function resolveAvatarColor(profile: Pick<AppUser, "avatarColor"> | null | undefined): AvatarColorId {
+  return normalizeAvatarColorId(profile?.avatarColor ?? DEFAULT_AVATAR_COLOR_ID);
 }

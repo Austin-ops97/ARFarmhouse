@@ -11,7 +11,7 @@ import {
 } from "@/components/ar-farmhouse/create-post-dialog";
 import { FeedPostCard } from "@/components/ar-farmhouse/feed-post-card";
 import { FeedRail } from "@/components/ar-farmhouse/feed-rail";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
 import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
@@ -83,7 +83,7 @@ const composerBar = cn(
 
 export function FeedView({ highlightPostId }: { highlightPostId?: string | null }) {
   const reduceMotion = useReducedMotion();
-  const { user, displayName, avatarUrl, loading: authLoading, configured } = useAuth();
+  const { user, displayName, avatarColor, loading: authLoading, configured } = useAuth();
   const { prefs } = useSettingsPrefs();
   const [composeOpen, setComposeOpen] = useState(false);
   const [optimisticFeed, setOptimisticFeed] = useState<UiFeedPost[]>([]);
@@ -94,7 +94,6 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
   const retryPollPayloadsRef = useRef(new Map<string, CreatePollFeedPostInput>());
   const abortFinalizeRef = useRef(new Map<string, AbortController>());
 
-  const meAvatar = avatarUrl ?? undefined;
   const meName = displayName;
 
   const { setFeedPosts } = usePhotoAlbum();
@@ -240,7 +239,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         id: postId,
         authorId: user.uid,
         authorDisplayName: displayName || "Member",
-        authorPhotoUrl: avatarUrl ?? null,
+        authorAvatarColor: avatarColor,
         caption: payload.caption,
         location: payload.location,
         postType: payload.postType,
@@ -251,7 +250,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
       const input: CreateFeedPostInput = {
         authorId: user.uid,
         authorDisplayName: displayName || "Member",
-        authorPhotoUrl: avatarUrl ?? null,
+        authorAvatarColor: avatarColor,
         category: payload.postType,
         body: payload.caption,
         location: payload.location,
@@ -281,7 +280,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
       }
       runFinalizeFeedJob(postId, input);
     },
-    [avatarUrl, displayName, runFinalizeFeedJob, user]
+    [avatarColor, displayName, runFinalizeFeedJob, user]
   );
 
   const handlePublishPoll = useCallback(
@@ -300,7 +299,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         id: postId,
         authorId: user.uid,
         authorDisplayName: displayName || "Member",
-        authorPhotoUrl: avatarUrl ?? null,
+        authorAvatarColor: avatarColor,
         question: payload.question,
         optionTexts: payload.options,
         allowMultiple: payload.allowMultiple,
@@ -311,7 +310,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
       const input: CreatePollFeedPostInput = {
         authorId: user.uid,
         authorDisplayName: displayName || "Member",
-        authorPhotoUrl: avatarUrl ?? null,
+        authorAvatarColor: avatarColor,
         question: payload.question,
         optionTexts: payload.options,
         allowMultiple: payload.allowMultiple,
@@ -344,7 +343,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         throw e;
       }
     },
-    [avatarUrl, displayName, user]
+    [avatarColor, displayName, user]
   );
 
   const handleRetryOptimistic = useCallback(
@@ -451,10 +450,13 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
             onClick={() => setComposeOpen(true)}
             className={cn(composerBar)}
           >
-            <Avatar size="default" className="size-9 shrink-0 ring-2 ring-background/75 sm:size-10">
-              <AvatarImage src={meAvatar} alt="" />
-              <AvatarFallback>{meName.slice(0, 1)}</AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              name={meName}
+              colorId={avatarColor}
+              uid={user?.uid}
+              size="default"
+              className="size-9 shrink-0 ring-2 ring-background/75 sm:size-10"
+            />
             <span className="min-w-0 flex-1 text-[15px] leading-snug text-muted-foreground/85 sm:text-[15px]">
               Share a moment with the family
             </span>

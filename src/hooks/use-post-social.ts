@@ -31,7 +31,7 @@ type UsePostSocialOptions = {
   postId: string;
   uid: string | undefined;
   displayName: string;
-  avatarUrl: string | null;
+  avatarColor: string;
   reactionCounts: Record<string, number>;
   commentsOpen: boolean;
   engagementActive: boolean;
@@ -50,7 +50,7 @@ export function usePostSocial({
   postId,
   uid,
   displayName,
-  avatarUrl,
+  avatarColor,
   reactionCounts,
   commentsOpen,
   engagementActive,
@@ -132,7 +132,7 @@ export function usePostSocial({
             postId,
             actorId: uid,
             actorName: displayName,
-            actorAvatarUrl: avatarUrl,
+            actorAvatarUrl: null,
             emoji: nextUserEmoji,
           });
         }
@@ -143,7 +143,7 @@ export function usePostSocial({
         setSocialError(e instanceof Error ? e.message : "Could not update reaction.");
       }
     },
-    [avatarUrl, countsFromFeed, displayName, mineEmoji, postId, remoteEnabled, uid]
+    [avatarColor, countsFromFeed, displayName, mineEmoji, postId, remoteEnabled, uid]
   );
 
   const toggleSaved = useCallback(async () => {
@@ -167,7 +167,7 @@ export function usePostSocial({
         id: tempId,
         authorId: uid,
         author: displayName,
-        authorAvatarUrl: avatarUrl,
+        authorAvatarColor: avatarColor,
         text: text.trim(),
         parentId: parentId ?? null,
         createdAtMs: Date.now(),
@@ -180,7 +180,7 @@ export function usePostSocial({
           postId,
           uid,
           authorName: displayName,
-          authorAvatarUrl: avatarUrl,
+          authorAvatarColor: avatarColor,
           text,
           parentId,
         });
@@ -189,7 +189,7 @@ export function usePostSocial({
           commentId,
           actorId: uid,
           actorName: displayName,
-          actorAvatarUrl: avatarUrl,
+          actorAvatarUrl: null,
           parentId,
         });
         setPendingComments((rows) => rows.filter((r) => r.id !== tempId));
@@ -200,7 +200,7 @@ export function usePostSocial({
         throw e;
       }
     },
-    [avatarUrl, displayName, postId, uid, remoteEnabled]
+    [avatarColor, displayName, postId, uid, remoteEnabled]
   );
 
   const editComment = useCallback(

@@ -33,7 +33,7 @@ const sectionOrder: TaskListSection[] = ["emergency", "active", "maintenance", "
 export function TasksView() {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
-  const { user, displayName, avatarUrl, configured } = useAuth();
+  const { user, displayName, configured } = useAuth();
   const { tasks, tasksLoading, tasksError, calendarEvents, statusCards, inventory } = usePropertyData();
   const [view, setView] = useState<"list" | "board">("list");
   const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -91,7 +91,7 @@ export function TasksView() {
           title: opts.title,
           uid: user.uid,
           displayName,
-          avatarUrl,
+          avatarUrl: null,
           listSection: opts.listSection,
           priority: opts.priority,
           dueLabel: opts.dueLabel,
@@ -100,7 +100,7 @@ export function TasksView() {
         setQuickAddBusy(false);
       }
     },
-    [avatarUrl, displayName, user]
+    [displayName, user]
   );
 
   const grouped = useMemo(() => {
