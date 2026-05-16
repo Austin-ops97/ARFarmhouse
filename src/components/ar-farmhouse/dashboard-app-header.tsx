@@ -65,8 +65,8 @@ export function DashboardAppHeader({
         "left-0 lg:left-[248px] lg:right-0",
         "transition-[background-color,box-shadow,border-color] duration-300 ease-out",
         elevated
-          ? "border-border/60 bg-background/88 shadow-[var(--ar-panel-elevate)] dark:border-white/[0.1] dark:bg-background/88 dark:shadow-[0_8px_32px_-12px_rgba(0,0,0,0.55)]"
-          : "border-border/45 bg-background/78 dark:border-white/[0.06] dark:bg-background/72"
+          ? "border-border/40 bg-background/85 shadow-[var(--ar-float-subtle)] dark:border-white/[0.08] dark:bg-background/85 dark:shadow-[0_8px_28px_-14px_rgba(0,0,0,0.5)]"
+          : "border-border/30 bg-background/72 dark:border-white/[0.05] dark:bg-background/68"
       )}
     >
       <div className="ar-header-blur-layer" aria-hidden />
@@ -85,7 +85,16 @@ export function DashboardAppHeader({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-heading text-base font-semibold leading-snug tracking-tight text-foreground sm:text-base">
-            {activeId === "home" ? "AR Farmhouse" : activeMeta.label}
+            {activeId === "home"
+              ? "AR Farmhouse"
+              : activeId === "feed" ? (
+                  <>
+                    <span className="sm:hidden">AR Farmhouse</span>
+                    <span className="hidden sm:inline">{activeMeta.label}</span>
+                  </>
+                ) : (
+                  activeMeta.label
+                )}
           </p>
           {sectionSubtitle[activeId] ? (
             <p className="line-clamp-1 text-xs leading-snug text-muted-foreground sm:text-xs">
@@ -101,7 +110,7 @@ export function DashboardAppHeader({
             <button
               type="button"
               onClick={() => setAccountOpen((o) => !o)}
-              className="ar-touch-press flex max-w-[min(11rem,42vw)] min-h-11 items-center gap-1.5 rounded-full border border-border/60 bg-card/50 py-1 pl-1 pr-2 text-left transition-colors hover:border-border hover:bg-muted/50 sm:max-w-[220px] sm:min-h-0 sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2.5 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/16 dark:hover:bg-white/[0.08]"
+              className="ar-touch-press flex max-w-[min(11rem,42vw)] min-h-11 items-center gap-1.5 rounded-full border border-border/45 bg-card/40 py-1 pl-1 pr-2 text-left transition-colors hover:border-border/60 hover:bg-muted/45 sm:max-w-[220px] sm:min-h-0 sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2.5 dark:border-white/[0.08] dark:bg-white/[0.035] dark:hover:border-white/12 dark:hover:bg-white/[0.06]"
               aria-expanded={accountOpen}
               aria-haspopup="menu"
             >

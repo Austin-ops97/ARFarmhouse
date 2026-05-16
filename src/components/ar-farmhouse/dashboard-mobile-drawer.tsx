@@ -43,8 +43,8 @@ export function DashboardMobileDrawerTrigger({
       aria-controls="ar-mobile-nav-drawer"
       whileTap={reduceMotion ? undefined : { scale: 0.94 }}
       className={cn(
-        "flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-card/85 text-foreground shadow-[var(--ar-float-elevate)]",
-        "touch-manipulation transition-colors hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.05] dark:shadow-inner dark:shadow-white/5 dark:hover:bg-white/[0.08]"
+        "flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border/45 bg-card/55 text-foreground shadow-[var(--ar-float-subtle)]",
+        "touch-manipulation transition-colors hover:bg-muted/70 dark:border-white/[0.08] dark:bg-white/[0.035] dark:hover:bg-white/[0.06]"
       )}
       aria-label={open ? "Close menu" : "Open menu"}
     >

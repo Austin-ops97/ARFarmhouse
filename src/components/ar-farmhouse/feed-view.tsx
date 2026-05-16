@@ -58,7 +58,7 @@ function FeedSkeleton() {
               <Skeleton className="h-2.5 w-40 rounded-full bg-muted/60 dark:bg-white/[0.06]" />
             </div>
           </div>
-          <Skeleton className="ar-skeleton-shimmer relative min-h-[220px] w-full rounded-none bg-muted/50 sm:rounded-2xl dark:bg-white/[0.06]" />
+          <Skeleton className="ar-skeleton-shimmer relative min-h-[220px] w-full rounded-[1.5rem] bg-muted/50 sm:rounded-[1.75rem] dark:bg-white/[0.06]" />
           <div className="flex gap-2 px-1 pt-1">
             <Skeleton className="size-8 rounded-full bg-muted/55 dark:bg-white/[0.06]" />
             <Skeleton className="size-8 rounded-full bg-muted/55 dark:bg-white/[0.06]" />
@@ -75,9 +75,10 @@ function FeedSkeleton() {
 }
 
 const composerBar = cn(
-  "ar-surface-float ar-touch-press flex w-full min-h-12 items-center gap-3.5 rounded-2xl px-4 py-3 text-left",
-  "transition-[border-color,background-color,box-shadow] duration-300 hover:shadow-[var(--ar-panel-elevate)]",
-  "sm:min-h-0 sm:rounded-[1.35rem] sm:gap-3 sm:px-4 sm:py-3"
+  "ar-feed-composer ar-touch-press flex w-full min-h-[2.75rem] items-center gap-3 rounded-[1.75rem] px-3.5 py-2.5 text-left",
+  "transition-[border-color,background-color,box-shadow,transform] duration-300",
+  "hover:shadow-[var(--ar-float-elevate)] active:scale-[0.995]",
+  "sm:min-h-[3rem] sm:gap-3.5 sm:rounded-[1.75rem] sm:px-4 sm:py-3"
 );
 
 export function FeedView({ highlightPostId }: { highlightPostId?: string | null }) {
@@ -419,52 +420,49 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
   }, []);
 
   return (
-    <div className={cn(FEED_LAYOUT_CLASS, "pb-4")}>
+    <div className={cn(FEED_LAYOUT_CLASS, "pb-4 -mt-0.5 sm:mt-0")}>
       <div className={cn(FEED_STREAM_CLASS, "flex min-w-0 touch-pan-y flex-col")}>
-        <motion.header
-          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+        <motion.section
+          initial={reduceMotion ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: reduceMotion ? 0.15 : 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-6 flex items-end justify-between gap-4 sm:mb-7"
+          transition={{ duration: reduceMotion ? 0.15 : 0.38, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-5 sm:mb-7"
+          aria-label="Feed"
         >
-          <div className="min-w-0">
-            <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Feed</h1>
+          <div className="mb-2.5 flex items-end justify-between gap-4 sm:mb-3">
+            <h1 className="font-heading text-[1.375rem] font-bold tracking-[-0.02em] text-foreground sm:text-3xl sm:font-semibold sm:tracking-tight">
+              Feed
+            </h1>
+            <button
+              type="button"
+              onClick={() => setComposeOpen(true)}
+              className="hidden shrink-0 items-center gap-2 rounded-2xl border border-border/50 bg-card/80 px-3.5 py-2 text-sm font-medium text-foreground shadow-[var(--ar-float-subtle)] transition-colors hover:bg-muted/70 dark:border-white/[0.08] dark:bg-white/[0.04] dark:hover:border-white/14 dark:hover:bg-white/[0.07] sm:inline-flex"
+            >
+              <PenLine className="size-4 text-primary" aria-hidden />
+              New post
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setComposeOpen(true)}
-            className="hidden shrink-0 items-center gap-2 rounded-xl border border-border/60 bg-card/85 px-3 py-2 text-sm font-medium text-foreground shadow-[var(--ar-float-elevate)] transition-colors hover:bg-muted/70 dark:border-white/10 dark:bg-white/[0.05] dark:shadow-inner dark:shadow-white/5 dark:hover:border-white/16 dark:hover:bg-white/[0.08] sm:inline-flex"
-          >
-            <PenLine className="size-4 text-primary" aria-hidden />
-            New post
-          </button>
-        </motion.header>
 
-        <div
-          className={cn(
-            "sticky z-20 -mx-4 mb-6 border-b border-border/50 bg-background/82 px-4 py-3.5 ar-header-blur supports-[backdrop-filter]:bg-background/70 sm:-mx-4 sm:mb-7 sm:px-4 sm:py-3",
-            "top-[var(--ar-mobile-sticky-top)] sm:top-[calc(var(--ar-header-height)+0.5rem)] lg:top-[calc(var(--ar-header-height)+0.75rem)]",
-            "sm:-mx-0 sm:mb-7 sm:rounded-[1.35rem] sm:border sm:border-border/55 sm:bg-card/78 sm:px-4 sm:py-3 sm:shadow-[var(--ar-panel-elevate)] dark:border-white/[0.07] dark:bg-white/[0.035] dark:shadow-[0_20px_50px_-28px_rgba(0,0,0,0.72)]"
-          )}
-        >
           <motion.button
             type="button"
             initial={reduceMotion ? false : { opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: reduceMotion ? 0 : 0.04, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ delay: reduceMotion ? 0 : 0.05, duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
             onClick={() => setComposeOpen(true)}
             className={cn(composerBar)}
           >
-            <Avatar size="default" className="ring-2 ring-background/80">
+            <Avatar size="default" className="size-9 shrink-0 ring-2 ring-background/75 sm:size-10">
               <AvatarImage src={meAvatar} alt="" />
               <AvatarFallback>{meName.slice(0, 1)}</AvatarFallback>
             </Avatar>
-            <span className="min-w-0 flex-1 text-base text-muted-foreground sm:text-[15px]">Share a moment with the family</span>
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-card/80 text-primary sm:size-9 dark:border-white/10 dark:bg-white/[0.05]">
-              <ImagePlus className="size-[18px]" aria-hidden />
+            <span className="min-w-0 flex-1 text-[15px] leading-snug text-muted-foreground/85 sm:text-[15px]">
+              Share a moment with the family
+            </span>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl border border-border/45 bg-card/65 text-primary sm:size-9 dark:border-white/[0.08] dark:bg-white/[0.04]">
+              <ImagePlus className="size-[17px]" aria-hidden />
             </span>
           </motion.button>
-        </div>
+        </motion.section>
 
         {liveError && (
           <p className="mb-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100/95">
@@ -477,7 +475,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         ) : (
           <>
             {mergedPosts.length === 0 && (
-              <div className="rounded-2xl border border-border/55 bg-card/80 px-6 py-14 text-center shadow-[var(--ar-float-elevate)] dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="rounded-[1.5rem] border border-border/45 bg-card/75 px-6 py-14 text-center shadow-[var(--ar-float-subtle)] dark:border-white/[0.08] dark:bg-white/[0.03] sm:rounded-[1.75rem]">
                 <p className="font-heading text-xl font-semibold text-foreground">No family updates yet</p>
                 <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
                   Share your first memory — a photo from the porch, a note from the weekend, or a quiet update from the
@@ -486,13 +484,14 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
                 <button
                   type="button"
                   onClick={() => setComposeOpen(true)}
-                  className="mt-6 inline-flex items-center gap-2 rounded-xl border border-primary/35 bg-primary/12 px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-primary/18"
+                  className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-primary/16"
                 >
                   <ImagePlus className="size-4 text-primary" aria-hidden />
                   Share your first memory
                 </button>
               </div>
             )}
+
 
             <div className="space-y-0">
               {mergedPosts.map((post) => (
@@ -515,8 +514,8 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
             onClick={() => setComposeOpen(true)}
             whileTap={reduceMotion ? undefined : { scale: 0.94 }}
             className={cn(
-              "ar-touch-press fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-30 flex size-[3.75rem] items-center justify-center rounded-full border border-border/60 sm:right-4 sm:size-14",
-              "bg-primary text-primary-foreground shadow-[var(--ar-modal-elevate)] dark:border-white/12 dark:shadow-[0_18px_50px_-18px_rgba(0,0,0,0.75)] lg:hidden"
+              "ar-touch-press fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-full border border-primary/25 sm:right-4",
+              "bg-primary text-primary-foreground shadow-[0_16px_40px_-12px_rgba(0,0,0,0.45)] dark:border-white/10 dark:shadow-[0_18px_44px_-14px_rgba(0,0,0,0.7)] lg:hidden"
             )}
             aria-label="Create post"
           >

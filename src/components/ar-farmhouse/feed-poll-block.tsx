@@ -45,7 +45,7 @@ export function FeedPollBlock({
   return (
     <motion.div
       layout={false}
-      className="ar-surface-inset rounded-2xl px-4 py-5 sm:px-5 sm:py-6"
+      className="ar-surface-inset rounded-[1.5rem] px-4 py-5 sm:rounded-[1.75rem] sm:px-5 sm:py-6"
       initial={reduceMotion ? false : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: reduceMotion ? 0.15 : 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -91,7 +91,7 @@ export function FeedPollBlock({
                 disabled={!canVote || voteBusy}
                 onClick={() => onVote(option.id)}
                 className={cn(
-                  "group relative w-full overflow-hidden rounded-xl border text-left transition-colors",
+                  "group relative w-full overflow-hidden rounded-2xl border text-left transition-colors",
                   "min-h-11 px-3.5 py-2.5 sm:min-h-10",
                   selected
                     ? "border-primary/40 bg-primary/[0.12]"
@@ -105,7 +105,7 @@ export function FeedPollBlock({
                     <motion.span
                       key={`bar-${option.id}-${barWidth}`}
                       className={cn(
-                        "pointer-events-none absolute inset-y-0 left-0 rounded-xl",
+                        "pointer-events-none absolute inset-y-0 left-0 rounded-2xl",
                         selected ? "bg-primary/20" : "bg-white/[0.06]"
                       )}
                       initial={reduceMotion ? false : { width: 0 }}

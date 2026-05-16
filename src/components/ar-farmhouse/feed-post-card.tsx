@@ -252,7 +252,7 @@ export function FeedPostCard({
   const mediaShell = cn(
     "relative overflow-hidden bg-muted/25 dark:bg-zinc-950/45",
     FEED_MEDIA_BLEED,
-    "rounded-none sm:rounded-2xl",
+    "rounded-[1.5rem] sm:rounded-[1.75rem]",
     "ring-1 ring-inset ring-border/50 dark:ring-white/[0.07]",
     "shadow-[var(--ar-panel-elevate)] dark:shadow-[0_20px_70px_-38px_rgba(0,0,0,0.82)]",
     "touch-pan-y"
@@ -411,8 +411,8 @@ export function FeedPostCard({
         viewport={{ once: true, margin: "-4% 0px" }}
         transition={{ duration: reduceMotion ? 0.2 : 0.55, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          "touch-pan-y scroll-mt-28 pb-8 sm:scroll-mt-32 sm:pb-9",
-          isHighlighted && "rounded-2xl ring-2 ring-primary/35 ring-offset-2 ring-offset-background sm:rounded-[1.35rem]"
+          "touch-pan-y scroll-mt-[calc(var(--ar-header-height)+0.75rem)] pb-7 sm:scroll-mt-[calc(var(--ar-header-height)+1rem)] sm:pb-9",
+          isHighlighted && "rounded-[1.5rem] ring-2 ring-primary/35 ring-offset-2 ring-offset-background sm:rounded-[1.75rem]"
         )}
       >
         <header className="flex items-start gap-3 px-0.5 pb-3 sm:gap-2.5 sm:px-0 sm:pb-2.5">

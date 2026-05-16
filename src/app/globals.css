@@ -386,6 +386,22 @@ html.ar-theme-transitioning .ar-app-shell {
     background-color: oklch(1 0 0 / 0.04);
   }
 
+  /** Feed composer — light glass pill (mobile-first social surfaces). */
+  .ar-feed-composer {
+    border-width: 1px;
+    border-style: solid;
+    border-color: color-mix(in oklch, var(--border) 38%, transparent);
+    background-color: color-mix(in oklch, var(--card) 68%, transparent);
+    backdrop-filter: blur(22px) saturate(1.1);
+    -webkit-backdrop-filter: blur(22px) saturate(1.1);
+    box-shadow: var(--ar-float-subtle);
+  }
+  .dark .ar-feed-composer {
+    border-color: oklch(0.94 0.01 95 / 0.07);
+    background-color: oklch(1 0 0 / 0.038);
+    box-shadow: 0 14px 40px -22px rgba(0, 0, 0, 0.55);
+  }
+
   .ar-modal-shell {
     border-width: 1px;
     border-style: solid;
