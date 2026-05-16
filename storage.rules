@@ -11,6 +11,12 @@ service firebase.storage {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function isAppAdmin() {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'owner'];
+    }
+
     function validImageContentType() {
       return request.resource.contentType is string
         && (
@@ -51,7 +57,7 @@ service firebase.storage {
         && validImageContentType()
         && notDangerousUpload();
 
-      allow delete: if isOwner(uid);
+      allow delete: if isOwner(uid) || isAppAdmin();
     }
 
     /*

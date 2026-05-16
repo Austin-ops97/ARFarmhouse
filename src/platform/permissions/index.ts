@@ -76,6 +76,20 @@ export function canModerateFeed(user: PermissionUser): boolean {
   return hasCapability(user?.role, "feed.moderate");
 }
 
+export type PermissionFeedPost = { authorId: string } | null | undefined;
+
+/** Admins and legacy owners may delete any feed post. */
+export function canDeleteAnyFeedPost(user: PermissionUser): boolean {
+  return hasCapability(user?.role, "feed.delete_any");
+}
+
+/** Post author or platform moderator/admin may delete a feed post. */
+export function canDeleteFeedPost(user: PermissionUser, post: PermissionFeedPost): boolean {
+  if (!user?.uid || !post?.authorId) return false;
+  if (user.uid === post.authorId) return true;
+  return canDeleteAnyFeedPost(user);
+}
+
 /** App-facing role label (binary today; expand when UI needs role labels). */
 export function displayRole(user: RoleCarrier): "admin" | "user" {
   return normalizeUserRole(user?.role);

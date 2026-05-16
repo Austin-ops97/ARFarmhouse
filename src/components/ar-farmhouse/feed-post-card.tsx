@@ -51,6 +51,7 @@ import { FEED_IMAGE_SIZES, FEED_MEDIA_BLEED } from "@/lib/feed-layout";
 import { hubSlugFromLinkedEventLabel } from "@/lib/linked-event-hub";
 import { isEphemeralLocalImageUrl } from "@/lib/image-display-url";
 import type { UiFeedPost } from "@/models/feed-post";
+import { canDeleteFeedPost } from "@/lib/permissions";
 import { deleteFeedPost } from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
 
@@ -107,7 +108,7 @@ export function FeedPostCard({
 }) {
   const reduceMotion = useReducedMotion();
   const { openWeekendHub } = useEcosystem();
-  const { user, displayName, avatarUrl, configured } = useAuth();
+  const { user, profile, displayName, avatarUrl, configured } = useAuth();
   const { isSaved } = useSavedPosts();
   const { ref: inViewRef, inView: engagementActive } = useInViewReady("280px 0px");
   const interactionsLive = configured && !!user?.uid && !post.optimistic;
@@ -242,7 +243,11 @@ export function FeedPostCard({
   const primaryKey =
     displayReactions.find((r) => r.emoji === "❤️")?.emoji ?? displayReactions[0]?.emoji ?? "❤️";
   const heartActive = mergedReactionState[primaryKey]?.on ?? false;
-  const isOwner = !!user?.uid && user.uid === post.authorId;
+  const permissionUser = useMemo(
+    () => (user?.uid ? { uid: user.uid, role: profile?.role ?? "user" } : null),
+    [profile?.role, user?.uid]
+  );
+  const canDelete = canDeleteFeedPost(permissionUser, post);
   const isHighlighted = !!highlightId && highlightId === post.id;
 
   const hasMedia =
@@ -329,14 +334,14 @@ export function FeedPostCard({
     }
     setDeleteBusy(true);
     try {
-      await deleteFeedPost(post.id, user.uid, post.authorId, albumUrls);
+      await deleteFeedPost(post.id, permissionUser, post.authorId, albumUrls);
       closeMenu();
     } catch (e) {
       setToast(e instanceof Error ? e.message : "Could not delete post.");
     } finally {
       setDeleteBusy(false);
     }
-  }, [albumUrls, closeMenu, onDismissOptimisticFeed, post.authorId, post.id, post.optimistic, user]);
+  }, [albumUrls, closeMenu, onDismissOptimisticFeed, permissionUser, post.authorId, post.id, post.optimistic, user]);
 
   const shareSummary = useMemo(() => {
     if (post.kind === "poll" && post.poll) return post.poll.question.slice(0, 280);
@@ -912,7 +917,7 @@ export function FeedPostCard({
                   <Flag className="size-4 opacity-80" aria-hidden />
                   Report an issue
                 </button>
-                {isOwner && (
+                {canDelete && (
                   <>
                     <div className="my-1 h-px bg-border/60 dark:bg-white/10" />
                     <button
@@ -927,10 +932,13 @@ export function FeedPostCard({
                     </button>
                     {deleteConfirm ? (
                       <div className="space-y-2 px-3 py-2">
+                        <p className="text-sm font-medium text-foreground">
+                          {post.optimistic ? "Discard this draft?" : "Delete this post?"}
+                        </p>
                         <p className="text-xs leading-relaxed text-muted-foreground">
                           {post.optimistic
-                            ? "Remove this draft from your feed? The upload will stop."
-                            : "Remove this post for everyone? This cannot be undone."}
+                            ? "The upload will stop and this draft will be removed from your feed."
+                            : "This action cannot be undone."}
                         </p>
                         <div className="flex gap-2">
                           <Button

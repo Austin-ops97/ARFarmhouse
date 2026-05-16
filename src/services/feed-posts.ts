@@ -35,6 +35,10 @@ import { newPollOptionId } from "@/lib/poll-id";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePollData, FirestorePost, PollOption, UiFeedPost, UiPollData } from "@/models/feed-post";
 import {
+  canDeleteFeedPost,
+  type PermissionUser,
+} from "@/platform/permissions";
+import {
   deletePostMediaArtifacts,
   scheduleBackgroundStorageUrlHydration,
   uploadPostImages,
@@ -42,6 +46,33 @@ import {
 } from "@/services/storage-upload";
 
 const POSTS = "posts";
+const FIRESTORE_BATCH_LIMIT = 500;
+
+function resolveFeedPostAuthorId(data: Record<string, unknown>): string {
+  if (typeof data.authorId === "string" && data.authorId.trim()) return data.authorId.trim();
+  if (typeof data.createdBy === "string" && data.createdBy.trim()) return data.createdBy.trim();
+  if (typeof data.userId === "string" && data.userId.trim()) return data.userId.trim();
+  return "";
+}
+
+function isFirestorePermissionDenied(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /permission|PERMISSION_DENIED/i.test(msg);
+}
+
+function isFirestoreNotFound(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /not[\s-]?found|NOT_FOUND/i.test(msg);
+}
+
+async function commitDeleteBatch(db: NonNullable<ReturnType<typeof tryGetFirestoreDb>>, refs: ReturnType<typeof doc>[]) {
+  for (let i = 0; i < refs.length; i += FIRESTORE_BATCH_LIMIT) {
+    const slice = refs.slice(i, i + FIRESTORE_BATCH_LIMIT);
+    const batch = writeBatch(db);
+    slice.forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+}
 
 function feedMediaSlotCount(d: Partial<FirestorePost>): number {
   const urls = Array.isArray(d.mediaUrls) ? d.mediaUrls : [];
@@ -108,14 +139,15 @@ export function isFeedPostMediaDisplayReady(post: UiFeedPost): boolean {
 function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
   const d = snapshot.data() as Partial<FirestorePost>;
   const created = d.createdAt?.toDate?.() ?? new Date();
-  const contentType = d.contentType === "poll" ? "poll" : "standard";
+  const contentType =
+    d.contentType === "poll" || d.category === "poll" ? "poll" : "standard";
   const poll = contentType === "poll" ? mapPollData(d.poll) : undefined;
 
   if (contentType === "poll" && poll) {
     const reactionCounts = normalizeReactionCounts(d.reactionCounts);
     return {
       id: snapshot.id,
-      authorId: typeof d.authorId === "string" ? d.authorId : "",
+      authorId: resolveFeedPostAuthorId(d as Record<string, unknown>),
       contentType: "poll",
       category: "poll",
       layout: "standard",
@@ -183,7 +215,7 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
 
   return {
     id: snapshot.id,
-    authorId: typeof d.authorId === "string" ? d.authorId : "",
+    authorId: resolveFeedPostAuthorId(d as Record<string, unknown>),
     contentType: "standard",
     category: (d.category as FeedPostCategory) ?? "update",
     layout,
@@ -554,28 +586,54 @@ export async function createFeedPostWithMedia(
 
 export async function deleteFeedPost(
   postId: string,
-  viewerUid: string,
+  viewer: PermissionUser,
   authorId: string,
   mediaUrls: string[] = []
 ) {
-  if (viewerUid !== authorId) throw new Error("Only the author can delete this post.");
+  if (!canDeleteFeedPost(viewer, { authorId })) {
+    throw new Error("You do not have permission to delete this post.");
+  }
+
   mobileUploadLog("delete feed post — starting Firestore batch", { postId, mediaCount: mediaUrls.length });
   const db = tryGetFirestoreDb();
-  if (!db) throw new Error("Firestore unavailable");
-  const batch = writeBatch(db);
-  const [reactionsSnap, commentsSnap, pollVotesSnap] = await Promise.all([
-    getDocs(collection(db, POSTS, postId, "reactions")),
-    getDocs(collection(db, POSTS, postId, "comments")),
-    getDocs(collection(db, POSTS, postId, "pollVotes")),
-  ]);
-  reactionsSnap.forEach((d) => batch.delete(d.ref));
-  commentsSnap.forEach((d) => batch.delete(d.ref));
-  pollVotesSnap.forEach((d) => batch.delete(d.ref));
-  batch.delete(doc(db, POSTS, postId));
-  await batch.commit();
+  if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
+
+  try {
+    const [reactionsSnap, commentsSnap, pollVotesSnap] = await Promise.all([
+      getDocs(collection(db, POSTS, postId, "reactions")),
+      getDocs(collection(db, POSTS, postId, "comments")),
+      getDocs(collection(db, POSTS, postId, "pollVotes")),
+    ]);
+
+    const refs = [
+      ...reactionsSnap.docs.map((d) => d.ref),
+      ...commentsSnap.docs.map((d) => d.ref),
+      ...pollVotesSnap.docs.map((d) => d.ref),
+      doc(db, POSTS, postId),
+    ];
+
+    await commitDeleteBatch(db, refs);
+  } catch (e) {
+    if (isFirestorePermissionDenied(e)) {
+      throw new Error("You do not have permission to delete this post.");
+    }
+    if (isFirestoreNotFound(e)) {
+      throw new Error("This post was already deleted.");
+    }
+    throw new Error(e instanceof Error ? e.message : "Could not delete post. Try again.");
+  }
+
   mobileUploadLog("delete feed post — Firestore committed", { postId });
+
   if (mediaUrls.length > 0) {
-    await deletePostMediaArtifacts(authorId, postId, mediaUrls);
-    mobileUploadLog("delete feed post — Storage cleanup settled", { postId });
+    try {
+      await deletePostMediaArtifacts(authorId, postId, mediaUrls);
+      mobileUploadLog("delete feed post — Storage cleanup settled", { postId });
+    } catch (e) {
+      mobileUploadLog("delete feed post — Storage cleanup failed (post already removed)", {
+        postId,
+        error: String(e),
+      });
+    }
   }
 }

@@ -92,6 +92,20 @@ service cloud.firestore {
         );
     }
 
+    /** Post author or platform admin/owner — used for cascade deletes of engagement subcollections. */
+    function canCascadeDeletePostEngagement(postId) {
+      let post = get(/databases/$(database)/documents/posts/$(postId)).data;
+      return isSignedIn()
+        && post.authorId is string
+        && (post.authorId == request.auth.uid || isAppAdmin());
+    }
+
+    function canDeleteFeedPost() {
+      return isSignedIn()
+        && resource.data.authorId is string
+        && (resource.data.authorId == request.auth.uid || isAppAdmin());
+    }
+
     function validSignupRedemption() {
       return request.resource.data.signupRedemptionId is string
         && request.resource.data.signupRedemptionId.size() > 0
@@ -167,7 +181,7 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      allow delete: if canDeleteFeedPost();
 
       match /reactions/{uid} {
         allow read: if isSignedIn();
@@ -175,14 +189,17 @@ service cloud.firestore {
           && request.resource.data.emoji is string
           && request.resource.data.emoji.size() > 0
           && request.resource.data.emoji.size() <= 16;
-        allow delete: if isSelf(uid);
+        allow delete: if isSelf(uid) || canCascadeDeletePostEngagement(postId);
       }
 
       match /comments/{commentId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn()
           && request.resource.data.authorId == request.auth.uid;
-        allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+        allow update, delete: if isSignedIn() && (
+          resource.data.authorId == request.auth.uid
+          || canCascadeDeletePostEngagement(postId)
+        );
       }
 
       match /pollVotes/{uid} {
@@ -190,7 +207,7 @@ service cloud.firestore {
         allow create, update: if isSelf(uid)
           && request.resource.data.optionIds is list
           && request.resource.data.optionIds.size() <= 6;
-        allow delete: if isSelf(uid);
+        allow delete: if isSelf(uid) || canCascadeDeletePostEngagement(postId);
       }
     }
 
