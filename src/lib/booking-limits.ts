@@ -5,19 +5,17 @@ import type { Booking, BookingStatus } from "@/models/booking";
 const ACTIVE_STATUSES: BookingStatus[] = ["pending", "pending_conflict", "approved"];
 
 export type BookingLimitViolation = {
-  code:
-    | "max_active"
-    | "max_pending"
-    | "max_duration"
-    | "max_advance"
-    | "min_notice";
+  code: "max_active" | "max_pending" | "max_duration" | "max_advance";
   message: string;
 };
 
+/** Legacy Firestore docs may still include `minNoticeHours`; it is ignored and not written back. */
 export function mergeBookingLimits(
-  partial?: Partial<BookingLimitsConfig> | null
+  partial?: (Partial<BookingLimitsConfig> & { minNoticeHours?: number }) | null
 ): BookingLimitsConfig {
-  return { ...DEFAULT_BOOKING_LIMITS, ...partial };
+  if (!partial) return { ...DEFAULT_BOOKING_LIMITS };
+  const { minNoticeHours: _legacyMinNotice, ...limits } = partial;
+  return { ...DEFAULT_BOOKING_LIMITS, ...limits };
 }
 
 function nightsBetween(start: Date, end: Date): number {
@@ -70,20 +68,6 @@ export function validateBookingLimits(input: {
       code: "max_advance",
       message: `Bookings can only be made up to ${limits.maxAdvanceBookingDays} days in advance.`,
     };
-  }
-
-  if (limits.minNoticeHours > 0) {
-    const earliestArrivalMs = now.getTime() + limits.minNoticeHours * 60 * 60 * 1000;
-    const earliestArrivalDay = new Date(earliestArrivalMs);
-    earliestArrivalDay.setHours(0, 0, 0, 0);
-    const arrivalDay = new Date(start);
-    arrivalDay.setHours(0, 0, 0, 0);
-    if (arrivalDay.getTime() < earliestArrivalDay.getTime()) {
-      return {
-        code: "min_notice",
-        message: `Please book at least ${limits.minNoticeHours} hours before your arrival.`,
-      };
-    }
   }
 
   return null;

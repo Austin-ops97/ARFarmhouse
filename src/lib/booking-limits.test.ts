@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateBookingLimits } from "@/lib/booking-limits";
+import { mergeBookingLimits, validateBookingLimits } from "@/lib/booking-limits";
 import { DEFAULT_BOOKING_LIMITS } from "@/models/system-settings";
 
 describe("validateBookingLimits", () => {
@@ -34,11 +34,11 @@ describe("validateBookingLimits", () => {
     expect(result?.code).toBe("max_duration");
   });
 
-  it("allows same-day booking when minimum notice is zero", () => {
+  it("allows same-day booking", () => {
     const start = new Date("2026-05-16T00:00:00Z");
     const end = new Date("2026-05-17T00:00:00Z");
     const result = validateBookingLimits({
-      limits: { ...DEFAULT_BOOKING_LIMITS, minNoticeHours: 0 },
+      limits: DEFAULT_BOOKING_LIMITS,
       start,
       end,
       now,
@@ -48,18 +48,13 @@ describe("validateBookingLimits", () => {
     expect(result).toBeNull();
   });
 
-  it("blocks when arrival is sooner than minimum notice", () => {
-    const start = new Date("2026-05-17T00:00:00Z");
-    const end = new Date("2026-05-18T00:00:00Z");
-    const result = validateBookingLimits({
-      limits: { ...DEFAULT_BOOKING_LIMITS, minNoticeHours: 24 },
-      start,
-      end,
-      now,
-      userId: "u1",
-      userBookings: [],
+  it("strips legacy minNoticeHours from merged limits", () => {
+    const merged = mergeBookingLimits({
+      ...DEFAULT_BOOKING_LIMITS,
+      minNoticeHours: 48,
     });
-    expect(result?.code).toBe("min_notice");
+    expect(merged).toEqual(DEFAULT_BOOKING_LIMITS);
+    expect("minNoticeHours" in merged).toBe(false);
   });
 
   it("blocks when too many pending", () => {
