@@ -1,140 +1,151 @@
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
+
     function signedIn() {
       return request.auth != null;
     }
 
-    /** Some clients send empty / octet-stream Content-Type during resumable uploads — keep authenticated-only paths tight via filename + size + uid. */
-    function imageLikeContentType(ct) {
-      return (ct is string && ct.matches('image/.*'))
-        || ct == ''
-        || ct == 'application/octet-stream';
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
     }
 
-    function rawOriginalStillImageName(fn) {
-      return fn.matches('^original\\.(jpg|jpeg|webp|png|gif)$');
-    }
-
-    function rawPayloadWithinAlbumFeedCap() {
-      return request.resource.size > 0 && request.resource.size <= 12 * 1024 * 1024;
-    }
-
-    /** Mirrors Firestore `users/{uid}.role` — owners may delete moderated objects */
-    function familyOwner() {
-      return signedIn()
-        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
-        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'owner';
-    }
-
-    /** Album doc author — guarded by caller */
-    function albumDocAuthorId(mediaId) {
-      return firestore.get(/databases/(default)/documents/albumMedia/$(mediaId)).data.authorId;
-    }
-
-    /** Lightweight normalized originals — Sharp pipeline consumes these asynchronously */
-    match /uploads/raw/{uid}/posts/{postId}/{slot}/{fileName} {
-      allow read: if signedIn();
-      allow write: if signedIn()
-        && request.auth.uid == uid
-        && rawPayloadWithinAlbumFeedCap()
-        && imageLikeContentType(request.resource.contentType)
-        && rawOriginalStillImageName(fileName);
-      allow delete: if signedIn()
+    function validImageContentType() {
+      return request.resource.contentType is string
         && (
-          request.auth.uid == uid
-          || familyOwner()
+          request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/octet-stream'
+          || request.resource.contentType == ''
         );
     }
 
-    match /uploads/raw/{uid}/albumMedia/{mediaId}/{fileName} {
-      allow read: if signedIn();
-      allow write: if signedIn()
-        && request.auth.uid == uid
-        && rawPayloadWithinAlbumFeedCap()
-        && imageLikeContentType(request.resource.contentType)
-        && rawOriginalStillImageName(fileName);
-      allow delete: if signedIn()
-        && (
-          request.auth.uid == uid
-          || familyOwner()
-          || (
-            firestore.exists(/databases/(default)/documents/albumMedia/$(mediaId))
-            && albumDocAuthorId(mediaId) == request.auth.uid
-          )
-        );
+    /*
+      TEMPORARILY generous upload cap because:
+      - Firebase Functions now handle compression
+      - browser should not aggressively compress
+      - iPhone images can exceed 50MB+
+    */
+    function validUploadSize() {
+      return request.resource.size > 0
+        && request.resource.size <= 150 * 1024 * 1024;
     }
 
-    /** CDN variants — Firebase Admin SDK only (Functions bypass rules) */
+    /*
+    ==================================================
+    RAW FEED UPLOADS
+    ==================================================
+    */
+
+    match /uploads/raw/{uid}/posts/{postId}/{allPaths=**} {
+
+      allow read: if signedIn();
+
+      allow write: if isOwner(uid)
+        && validUploadSize()
+        && validImageContentType();
+
+      allow delete: if isOwner(uid);
+    }
+
+    /*
+    ==================================================
+    RAW ALBUM UPLOADS
+    ==================================================
+    */
+
+    match /uploads/raw/{uid}/albumMedia/{mediaId}/{allPaths=**} {
+
+      allow read: if signedIn();
+
+      allow write: if isOwner(uid)
+        && validUploadSize()
+        && validImageContentType();
+
+      allow delete: if isOwner(uid);
+    }
+
+    /*
+    ==================================================
+    PROFILE PHOTOS
+    ==================================================
+    */
+
+    match /uploads/raw/{uid}/avatars/{allPaths=**} {
+
+      allow read: if signedIn();
+
+      allow write: if isOwner(uid)
+        && validUploadSize()
+        && validImageContentType();
+
+      allow delete: if isOwner(uid);
+    }
+
+    /*
+    ==================================================
+    FAMILY MEMBER PHOTOS
+    ==================================================
+    */
+
+    match /uploads/raw/{uid}/family/{allPaths=**} {
+
+      allow read: if signedIn();
+
+      allow write: if isOwner(uid)
+        && validUploadSize()
+        && validImageContentType();
+
+      allow delete: if isOwner(uid);
+    }
+
+    /*
+    ==================================================
+    PET PHOTOS
+    ==================================================
+    */
+
+    match /uploads/raw/{uid}/pets/{allPaths=**} {
+
+      allow read: if signedIn();
+
+      allow write: if isOwner(uid)
+        && validUploadSize()
+        && validImageContentType();
+
+      allow delete: if isOwner(uid);
+    }
+
+    /*
+    ==================================================
+    PROCESSED MEDIA
+    ==================================================
+
+    Firebase Functions generate:
+    - thumbnails
+    - feed variants
+    - optimized images
+
+    Admin SDK bypasses rules automatically.
+    */
+
     match /media/processed/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if false;
-    }
 
-    /** Legacy album prefix — reads / deletes only */
-    match /albums/{mediaId}/{fileName} {
       allow read: if signedIn();
+
       allow write: if false;
-      allow delete: if signedIn()
-        && firestore.exists(/databases/(default)/documents/albumMedia/$(mediaId))
-        && (
-          albumDocAuthorId(mediaId) == request.auth.uid
-          || familyOwner()
-        );
+
+      allow delete: if false;
     }
 
-    /** GIF / legacy flat uploads under posts/{postId}/… */
-    match /posts/{postId}/{fileName} {
-      allow read: if signedIn();
-      allow write: if signedIn()
-        && request.resource.size > 0
-        && request.resource.size <= 12 * 1024 * 1024
-        && imageLikeContentType(request.resource.contentType)
-        && fileName.matches('^[a-zA-Z0-9._-]+$');
-      allow delete: if signedIn();
-    }
-
-    match /avatars/{userId}/{fileName} {
-      allow read: if signedIn();
-      allow write: if signedIn()
-        && request.auth.uid == userId
-        && request.resource.size > 0
-        && request.resource.size <= 2 * 1024 * 1024
-        && imageLikeContentType(request.resource.contentType)
-        && fileName.matches('^profile\\.(jpg|jpeg|png|webp|gif)$');
-    }
-
-    match /users/{userId}/profile/{fileName} {
-      allow read: if signedIn();
-      allow write: if signedIn()
-        && request.auth.uid == userId
-        && request.resource.size > 0
-        && request.resource.size <= 2 * 1024 * 1024
-        && imageLikeContentType(request.resource.contentType)
-        && fileName.matches('^avatar\\.(jpg|jpeg|png|webp|gif)$');
-    }
-
-    match /users/{userId}/family/{memberId}/{fileName} {
-      allow read: if signedIn();
-      allow write: if signedIn()
-        && request.auth.uid == userId
-        && request.resource.size > 0
-        && request.resource.size <= 2 * 1024 * 1024
-        && imageLikeContentType(request.resource.contentType)
-        && fileName.matches('^photo\\.(jpg|jpeg|png|webp|gif)$');
-    }
-
-    match /users/{userId}/pets/{petId}/{fileName} {
-      allow read: if signedIn();
-      allow write: if signedIn()
-        && request.auth.uid == userId
-        && request.resource.size > 0
-        && request.resource.size <= 2 * 1024 * 1024
-        && imageLikeContentType(request.resource.contentType)
-        && fileName.matches('^photo\\.(jpg|jpeg|png|webp|gif)$');
-    }
+    /*
+    ==================================================
+    FALLBACK DENY
+    ==================================================
+    */
 
     match /{allPaths=**} {
+
       allow read, write: if false;
     }
   }

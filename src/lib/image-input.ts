@@ -2,7 +2,7 @@
  * Max size for raw camera-roll / phone photos before client-side optimization.
  * Large originals are accepted here, then compressed before Firebase upload.
  */
-export const RAW_IMAGE_MAX_BYTES = 100 * 1024 * 1024;
+export const RAW_IMAGE_MAX_BYTES = 150 * 1024 * 1024;
 
 /** Raw files above this show "Optimizing large photo…" during processing. */
 export const LARGE_RAW_IMAGE_BYTES = 15 * 1024 * 1024;
@@ -40,12 +40,21 @@ export function isAcceptedImageMime(mime: string): boolean {
 export function validateRawImageFile(file: File): void {
   const mime = file.type || "";
   const nameOk = ACCEPTED_EXT.test(file.name);
+  const octetOrEmpty = mime === "" || mime === "application/octet-stream";
 
-  if (!mime.startsWith("image/") && !nameOk) {
+  if (mime && !mime.startsWith("image/") && mime !== "application/octet-stream") {
+    throw new Error(`"${file.name}" is not a supported image.`);
+  }
+
+  if (!mime.startsWith("image/") && !octetOrEmpty && !nameOk) {
     throw new Error(`"${file.name}" is not a supported image. Use JPEG, PNG, or WebP.`);
   }
 
-  if (mime && !isAcceptedImageMime(mime) && !nameOk) {
+  if (octetOrEmpty && !nameOk) {
+    throw new Error(`"${file.name}" is not a recognized photo file.`);
+  }
+
+  if (mime.startsWith("image/") && !isAcceptedImageMime(mime) && !nameOk) {
     throw new Error(`"${file.name}" is not a supported image format.`);
   }
 

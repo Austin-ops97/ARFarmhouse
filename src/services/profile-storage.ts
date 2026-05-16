@@ -3,6 +3,7 @@ import { deleteObject, ref } from "firebase/storage";
 import { actionDebug } from "@/lib/action-debug";
 import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
 import { getUploadMaxBytes } from "@/lib/image-process";
+import { validateRawImageFile } from "@/lib/image-input";
 import { isFirebaseStorageAvailable, tryGetFirebaseStorage } from "@/lib/firebase";
 import { uploadLog, uploadStage } from "@/lib/upload-log";
 import { readPublicFirebaseConfig } from "@/lib/firebase/env";
@@ -24,20 +25,17 @@ function extFromMime(mime: string) {
   if (mime === "image/png") return "png";
   if (mime === "image/webp") return "webp";
   if (mime === "image/gif") return "gif";
+  if (mime === "image/heic") return "heic";
+  if (mime === "image/heif") return "heif";
   if (mime.startsWith("image/")) return "jpg";
   return "jpg";
 }
 
 function validateImage(file: File, maxBytes: number) {
-  if (!file.type.startsWith("image/")) {
-    throw new Error(`"${file.name}" is not a supported image.`);
-  }
+  validateRawImageFile(file);
   if (file.size > maxBytes) {
     const mb = Math.round(maxBytes / (1024 * 1024));
     throw new Error(`"${file.name}" is too large. Keep photos under ${mb} MB.`);
-  }
-  if (file.size === 0) {
-    throw new Error(`"${file.name}" appears to be empty.`);
   }
 }
 
@@ -59,7 +57,7 @@ async function uploadPath(
     domain: "profile_family_or_pet",
     storageBucket,
     fullPath,
-    template: `${path}.{jpg|jpeg|png|webp|gif}`,
+    template: `${path}.{jpg|jpeg|png|webp|gif|heic|heif}`,
   });
   uploadLog("profile_upload_start", { path: fullPath });
   const objectRef = ref(storage, fullPath);
@@ -93,7 +91,7 @@ export async function uploadProfilePhoto(
   onProgress?: (percent: number) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  return uploadPath(`users/${uid}/profile/avatar`, file, AVATAR_MAX_BYTES, onProgress, signal);
+  return uploadPath(`uploads/raw/${uid}/avatars/profile`, file, AVATAR_MAX_BYTES, onProgress, signal);
 }
 
 export async function uploadFamilyMemberPhoto(
@@ -103,7 +101,7 @@ export async function uploadFamilyMemberPhoto(
   onProgress?: (percent: number) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  return uploadPath(`users/${uid}/family/${memberId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress, signal);
+  return uploadPath(`uploads/raw/${uid}/family/${memberId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress, signal);
 }
 
 export async function uploadPetPhoto(
@@ -113,13 +111,13 @@ export async function uploadPetPhoto(
   onProgress?: (percent: number) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  return uploadPath(`users/${uid}/pets/${petId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress, signal);
+  return uploadPath(`uploads/raw/${uid}/pets/${petId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress, signal);
 }
 
 export async function removeStorageObject(pathPrefix: string): Promise<void> {
   const storage = tryGetFirebaseStorage();
   if (!storage) return;
-  for (const ext of ["jpg", "jpeg", "png", "webp", "gif"]) {
+  for (const ext of ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"]) {
     try {
       await deleteObject(ref(storage, `${pathPrefix}.${ext}`));
     } catch {

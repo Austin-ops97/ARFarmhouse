@@ -23,26 +23,28 @@ export type ImagePresetConfig = {
   uploadMaxBytes: number;
 };
 
+const CLIENT_RAW_UPLOAD_MAX_BYTES = 150 * 1024 * 1024;
+
 export const IMAGE_PRESETS: Record<ImageUploadPreset, ImagePresetConfig> = {
   feed: {
-    maxEdge: 2480,
+    maxEdge: 8192,
     encodeQuality: 0.87,
-    uploadMaxBytes: 8 * 1024 * 1024,
+    uploadMaxBytes: CLIENT_RAW_UPLOAD_MAX_BYTES,
   },
   album: {
-    maxEdge: 2890,
+    maxEdge: 8192,
     encodeQuality: 0.89,
-    uploadMaxBytes: 10 * 1024 * 1024,
+    uploadMaxBytes: CLIENT_RAW_UPLOAD_MAX_BYTES,
   },
   family: {
-    maxEdge: 820,
+    maxEdge: 8192,
     encodeQuality: 0.82,
-    uploadMaxBytes: 1024 * 1024,
+    uploadMaxBytes: CLIENT_RAW_UPLOAD_MAX_BYTES,
   },
   pet: {
-    maxEdge: 820,
+    maxEdge: 8192,
     encodeQuality: 0.82,
-    uploadMaxBytes: 1024 * 1024,
+    uploadMaxBytes: CLIENT_RAW_UPLOAD_MAX_BYTES,
   },
 };
 
@@ -328,7 +330,51 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
     return out;
   }
 
-  if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif|avif)$/i.test(file.name)) {
+  const heifLike =
+    file.type === "image/heic" ||
+    file.type === "image/heif" ||
+    /\.(heic|heif)$/i.test(file.name);
+  if (heifLike) {
+    if (file.size > config.uploadMaxBytes) {
+      const mb = Math.round(config.uploadMaxBytes / (1024 * 1024));
+      throw new Error(`"${file.name}" is too large. Keep photos under ${mb} MB.`);
+    }
+    uploadStage("HEIC/HEIF pass-through — Sharp converts server-side", { name: file.name, bytes: file.size });
+    await yieldWhenIdle();
+    let w = 0;
+    let h = 0;
+    try {
+      const dim = await probeImageDimensions(file);
+      if (dim && dim.width > 0 && dim.height > 0) {
+        w = dim.width;
+        h = dim.height;
+      }
+    } catch {
+      /* dimensions optional */
+    }
+    const passMime =
+      file.type === "image/heic" || file.type === "image/heif"
+        ? file.type
+        : /\.heif$/i.test(file.name)
+          ? "image/heif"
+          : "image/heic";
+    return buildProcessedArtifact(file, file, w, h, passMime, originalMime, file.size, true);
+  }
+
+  const mime = file.type || "";
+  const octetOrEmpty = mime === "" || mime === "application/octet-stream";
+  if (
+    !mime.startsWith("image/") &&
+    !octetOrEmpty &&
+    !/\.(jpe?g|png|webp|heic|heif|avif|gif)$/i.test(file.name)
+  ) {
+    throw new Error(`"${file.name}" is not a supported image.`);
+  }
+
+  if (
+    octetOrEmpty &&
+    !/\.(jpe?g|png|webp|heic|heif|avif|gif)$/i.test(file.name)
+  ) {
     throw new Error(`"${file.name}" is not a supported image.`);
   }
 

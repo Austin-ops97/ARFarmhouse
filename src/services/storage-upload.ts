@@ -2,6 +2,7 @@ import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 
 import type { ProcessedImageFile } from "@/lib/image-process";
 import { getUploadMaxBytes } from "@/lib/image-process";
+import { validateRawImageFile } from "@/lib/image-input";
 import { tryGetFirebaseStorage } from "@/lib/firebase";
 import { readPublicFirebaseConfig } from "@/lib/firebase/env";
 import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
@@ -31,12 +32,14 @@ async function getDownloadURLWithTimeout(objectRef: ReturnType<typeof ref>, stor
   }
 }
 
-/** Extensions must stay aligned with `storage.rules` `original.(…)` patterns — never emit `.img`. */
+/** Raw upload extension — keep recognizable suffixes for Storage + Functions routing (never `.img`). */
 function extFromMime(mime: string) {
   if (mime === "image/jpeg") return "jpg";
   if (mime === "image/png") return "png";
   if (mime === "image/webp") return "webp";
   if (mime === "image/gif") return "gif";
+  if (mime === "image/heic") return "heic";
+  if (mime === "image/heif") return "heif";
   if (mime.startsWith("image/")) return "jpg";
   return "jpg";
 }
@@ -109,15 +112,10 @@ export async function uploadStorageImageResumable(
 }
 
 function validateNormalizedUpload(file: File, maxBytes: number) {
-  if (!file.type.startsWith("image/")) {
-    throw new Error(`"${file.name}" is not a supported image.`);
-  }
+  validateRawImageFile(file);
   if (file.size > maxBytes) {
     const mb = Math.round(maxBytes / (1024 * 1024));
     throw new Error(`"${file.name}" exceeds the ${mb} MB upload limit.`);
-  }
-  if (file.size === 0) {
-    throw new Error(`"${file.name}" appears to be empty.`);
   }
 }
 
@@ -127,10 +125,8 @@ function artifactProcessingStatus(storagePath: string, mime: string): MediaProce
 }
 
 function feedArtifactPath(uid: string, postId: string, slot: number, file: File): string {
-  if (file.type === "image/gif") {
-    return `posts/${postId}/${Date.now()}-${slot}.gif`;
-  }
-  const ext = extFromMime(file.type || "image/jpeg");
+  const ext =
+    file.type === "image/gif" ? "gif" : extFromMime(file.type || "image/jpeg");
   return `uploads/raw/${uid}/posts/${postId}/${slot}/original.${ext}`;
 }
 
@@ -173,7 +169,7 @@ export async function uploadPostImages(
     if (signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     const artifact = artifacts[i]!;
     const file = artifact.file;
-    validateNormalizedUpload(file, file.type === "image/gif" ? 20 * 1024 * 1024 : MAX_NORMALIZED_BYTES);
+    validateNormalizedUpload(file, MAX_NORMALIZED_BYTES);
     const storagePath = feedArtifactPath(authorUid, postId, i, file);
     logResolvedStorageDestination("feed_raw", storagePath, {
       authorUid,
@@ -227,7 +223,7 @@ export async function uploadAlbumImages(
     if (signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     const artifact = artifacts[i]!;
     const file = artifact.file;
-    validateNormalizedUpload(file, file.type === "image/gif" ? 20 * 1024 * 1024 : MAX_NORMALIZED_BYTES);
+    validateNormalizedUpload(file, MAX_NORMALIZED_BYTES);
     const path = albumArtifactPath(authorUid, mediaId, file);
     logResolvedStorageDestination("album_raw", path, {
       authorUid,
@@ -323,7 +319,7 @@ export async function deletePostMediaArtifacts(authorId: string, postId: string,
   }
   const slotCount = mediaUrls.length;
   for (let i = 0; i < slotCount; i++) {
-    for (const ext of ["jpg", "jpeg", "webp", "png"]) {
+    for (const ext of ["jpg", "jpeg", "webp", "png", "gif", "heic", "heif"]) {
       paths.add(`uploads/raw/${authorId}/posts/${postId}/${i}/original.${ext}`);
     }
     for (const name of ["thumb.webp", "feed.webp", "full.webp"]) {

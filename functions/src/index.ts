@@ -16,9 +16,9 @@ initializeApp();
 const db = getFirestore();
 
 const POST_RAW =
-  /^uploads\/raw\/([^/]+)\/posts\/([^/]+)\/(\d+)\/original\.(jpe?g|webp|png|gif)$/i;
+  /^uploads\/raw\/([^/]+)\/posts\/([^/]+)\/(\d+)\/original\.(jpe?g|webp|png|gif|heic|heif)$/i;
 const ALBUM_RAW =
-  /^uploads\/raw\/([^/]+)\/albumMedia\/([^/]+)\/original\.(jpe?g|webp|png|gif)$/i;
+  /^uploads\/raw\/([^/]+)\/albumMedia\/([^/]+)\/original\.(jpe?g|webp|png|gif|heic|heif)$/i;
 
 const THUMB_EDGE = 300;
 const FEED_EDGE = 1560;
