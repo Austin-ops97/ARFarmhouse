@@ -19,7 +19,7 @@ const LIMIT_FIELDS: { key: keyof BookingLimitsConfig; label: string; hint: strin
   { key: "maxPendingBookingsPerUser", label: "Max pending requests", hint: "Awaiting approval" },
   { key: "maxBookingDurationDays", label: "Max stay length (days)", hint: "Single reservation" },
   { key: "maxAdvanceBookingDays", label: "Max advance (days)", hint: "How far ahead" },
-  { key: "minNoticeHours", label: "Minimum notice (hours)", hint: "Before arrival" },
+  { key: "minNoticeHours", label: "Minimum notice (hours)", hint: "0 = same-day allowed" },
 ];
 
 export function AdminSettingsView() {
@@ -89,24 +89,30 @@ export function AdminSettingsView() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4 rounded-2xl border border-border/55 bg-card/80 p-4 dark:border-white/10 dark:bg-white/[0.04]"
         >
-          {LIMIT_FIELDS.map((field) => (
-            <label key={field.key} className="block space-y-1.5">
-              <span className="text-sm font-medium text-foreground">{field.label}</span>
-              <span className="block text-xs text-muted-foreground">{field.hint}</span>
-              <Input
-                type="number"
-                min={1}
-                value={limits[field.key]}
-                onChange={(e) =>
-                  setLimits((prev) => ({
-                    ...prev,
-                    [field.key]: Math.max(1, parseInt(e.target.value, 10) || 1),
-                  }))
-                }
-                className="min-h-11 rounded-xl"
-              />
-            </label>
-          ))}
+          {LIMIT_FIELDS.map((field) => {
+            const minValue = field.key === "minNoticeHours" ? 0 : 1;
+            return (
+              <label key={field.key} className="block space-y-1.5">
+                <span className="text-sm font-medium text-foreground">{field.label}</span>
+                <span className="block text-xs text-muted-foreground">{field.hint}</span>
+                <Input
+                  type="number"
+                  min={minValue}
+                  value={limits[field.key]}
+                  onChange={(e) =>
+                    setLimits((prev) => ({
+                      ...prev,
+                      [field.key]: Math.max(
+                        minValue,
+                        parseInt(e.target.value, 10) || minValue
+                      ),
+                    }))
+                  }
+                  className="min-h-11 rounded-xl"
+                />
+              </label>
+            );
+          })}
           <Button
             type="button"
             className="mt-2 min-h-11 w-full rounded-xl"

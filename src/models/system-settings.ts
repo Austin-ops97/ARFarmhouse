@@ -28,6 +28,6 @@ export const DEFAULT_BOOKING_LIMITS: BookingLimitsConfig = {
   maxActiveBookingsPerUser: 3,
   maxBookingDurationDays: 14,
   maxAdvanceBookingDays: 180,
-  minNoticeHours: 24,
+  minNoticeHours: 0,
   maxPendingBookingsPerUser: 5,
 };

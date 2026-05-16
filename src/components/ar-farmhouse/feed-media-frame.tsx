@@ -179,7 +179,7 @@ export function FeedMediaFrame({
   }, [hasIntrinsic, maxHeightPx, measuredW, nh, nw, provisional]);
 
   return (
-    <div ref={measureRef} className={cn("relative w-full min-w-0", frameClassName)}>
+    <div ref={measureRef} className={cn("relative w-full min-w-0 touch-pan-y", frameClassName)}>
       <div className={cn("relative mx-auto flex w-full justify-center", className)}>
         <div
           className="relative overflow-hidden"

@@ -10,6 +10,11 @@ import type { UiFeedPost } from "@/models/feed-post";
 import { useFeedPosts } from "@/contexts/feed-posts-context";
 
 function previewLine(post: UiFeedPost) {
+  if (post.kind === "poll" && post.poll) {
+    const line = `Poll · ${post.poll.question}`.trim();
+    if (line.length <= 120) return line;
+    return `${line.slice(0, 120)}…`;
+  }
   const line = (post.title ? `${post.title} — ${post.body}` : post.body).trim();
   if (line.length <= 120) return line;
   return `${line.slice(0, 120)}…`;

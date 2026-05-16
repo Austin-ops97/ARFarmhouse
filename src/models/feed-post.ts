@@ -1,9 +1,31 @@
 import type { Timestamp } from "firebase/firestore";
 
-import type { FeedPostCategory } from "@/models/feed-post-category";
+import type { FeedPostCategory, FeedPostContentType } from "@/models/feed-post-category";
 import type { MediaProcessingStatus } from "@/models/media-processing";
 
-export type { FeedPostCategory };
+export type { FeedPostCategory, FeedPostContentType };
+
+export type PollOption = {
+  id: string;
+  text: string;
+  voteCount: number;
+};
+
+export type FirestorePollData = {
+  question: string;
+  options: PollOption[];
+  allowMultiple: boolean;
+  expiresAt: Timestamp | null;
+};
+
+export type UiPollData = {
+  question: string;
+  options: PollOption[];
+  allowMultiple: boolean;
+  expiresAtMs: number | null;
+  expired: boolean;
+  totalVotes: number;
+};
 
 export type OptimisticUploadPhase = "preparing" | "optimizing" | "uploading" | "saving" | "failed";
 
@@ -27,7 +49,9 @@ export type UiFeedPost = {
   location?: string;
   title?: string;
   body: string;
-  kind: "image" | "album" | "text" | "video" | "event_recap";
+  kind: "image" | "album" | "text" | "video" | "event_recap" | "poll";
+  contentType: FeedPostContentType;
+  poll?: UiPollData;
   cover?: string;
   album?: string[];
   video?: { poster: string; duration: string };
@@ -67,9 +91,11 @@ export type FirestorePost = {
   authorId: string;
   authorDisplayName: string;
   authorPhotoUrl: string | null;
+  contentType?: FeedPostContentType;
   category: FeedPostCategory;
   title?: string | null;
   body: string;
+  poll?: FirestorePollData;
   location?: string | null;
   linkedEvent?: string | null;
   mediaUrls: string[];

@@ -8,6 +8,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   writeBatch,
   type DocumentData,
@@ -29,8 +30,10 @@ import { tryGetFirestoreDb } from "@/lib/firebase";
 import { mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadFinalizeTrace, uploadStage } from "@/lib/upload-log";
 import type { UploadTrace } from "@/lib/upload-trace";
+import { isPollExpired, pollTotalVotes } from "@/lib/poll-vote-counts";
+import { newPollOptionId } from "@/lib/poll-id";
 import type { FeedPostCategory } from "@/models/feed-post-category";
-import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
+import type { FirestorePollData, FirestorePost, PollOption, UiFeedPost, UiPollData } from "@/models/feed-post";
 import {
   deletePostMediaArtifacts,
   scheduleBackgroundStorageUrlHydration,
@@ -59,8 +62,44 @@ function resolveFeedMediaDisplayUrl(d: Partial<FirestorePost>, index: number): s
   return "";
 }
 
-/** Remote post is display-ready when persisted media has a resolvable URL (or is text-only). */
+function mapPollData(raw: unknown): UiPollData | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const p = raw as Partial<FirestorePollData>;
+  const question = typeof p.question === "string" ? p.question.trim() : "";
+  if (!question) return undefined;
+
+  const options: PollOption[] = Array.isArray(p.options)
+    ? p.options
+        .map((row) => {
+          if (!row || typeof row !== "object") return null;
+          const o = row as Partial<PollOption>;
+          const id = typeof o.id === "string" ? o.id.trim() : "";
+          const text = typeof o.text === "string" ? o.text.trim() : "";
+          if (!id || !text) return null;
+          const voteCount = typeof o.voteCount === "number" && o.voteCount >= 0 ? o.voteCount : 0;
+          return { id, text, voteCount };
+        })
+        .filter((o): o is PollOption => o != null)
+    : [];
+
+  if (options.length < 2) return undefined;
+
+  const expiresAt = p.expiresAt as { toDate?: () => Date } | null | undefined;
+  const expiresAtMs = expiresAt?.toDate?.() ? expiresAt.toDate()!.getTime() : null;
+
+  return {
+    question,
+    options,
+    allowMultiple: Boolean(p.allowMultiple),
+    expiresAtMs,
+    expired: isPollExpired(expiresAtMs),
+    totalVotes: pollTotalVotes(options),
+  };
+}
+
+/** Remote post is display-ready when persisted media has a resolvable URL (or is text-only / poll). */
 export function isFeedPostMediaDisplayReady(post: UiFeedPost): boolean {
+  if (post.kind === "poll") return true;
   if (post.kind === "text") return true;
   if (post.kind === "album") return (post.album ?? []).some((u) => u.length > 0);
   return Boolean(post.cover?.trim());
@@ -69,6 +108,40 @@ export function isFeedPostMediaDisplayReady(post: UiFeedPost): boolean {
 function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
   const d = snapshot.data() as Partial<FirestorePost>;
   const created = d.createdAt?.toDate?.() ?? new Date();
+  const contentType = d.contentType === "poll" ? "poll" : "standard";
+  const poll = contentType === "poll" ? mapPollData(d.poll) : undefined;
+
+  if (contentType === "poll" && poll) {
+    const reactionCounts = normalizeReactionCounts(d.reactionCounts);
+    return {
+      id: snapshot.id,
+      authorId: typeof d.authorId === "string" ? d.authorId : "",
+      contentType: "poll",
+      category: "poll",
+      layout: "standard",
+      author: {
+        name: d.authorDisplayName ?? "Member",
+        handle: handleFromDisplayName(d.authorDisplayName ?? "member"),
+        avatar: d.authorPhotoUrl ?? "",
+      },
+      timeLabel: formatFeedTimeLabel(created),
+      location: d.location ?? undefined,
+      title: d.title ?? undefined,
+      body: d.body ?? poll.question,
+      kind: "poll",
+      poll,
+      linkedEvent: d.linkedEvent ?? undefined,
+      reactions: buildChipsFromCounts(reactionCounts, undefined).map((c) => ({
+        emoji: c.emoji,
+        count: c.count,
+        active: c.active,
+      })),
+      reactionCounts,
+      commentsPreview: [],
+      commentCount: typeof d.commentCount === "number" ? d.commentCount : 0,
+    };
+  }
+
   const slotCount = feedMediaSlotCount(d);
   const media = Array.from({ length: slotCount }, (_, i) => resolveFeedMediaDisplayUrl(d, i));
   let kind: UiFeedPost["kind"];
@@ -111,6 +184,7 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
   return {
     id: snapshot.id,
     authorId: typeof d.authorId === "string" ? d.authorId : "",
+    contentType: "standard",
     category: (d.category as FeedPostCategory) ?? "update",
     layout,
     author: {
@@ -172,6 +246,17 @@ export type CreateFeedPostInput = {
   location?: string;
   linkedEvent?: string | null;
   files: File[];
+};
+
+export type CreatePollFeedPostInput = {
+  authorId: string;
+  authorDisplayName: string;
+  authorPhotoUrl: string | null;
+  question: string;
+  optionTexts: string[];
+  allowMultiple: boolean;
+  expiresAt?: Date | null;
+  location?: string;
 };
 
 /** Reserve a Firestore document id before optimistic UI so Storage paths and the final `setDoc` stay aligned. */
@@ -399,6 +484,65 @@ export async function finalizeFeedPostFromFiles(
   await finalizeFeedPostFromOptimizedArtifacts(postId, input, optimizedArtifacts, options);
 }
 
+export async function createPollFeedPost(postId: string, input: CreatePollFeedPostInput): Promise<void> {
+  if (!input.authorId?.trim()) throw new Error("You must be signed in to publish.");
+
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
+
+  const question = input.question.trim();
+  if (!question) throw new Error("Add a poll question.");
+
+  const texts = input.optionTexts.map((t) => t.trim()).filter(Boolean);
+  if (texts.length < 2) throw new Error("Add at least two poll options.");
+  if (texts.length > 6) throw new Error("Polls support up to six options.");
+
+  const options: PollOption[] = texts.map((text) => ({
+    id: newPollOptionId(),
+    text,
+    voteCount: 0,
+  }));
+
+  const poll: FirestorePollData = {
+    question,
+    options,
+    allowMultiple: input.allowMultiple,
+    expiresAt:
+      input.expiresAt && input.expiresAt.getTime() > Date.now()
+        ? Timestamp.fromDate(input.expiresAt)
+        : null,
+  };
+
+  const ref = doc(db, POSTS, postId);
+  const payload: Record<string, unknown> = {
+    authorId: input.authorId,
+    authorDisplayName: input.authorDisplayName,
+    authorPhotoUrl: input.authorPhotoUrl ?? null,
+    contentType: "poll",
+    category: "poll",
+    title: null,
+    body: question,
+    location: input.location?.trim() || null,
+    linkedEvent: null,
+    mediaUrls: [],
+    poll,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    commentCount: 0,
+    reactionCounts: {},
+  };
+
+  try {
+    await setDoc(ref, payload);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("permission") || msg.includes("PERMISSION_DENIED")) {
+      throw new Error("Could not save the poll. Check that you are signed in and Firestore rules allow writes.");
+    }
+    throw new Error(`Could not save the poll. ${msg}`);
+  }
+}
+
 export async function createFeedPostWithMedia(
   input: CreateFeedPostInput,
   onProgress?: (progress: FeedPublishProgress) => void
@@ -419,12 +563,14 @@ export async function deleteFeedPost(
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable");
   const batch = writeBatch(db);
-  const [reactionsSnap, commentsSnap] = await Promise.all([
+  const [reactionsSnap, commentsSnap, pollVotesSnap] = await Promise.all([
     getDocs(collection(db, POSTS, postId, "reactions")),
     getDocs(collection(db, POSTS, postId, "comments")),
+    getDocs(collection(db, POSTS, postId, "pollVotes")),
   ]);
   reactionsSnap.forEach((d) => batch.delete(d.ref));
   commentsSnap.forEach((d) => batch.delete(d.ref));
+  pollVotesSnap.forEach((d) => batch.delete(d.ref));
   batch.delete(doc(db, POSTS, postId));
   await batch.commit();
   mobileUploadLog("delete feed post — Firestore committed", { postId });

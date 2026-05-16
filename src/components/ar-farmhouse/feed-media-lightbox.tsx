@@ -328,15 +328,6 @@ export function FeedMediaLightbox({
 
   useEffect(() => {
     if (!state) return;
-    const ov = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = ov;
-    };
-  }, [state]);
-
-  useEffect(() => {
-    if (!state) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft") onPrev();

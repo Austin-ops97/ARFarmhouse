@@ -29,6 +29,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { FeedPollBlock } from "@/components/ar-farmhouse/feed-poll-block";
 import { FeedMediaFrame } from "@/components/ar-farmhouse/feed-media-frame";
 import { FeedMediaLightbox, type FeedMediaLightboxState } from "@/components/ar-farmhouse/feed-media-lightbox";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
@@ -37,6 +38,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { FeedCommentList } from "@/components/ar-farmhouse/feed-comment-list";
+import { usePollVote } from "@/hooks/use-poll-vote";
 import { usePostSocial } from "@/hooks/use-post-social";
 import { useInViewReady } from "@/lib/use-in-view-ready";
 import { reactionTotal } from "@/lib/reaction-counts";
@@ -67,6 +69,7 @@ const categoryLabel: Record<UiFeedPost["category"], string> = {
   wildlife: "Wildlife",
   project: "Project",
   weekend_recap: "Weekend",
+  poll: "Poll",
 };
 
 function initials(name: string) {
@@ -144,6 +147,14 @@ export function FeedPostCard({
     onSavedChange,
   });
 
+  const pollVote = usePollVote({
+    postId: post.id,
+    poll: post.poll,
+    uid: user?.uid,
+    engagementActive: engagementActive || commentsOpen,
+    remoteEnabled: interactionsLive,
+  });
+
   const displayReactions = useMemo(
     () => social.reactionChips.map((c) => ({ emoji: c.emoji, count: c.count, active: c.active })),
     [social.reactionChips]
@@ -155,7 +166,13 @@ export function FeedPostCard({
   );
 
   const [lightbox, setLightbox] = useState<FeedMediaLightboxState>(null);
-  const touchStart = useRef({ x: 0, y: 0 });
+  /** Mobile album swipe — lock axis early so vertical feed scroll wins. */
+  const albumTouch = useRef<{ x: number; y: number; lock: "h" | "v" | null; suppressTap: boolean }>({
+    x: 0,
+    y: 0,
+    lock: null,
+    suppressTap: false,
+  });
 
   const albumNav = useAlbumIndex(Math.max((post.album ?? []).length, 1));
 
@@ -237,7 +254,8 @@ export function FeedPostCard({
     FEED_MEDIA_BLEED,
     "rounded-none sm:rounded-2xl",
     "ring-1 ring-inset ring-border/50 dark:ring-white/[0.07]",
-    "shadow-[var(--ar-panel-elevate)] dark:shadow-[0_20px_70px_-38px_rgba(0,0,0,0.82)]"
+    "shadow-[var(--ar-panel-elevate)] dark:shadow-[0_20px_70px_-38px_rgba(0,0,0,0.82)]",
+    "touch-pan-y"
   );
 
   const commentCountLabel = useMemo(() => {
@@ -318,9 +336,10 @@ export function FeedPostCard({
   }, [albumUrls, closeMenu, onDismissOptimisticFeed, post.authorId, post.id, post.optimistic, user]);
 
   const shareSummary = useMemo(() => {
+    if (post.kind === "poll" && post.poll) return post.poll.question.slice(0, 280);
     const t = post.title ? `${post.title} — ${post.body}` : post.body;
     return t.slice(0, 280);
-  }, [post.body, post.title]);
+  }, [post.body, post.poll, post.kind, post.title]);
 
   const menuMounted = useSyncExternalStore(
     () => () => {},
@@ -328,14 +347,58 @@ export function FeedPostCard({
     () => false
   );
 
-  const onAlbumTouchEnd = (e: React.TouchEvent) => {
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStart.current.x;
-    const dy = t.clientY - touchStart.current.y;
-    if (Math.abs(dx) < 52 || Math.abs(dx) <= Math.abs(dy)) return;
-    if (dx < 0) albumNav.next();
-    else albumNav.prev();
-  };
+  const onAlbumTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    albumTouch.current = { x: t.clientX, y: t.clientY, lock: null, suppressTap: false };
+  }, []);
+
+  const onAlbumTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (album.length <= 1 || albumTouch.current.lock) return;
+      const t = e.touches[0];
+      const dx = t.clientX - albumTouch.current.x;
+      const dy = t.clientY - albumTouch.current.y;
+      const adx = Math.abs(dx);
+      const ady = Math.abs(dy);
+      // Favor vertical page scroll as soon as intent is mostly vertical.
+      if (ady > 10 && ady > adx * 1.25) {
+        albumTouch.current.lock = "v";
+        return;
+      }
+      // Require a clear horizontal intent before album swipe can activate.
+      if (adx > 18 && adx > ady * 1.4) {
+        albumTouch.current.lock = "h";
+      }
+    },
+    [album.length]
+  );
+
+  const onAlbumTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - albumTouch.current.x;
+      const dy = t.clientY - albumTouch.current.y;
+      const adx = Math.abs(dx);
+      const ady = Math.abs(dy);
+      if (adx > 14 || ady > 14) albumTouch.current.suppressTap = true;
+      if (albumTouch.current.lock === "v" || album.length <= 1) return;
+      const horizontalLocked = albumTouch.current.lock === "h";
+      const minSwipe = horizontalLocked ? 56 : 68;
+      if (adx < minSwipe || adx <= ady * 1.45) return;
+      albumTouch.current.suppressTap = true;
+      if (dx < 0) albumNav.next();
+      else albumNav.prev();
+    },
+    [album.length, albumNav]
+  );
+
+  const openAlbumLightbox = useCallback(() => {
+    if (albumTouch.current.suppressTap) {
+      albumTouch.current.suppressTap = false;
+      return;
+    }
+    openLightboxAt(albumNav.i);
+  }, [albumNav.i, lightboxUrls]);
 
   return (
     <>
@@ -348,7 +411,7 @@ export function FeedPostCard({
         viewport={{ once: true, margin: "-4% 0px" }}
         transition={{ duration: reduceMotion ? 0.2 : 0.55, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          "touch-manipulation scroll-mt-28 pb-8 sm:scroll-mt-32 sm:pb-9",
+          "touch-pan-y scroll-mt-28 pb-8 sm:scroll-mt-32 sm:pb-9",
           isHighlighted && "rounded-2xl ring-2 ring-primary/35 ring-offset-2 ring-offset-background sm:rounded-[1.35rem]"
         )}
       >
@@ -441,9 +504,9 @@ export function FeedPostCard({
 
         {/* Media — orientation-aware containment */}
         {post.kind === "image" && post.cover && (
-          <button type="button" className={cn("group/media block w-full text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
+          <button type="button" className={cn("group/media block w-full touch-pan-y text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
             <motion.div
-              className="relative w-full"
+              className="relative w-full touch-pan-y"
               whileHover={reduceMotion ? undefined : { scale: 1.006 }}
               transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
             >
@@ -466,10 +529,9 @@ export function FeedPostCard({
           <div className={mediaShell}>
             {/* Mobile: swipe carousel */}
             <div
-              className="relative sm:hidden"
-              onTouchStart={(e) => {
-                touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-              }}
+              className="relative touch-pan-y sm:hidden"
+              onTouchStart={onAlbumTouchStart}
+              onTouchMove={onAlbumTouchMove}
               onTouchEnd={onAlbumTouchEnd}
             >
               <motion.div
@@ -479,7 +541,7 @@ export function FeedPostCard({
                 transition={{ duration: 0.18 }}
                 className="relative w-full"
               >
-                <button type="button" className="relative block w-full" onClick={() => openLightboxAt(albumNav.i)}>
+              <button type="button" className="relative block w-full" onClick={openAlbumLightbox}>
                   <FeedMediaFrame
                     src={album[albumNav.i] ?? album[0]}
                     alt=""
@@ -491,7 +553,7 @@ export function FeedPostCard({
                 </button>
               </motion.div>
               {album.length > 1 && (
-                <div className="pointer-events-auto absolute bottom-2.5 left-0 right-0 flex justify-center gap-1.5">
+                <div className="pointer-events-auto absolute bottom-2.5 left-0 right-0 z-[1] flex justify-center gap-1.5">
                   {album.map((_, idx) => (
                     <button
                       key={idx}
@@ -588,8 +650,9 @@ export function FeedPostCard({
 
         {post.kind === "video" && post.video && (
           <div className={mediaShell}>
-            <button type="button" className="relative block w-full" onClick={() => openLightboxAt(0)}>
+            <button type="button" className="relative block w-full touch-pan-y" onClick={() => openLightboxAt(0)}>
               <motion.div
+                className="touch-pan-y"
                 whileHover={reduceMotion ? undefined : { scale: 1.006 }}
                 transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
               >
@@ -615,9 +678,9 @@ export function FeedPostCard({
         )}
 
         {post.kind === "event_recap" && post.cover && (
-          <button type="button" className={cn("relative block w-full text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
+          <button type="button" className={cn("relative block w-full touch-pan-y text-left", mediaShell)} onClick={() => openLightboxAt(0)}>
             <motion.div
-              className="relative w-full"
+              className="relative w-full touch-pan-y"
               whileHover={reduceMotion ? undefined : { scale: 1.006 }}
               transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
             >
@@ -636,10 +699,21 @@ export function FeedPostCard({
           </button>
         )}
 
+        {post.kind === "poll" && post.poll && (
+          <FeedPollBlock
+            poll={pollVote.poll ?? post.poll}
+            myOptionIds={pollVote.myOptionIds}
+            canVote={pollVote.canVote}
+            voteBusy={pollVote.voteBusy}
+            voteError={pollVote.voteError}
+            onVote={(id) => void pollVote.vote(id)}
+          />
+        )}
+
         {post.kind === "text" && !hasMedia && (
-          <div className="ar-surface-inset rounded-2xl px-4 py-5 sm:px-5 sm:py-6">
+          <motion.div className="ar-surface-inset rounded-2xl px-4 py-5 sm:px-5 sm:py-6">
             <p className="text-[15px] leading-relaxed text-foreground/95 sm:text-base">{post.body}</p>
-          </div>
+          </motion.div>
         )}
 
         {/* Actions */}
@@ -739,7 +813,7 @@ export function FeedPostCard({
           </p>
         )}
 
-        {post.kind !== "text" && (
+        {post.kind !== "text" && post.kind !== "poll" && (
           <div className="space-y-2 px-0.5 pt-3 sm:space-y-1.5 sm:px-0 sm:pt-3">
             {post.title && <p className="text-base font-semibold leading-snug text-foreground sm:text-[15px]">{post.title}</p>}
             <p className="text-base leading-relaxed text-foreground/90 sm:text-[15px] md:text-base">

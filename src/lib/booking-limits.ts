@@ -72,12 +72,18 @@ export function validateBookingLimits(input: {
     };
   }
 
-  const minNoticeMs = limits.minNoticeHours * 60 * 60 * 1000;
-  if (start.getTime() - now.getTime() < minNoticeMs) {
-    return {
-      code: "min_notice",
-      message: `Please book at least ${limits.minNoticeHours} hours before your arrival.`,
-    };
+  if (limits.minNoticeHours > 0) {
+    const earliestArrivalMs = now.getTime() + limits.minNoticeHours * 60 * 60 * 1000;
+    const earliestArrivalDay = new Date(earliestArrivalMs);
+    earliestArrivalDay.setHours(0, 0, 0, 0);
+    const arrivalDay = new Date(start);
+    arrivalDay.setHours(0, 0, 0, 0);
+    if (arrivalDay.getTime() < earliestArrivalDay.getTime()) {
+      return {
+        code: "min_notice",
+        message: `Please book at least ${limits.minNoticeHours} hours before your arrival.`,
+      };
+    }
   }
 
   return null;

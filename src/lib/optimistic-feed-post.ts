@@ -1,6 +1,7 @@
 import { formatFeedTimeLabel, handleFromDisplayName } from "@/lib/datetime/relative";
 import { buildChipsFromCounts, normalizeReactionCounts } from "@/lib/reaction-counts";
-import type { FeedPostCategory } from "@/models/feed-post-category";
+import { newPollOptionId } from "@/lib/poll-id";
+import { POLL_OPTION_MAX, POLL_OPTION_MIN, type FeedPostCategory } from "@/models/feed-post-category";
 import type { OptimisticFeedUpload, UiFeedPost } from "@/models/feed-post";
 import type { FeedPublishProgress } from "@/services/feed-posts";
 
@@ -89,6 +90,7 @@ export function buildOptimisticFeedPost(opts: {
   return {
     id,
     authorId,
+    contentType: "standard",
     category: postType,
     layout,
     author: {
@@ -116,6 +118,67 @@ export function buildOptimisticFeedPost(opts: {
       phase: "preparing",
       progress: 3,
       message: "Preparing…",
+    },
+  };
+}
+
+export function buildOptimisticPollPost(opts: {
+  id: string;
+  authorId: string;
+  authorDisplayName: string;
+  authorPhotoUrl: string | null;
+  question: string;
+  optionTexts: string[];
+  allowMultiple: boolean;
+  expiresAtMs: number | null;
+  location: string;
+}): UiFeedPost {
+  const texts = opts.optionTexts.map((t) => t.trim()).filter(Boolean).slice(0, POLL_OPTION_MAX);
+  const options = texts.map((text) => ({
+    id: newPollOptionId(),
+    text,
+    voteCount: 0,
+  }));
+
+  const now = new Date();
+  const reactionCounts = normalizeReactionCounts({});
+
+  return {
+    id: opts.id,
+    authorId: opts.authorId,
+    contentType: "poll",
+    category: "poll",
+    layout: "standard",
+    author: {
+      name: opts.authorDisplayName || "Member",
+      handle: handleFromDisplayName(opts.authorDisplayName ?? "member"),
+      avatar: opts.authorPhotoUrl ?? "",
+    },
+    timeLabel: formatFeedTimeLabel(now),
+    location: opts.location.trim() ? opts.location : undefined,
+    body: opts.question.trim(),
+    kind: "poll",
+    poll: {
+      question: opts.question.trim(),
+      options: options.length >= POLL_OPTION_MIN ? options : options,
+      allowMultiple: opts.allowMultiple,
+      expiresAtMs: opts.expiresAtMs,
+      expired: false,
+      totalVotes: 0,
+    },
+    reactions: buildChipsFromCounts(reactionCounts, undefined).map((c) => ({
+      emoji: c.emoji,
+      count: c.count,
+      active: c.active,
+    })),
+    reactionCounts,
+    commentsPreview: [],
+    commentCount: 0,
+    optimistic: true,
+    optimisticUpload: {
+      phase: "saving",
+      progress: 88,
+      message: "Publishing poll…",
     },
   };
 }

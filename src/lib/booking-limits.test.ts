@@ -34,6 +34,34 @@ describe("validateBookingLimits", () => {
     expect(result?.code).toBe("max_duration");
   });
 
+  it("allows same-day booking when minimum notice is zero", () => {
+    const start = new Date("2026-05-16T00:00:00Z");
+    const end = new Date("2026-05-17T00:00:00Z");
+    const result = validateBookingLimits({
+      limits: { ...DEFAULT_BOOKING_LIMITS, minNoticeHours: 0 },
+      start,
+      end,
+      now,
+      userId: "u1",
+      userBookings: [],
+    });
+    expect(result).toBeNull();
+  });
+
+  it("blocks when arrival is sooner than minimum notice", () => {
+    const start = new Date("2026-05-17T00:00:00Z");
+    const end = new Date("2026-05-18T00:00:00Z");
+    const result = validateBookingLimits({
+      limits: { ...DEFAULT_BOOKING_LIMITS, minNoticeHours: 24 },
+      start,
+      end,
+      now,
+      userId: "u1",
+      userBookings: [],
+    });
+    expect(result?.code).toBe("min_notice");
+  });
+
   it("blocks when too many pending", () => {
     const start = new Date("2026-06-10");
     const end = new Date("2026-06-12");

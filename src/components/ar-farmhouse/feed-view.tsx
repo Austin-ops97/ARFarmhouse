@@ -4,7 +4,11 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ImagePlus, PenLine } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 
-import { CreatePostDialog, type LivePostPayload } from "@/components/ar-farmhouse/create-post-dialog";
+import {
+  CreatePostDialog,
+  type LivePollPayload,
+  type LivePostPayload,
+} from "@/components/ar-farmhouse/create-post-dialog";
 import { FeedPostCard } from "@/components/ar-farmhouse/feed-post-card";
 import { FeedRail } from "@/components/ar-farmhouse/feed-rail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,7 +19,12 @@ import { usePhotoAlbum } from "@/contexts/photo-album-context";
 import { useFeedPosts } from "@/contexts/feed-posts-context";
 import { FEED_LAYOUT_CLASS, FEED_RAIL_CLASS, FEED_STREAM_CLASS } from "@/lib/feed-layout";
 import { enqueueCpuBoundMediaTask } from "@/lib/media-upload-queue";
-import { buildOptimisticFeedPost, mergeOptimisticUploadProgress, patchOptimisticFeedPostMediaDimensions } from "@/lib/optimistic-feed-post";
+import {
+  buildOptimisticFeedPost,
+  buildOptimisticPollPost,
+  mergeOptimisticUploadProgress,
+  patchOptimisticFeedPostMediaDimensions,
+} from "@/lib/optimistic-feed-post";
 import { probeImageDimensions } from "@/lib/image-dimensions";
 import { postsSignature } from "@/lib/mutation-lifecycle";
 import { deferMediaCpuWork } from "@/lib/image-scheduler";
@@ -27,10 +36,12 @@ import { uploadFinalizeTrace } from "@/lib/upload-log";
 import { startUploadTrace } from "@/lib/upload-trace";
 import {
   allocateFeedPostDocId,
+  createPollFeedPost,
   finalizeFeedPostFromOptimizedArtifacts,
   isFeedPostMediaDisplayReady,
   prepareFeedPostPublishingArtifacts,
   type CreateFeedPostInput,
+  type CreatePollFeedPostInput,
   type FeedPublishProgress,
 } from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
@@ -79,6 +90,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
   const { posts, loading: liveLoading, error: liveError } = useFeedPosts();
   const feedPostsSigRef = useRef("");
   const retryFeedPayloadsRef = useRef(new Map<string, CreateFeedPostInput>());
+  const retryPollPayloadsRef = useRef(new Map<string, CreatePollFeedPostInput>());
   const abortFinalizeRef = useRef(new Map<string, AbortController>());
 
   const meAvatar = avatarUrl ?? undefined;
@@ -271,8 +283,107 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
     [avatarUrl, displayName, runFinalizeFeedJob, user]
   );
 
+  const handlePublishPoll = useCallback(
+    async (payload: LivePollPayload) => {
+      if (!user) throw new Error("Sign in to publish to the family feed.");
+
+      let postId: string;
+      try {
+        postId = allocateFeedPostDocId();
+      } catch {
+        throw new Error("Firestore unavailable. Check your connection and try again.");
+      }
+
+      const expiresAtMs = payload.expiresAt?.getTime() ?? null;
+      const baseRow = buildOptimisticPollPost({
+        id: postId,
+        authorId: user.uid,
+        authorDisplayName: displayName || "Member",
+        authorPhotoUrl: avatarUrl ?? null,
+        question: payload.question,
+        optionTexts: payload.options,
+        allowMultiple: payload.allowMultiple,
+        expiresAtMs,
+        location: payload.location,
+      });
+
+      const input: CreatePollFeedPostInput = {
+        authorId: user.uid,
+        authorDisplayName: displayName || "Member",
+        authorPhotoUrl: avatarUrl ?? null,
+        question: payload.question,
+        optionTexts: payload.options,
+        allowMultiple: payload.allowMultiple,
+        expiresAt: payload.expiresAt,
+        location: payload.location,
+      };
+
+      retryPollPayloadsRef.current.set(postId, input);
+      setOptimisticFeed((prev) => [baseRow, ...prev]);
+
+      try {
+        await createPollFeedPost(postId, input);
+        retryPollPayloadsRef.current.delete(postId);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Could not publish.";
+        setOptimisticFeed((prev) =>
+          prev.map((row) =>
+            row.id === postId
+              ? {
+                  ...row,
+                  optimisticUpload: {
+                    phase: "failed",
+                    progress: row.optimisticUpload?.progress ?? 0,
+                    error: msg,
+                  },
+                }
+              : row
+          )
+        );
+        throw e;
+      }
+    },
+    [avatarUrl, displayName, user]
+  );
+
   const handleRetryOptimistic = useCallback(
     (postId: string) => {
+      const pollInput = retryPollPayloadsRef.current.get(postId);
+      if (pollInput) {
+        setOptimisticFeed((prev) =>
+          prev.map((row) =>
+            row.id === postId
+              ? {
+                  ...row,
+                  optimisticUpload: {
+                    phase: "saving",
+                    progress: 50,
+                    message: "Retrying…",
+                  },
+                }
+              : row
+          )
+        );
+        void createPollFeedPost(postId, pollInput).catch((e) => {
+          const msg = e instanceof Error ? e.message : "Could not publish.";
+          setOptimisticFeed((prev) =>
+            prev.map((row) =>
+              row.id === postId
+                ? {
+                    ...row,
+                    optimisticUpload: {
+                      phase: "failed",
+                      progress: row.optimisticUpload?.progress ?? 0,
+                      error: msg,
+                    },
+                  }
+                : row
+            )
+          );
+        });
+        return;
+      }
+
       const input = retryFeedPayloadsRef.current.get(postId);
       if (!input) return;
       abortFinalizeRef.current.get(postId)?.abort();
@@ -299,6 +410,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
     abortFinalizeRef.current.get(postId)?.abort();
     abortFinalizeRef.current.delete(postId);
     retryFeedPayloadsRef.current.delete(postId);
+    retryPollPayloadsRef.current.delete(postId);
     setOptimisticFeed((prev) => {
       const row = prev.find((r) => r.id === postId);
       if (row) revokeUiFeedPostHandoffMedia(row);
@@ -308,7 +420,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
 
   return (
     <div className={cn(FEED_LAYOUT_CLASS, "pb-4")}>
-      <div className={cn(FEED_STREAM_CLASS, "flex min-w-0 flex-col")}>
+      <div className={cn(FEED_STREAM_CLASS, "flex min-w-0 touch-pan-y flex-col")}>
         <motion.header
           initial={reduceMotion ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -412,7 +524,13 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
           </motion.button>
         )}
 
-        <CreatePostDialog open={composeOpen} onOpenChange={setComposeOpen} canPublish={canPublish} onPublishLive={handlePublishLive} />
+        <CreatePostDialog
+          open={composeOpen}
+          onOpenChange={setComposeOpen}
+          canPublish={canPublish}
+          onPublishLive={handlePublishLive}
+          onPublishPoll={handlePublishPoll}
+        />
       </div>
 
       <aside className={FEED_RAIL_CLASS}>
