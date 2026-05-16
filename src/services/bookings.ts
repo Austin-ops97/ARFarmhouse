@@ -131,7 +131,13 @@ export function subscribePendingBookings(
   );
 }
 
-/** Subscribe to bookings overlapping a calendar month (for future admin / unified reads). */
+/**
+ * Bookings overlapping a visible month range:
+ * `endDate >= monthStart` AND `startDate <= monthEnd`.
+ *
+ * Requires composite index `bookings` (endDate ASC, startDate ASC) in
+ * `firestore.indexes.json` — deploy with `npm run firebase:deploy:indexes`.
+ */
 export function subscribeBookingsForMonth(
   year: number,
   monthIndex: number,

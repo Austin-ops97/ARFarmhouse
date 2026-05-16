@@ -37,10 +37,29 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 Or use npm scripts after installing the CLI:
 
 ```bash
-npm run firebase:deploy
+npm run firebase:deploy          # rules + indexes + storage
+npm run firebase:deploy:indexes # indexes only (after changing firestore.indexes.json)
 ```
 
-**First deploy:** open the Firebase console if Firestore prompts you to create composite indexes from query errors; `firestore.indexes.json` includes the calendar month composite index.
+### Firestore composite indexes (version-controlled)
+
+All composite indexes live in [`firestore.indexes.json`](../firestore.indexes.json). Do **not** rely on creating indexes only in the Firebase console — add them to that file and deploy so production, preview, and the local emulator stay aligned.
+
+| Collection | Fields | Used by |
+|------------|--------|---------|
+| `calendarEvents` | `year`, `monthIndex` | Month-scoped legacy calendar listeners |
+| `bookings` | `endDate`, `startDate` | Calendar overlap + conflict detection (`endDate >= rangeStart` AND `startDate <= rangeEnd`) |
+
+**Why overlap needs a composite index:** Firestore allows inequality/range filters on multiple fields, but each such query must be backed by a composite index whose field order matches the query planner (for bookings overlap, `endDate` then `startDate`).
+
+**Adding a new index safely:**
+
+1. Reproduce the query in dev; copy the exact field list from the Firestore error link (or from this table pattern).
+2. Append a new entry to `firestore.indexes.json` (keep `queryScope: "COLLECTION"` unless you use collection group queries).
+3. Run `npm run firebase:deploy:indexes` and wait for indexes to finish building in the console.
+4. Optionally verify locally: `npm run firebase:emulators` loads the same index definitions.
+
+Single-field queries (`createdBy ==`, `status in`, `orderBy(createdAt)`) use automatic indexes and do not belong in this file unless combined with extra filters or `orderBy` on other fields.
 
 ## Vercel deploy
 

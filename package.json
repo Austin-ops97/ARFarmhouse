@@ -10,6 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "firebase:deploy": "firebase deploy --only firestore:rules,firestore:indexes,storage",
+    "firebase:deploy:indexes": "firebase deploy --only firestore:indexes",
+    "firebase:emulators": "firebase emulators:start --only firestore",
     "firebase:deploy:functions": "firebase deploy --only functions",
     "firebase:deploy:with-functions": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions"
   },

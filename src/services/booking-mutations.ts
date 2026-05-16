@@ -115,6 +115,7 @@ async function fetchBlackoutsForRange(start: Date, end: Date): Promise<BlackoutD
     .filter((b) => b.startDate <= end && b.endDate >= start);
 }
 
+/** Same overlap predicate as `subscribeBookingsForMonth` — shares the bookings date-range index. */
 async function fetchBookingsOverlappingRange(start: Date, end: Date): Promise<Booking[]> {
   const db = tryGetFirestoreDb();
   if (!db) return [];
