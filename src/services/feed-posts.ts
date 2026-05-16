@@ -22,7 +22,7 @@ import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipelin
 import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import { mobileUploadLog } from "@/lib/mobile-upload-debug";
-import { uploadStage } from "@/lib/upload-log";
+import { uploadFinalizeTrace, uploadStage } from "@/lib/upload-log";
 import type { UploadTrace } from "@/lib/upload-trace";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
@@ -218,7 +218,7 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
       originalMime: a.originalMime,
       optimizedSizeBytes: a.optimizedSizeBytes,
       skippedOptimization: a.skippedOptimization,
-      processingStatus: uploadedSlots[i]?.processingStatus ?? "pending",
+      processingStatus: uploadedSlots[i]?.processingStatus ?? "processing",
       rawStoragePath: (() => {
         const p = uploadedSlots[i]?.path ?? "";
         return p.startsWith("uploads/raw/") ? p : null;
@@ -258,8 +258,13 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
     if (signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     actionDebug("feed", "firestore write begin", { postId });
     trace?.("Firestore setDoc begins", { segment: "firestore", postId });
+    uploadFinalizeTrace("firestore write begin", { postId, hasMedia: optimizedArtifacts.length > 0 });
     uploadStage("firestore sync started", { postId });
     await setDoc(ref, payload);
+    uploadFinalizeTrace("firestore write success", {
+      postId,
+      durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - fsT0),
+    });
     trace?.("Firestore setDoc completes", {
       segment: "firestore",
       postId,
@@ -267,14 +272,28 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
     });
     uploadStage("firestore sync complete", { postId });
     actionDebug("feed", "firestore write complete", { postId });
+    uploadFinalizeTrace("optimistic replacement begin", {
+      postId,
+      note: "server doc written — snapshot will drop optimistic row",
+    });
+    uploadFinalizeTrace("optimistic replacement success", { postId });
+    uploadFinalizeTrace("cleanup begin", { postId });
   } catch (e) {
     actionDebug("feed", "publish failed", e);
+    uploadFinalizeTrace("finalize failed", { postId, stage: "firestore", error: String(e) });
+    const stalled =
+      e instanceof Error &&
+      (e.message.includes("Timed out") || e.message.includes("offline") || e.message.includes("network"));
+    if (stalled) {
+      uploadFinalizeTrace("stalled during firestore sync", { postId, error: String(e) });
+    }
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("permission") || msg.includes("PERMISSION_DENIED")) {
       throw new Error("Could not save the post. Check that you are signed in and Firestore rules allow writes.");
     }
     throw new Error(`Could not save the post. ${msg}`);
   }
+  uploadFinalizeTrace("finalize success", { postId, domain: "feed" });
   uploadStage("finalize success — post published", { postId });
   trace?.("finalize success — post published", { segment: "meta", postId });
   if (shouldUseSimpleIOSWebKitUpload()) {

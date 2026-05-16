@@ -32,3 +32,16 @@ export function uploadLog(message: string, detail?: Record<string, unknown>): vo
 export function uploadStage(stage: string, detail?: Record<string, unknown>): void {
   uploadLog(stage, detail);
 }
+
+/**
+ * Finalization tracing — always logs to the console (no localStorage gate) so mobile Safari /
+ * production sessions can diagnose the 90–100% window. Message is the literal suffix after `[upload] `.
+ */
+export function uploadFinalizeTrace(message: string, detail?: Record<string, unknown>): void {
+  if (detail !== undefined) {
+    console.info(`[upload] ${message}`, detail);
+  } else {
+    console.info(`[upload] ${message}`);
+  }
+  uploadLog(message, detail);
+}

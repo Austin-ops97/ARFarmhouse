@@ -9,31 +9,83 @@ import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
 import type { MediaProcessingStatus } from "@/models/media-processing";
 import { promiseWithTimeout } from "@/lib/promise-timeout";
 import type { UploadTrace } from "@/lib/upload-trace";
-import { uploadLog, uploadStage } from "@/lib/upload-log";
+import { uploadFinalizeTrace, uploadLog, uploadStage } from "@/lib/upload-log";
 import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
 import { runFirebaseResumableUpload } from "@/lib/resumable-firebase-upload";
 
-const DOWNLOAD_URL_TIMEOUT_MS = 90_000;
+/** Per-attempt budget — retries cover Storage / CDN eventual consistency after `uploadBytes` settles. */
+const DOWNLOAD_URL_ATTEMPT_MS = isMobileUploadHost() ? 42_000 : 32_000;
+const DOWNLOAD_URL_MAX_ATTEMPTS = isMobileUploadHost() ? 7 : 5;
+
+function isRetriableDownloadUrlError(e: unknown): boolean {
+  if (e instanceof DOMException && e.name === "AbortError") return false;
+  const msg = e instanceof Error ? e.message : String(e);
+  const m = msg.toLowerCase();
+  if (m.includes("abort")) return false;
+  if (m.includes("unauthorized") || m.includes("permission_denied") || m.includes("permission denied")) return false;
+  if (m.includes("403")) return false;
+  return (
+    m.includes("timed out") ||
+    m.includes("deadline") ||
+    m.includes("object-not-found") ||
+    m.includes("object not found") ||
+    m.includes("does not exist") ||
+    m.includes("network") ||
+    m.includes("offline") ||
+    m.includes("failed to fetch") ||
+    m.includes("load failed") ||
+    msg.includes("storage/")
+  );
+}
+
+async function getDownloadURLSingleAttempt(
+  objectRef: ReturnType<typeof ref>,
+  storagePath: string,
+  attempt: number
+): Promise<string> {
+  uploadStage("download URL resolving", { path: storagePath, attempt });
+  return promiseWithTimeout(
+    getDownloadURL(objectRef),
+    DOWNLOAD_URL_ATTEMPT_MS,
+    () => {
+      uploadFinalizeTrace("stalled during getDownloadURL", { path: storagePath, attempt });
+      uploadStage("stalled waiting for download URL", { path: storagePath, attempt });
+    }
+  );
+}
 
 async function getDownloadURLWithTimeout(objectRef: ReturnType<typeof ref>, storagePath: string): Promise<string> {
-  uploadStage("download URL resolving", { path: storagePath });
-  try {
-    const url = await promiseWithTimeout(
-      getDownloadURL(objectRef),
-      DOWNLOAD_URL_TIMEOUT_MS,
-      () => {
-        uploadStage("stalled waiting for download URL", { path: storagePath });
+  uploadFinalizeTrace("requesting download URL", { path: storagePath, attemptsPlanned: DOWNLOAD_URL_MAX_ATTEMPTS });
+  let last: unknown;
+  for (let attempt = 1; attempt <= DOWNLOAD_URL_MAX_ATTEMPTS; attempt++) {
+    try {
+      const url = await getDownloadURLSingleAttempt(objectRef, storagePath, attempt);
+      uploadFinalizeTrace("download URL resolved", { path: storagePath, attempt });
+      uploadStage("download URL resolved", { path: storagePath, attempt });
+      if (shouldUseSimpleIOSWebKitUpload()) {
+        safariUploadLog("download URL resolved", { path: storagePath, attempt });
       }
-    );
-    uploadStage("download URL resolved", { path: storagePath });
-    if (shouldUseSimpleIOSWebKitUpload()) {
-      safariUploadLog("download URL resolved", { path: storagePath });
+      return url;
+    } catch (e) {
+      last = e;
+      const retriable = attempt < DOWNLOAD_URL_MAX_ATTEMPTS && isRetriableDownloadUrlError(e);
+      uploadStage("download URL attempt failed", {
+        path: storagePath,
+        attempt,
+        willRetry: retriable,
+        error: String(e),
+      });
+      if (!retriable) {
+        uploadFinalizeTrace("download URL failed", { path: storagePath, attempt, error: String(e) });
+        throw e;
+      }
+      const backoff = Math.min(10_000, 400 * 2 ** (attempt - 1)) + Math.round(Math.random() * 180);
+      uploadFinalizeTrace("download URL retry", { path: storagePath, attempt, nextMs: backoff });
+      await new Promise<void>((r) => window.setTimeout(r, backoff));
     }
-    return url;
-  } catch (e) {
-    uploadStage("download URL failed", { path: storagePath, error: String(e) });
-    throw e;
   }
+  uploadFinalizeTrace("download URL failed", { path: storagePath, error: String(last) });
+  throw last;
 }
 
 /** Raw upload extension — keep recognizable suffixes for Storage + Functions routing (never `.img`). */
@@ -125,7 +177,8 @@ function validateNormalizedUpload(file: File, maxBytes: number) {
 
 function artifactProcessingStatus(storagePath: string, mime: string): MediaProcessingStatus {
   if (mime === "image/gif") return "ready";
-  return storagePath.startsWith("uploads/raw/") ? "pending" : "ready";
+  /** Raw uploads: Sharp pipeline runs async — Firestore reflects "processing" until Functions merge variants. */
+  return storagePath.startsWith("uploads/raw/") ? "processing" : "ready";
 }
 
 function feedArtifactPath(uid: string, postId: string, slot: number, file: File): string {
@@ -191,6 +244,8 @@ export async function uploadPostImages(
         trace,
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
+      uploadFinalizeTrace("storage transfer complete — requesting download URL next", { path: storagePath, index: i });
+      onProgress?.(i, total, 100);
       const url = await getDownloadURLWithTimeout(objectRef, storagePath);
       out.push({
         url,
@@ -244,6 +299,8 @@ export async function uploadAlbumImages(
         trace,
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
+      uploadFinalizeTrace("storage transfer complete — requesting download URL next", { path, index: i });
+      onProgress?.(i, total, 100);
       const url = await getDownloadURLWithTimeout(objectRef, path);
       out.push({
         url,

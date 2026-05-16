@@ -19,7 +19,7 @@ import { getUploadMaxBytes, type ProcessedImageFile } from "@/lib/image-process"
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
 import { mobileUploadLog } from "@/lib/mobile-upload-debug";
-import { uploadStage } from "@/lib/upload-log";
+import { uploadFinalizeTrace, uploadStage } from "@/lib/upload-log";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import type { UploadTrace } from "@/lib/upload-trace";
 import { tryGetFirestoreDb } from "@/lib/firebase";
@@ -212,36 +212,53 @@ async function finalizeAlbumMediaDocuments(
     );
     const slot = uploaded[0]!;
 
-    uploadStage("album: firestore sync started", { id, index: i });
-    await setDoc(ref, {
-      authorId: input.authorId,
-      authorDisplayName: input.authorDisplayName,
-      authorPhotoUrl: input.authorPhotoUrl ?? null,
-      storageUrl: slot.url,
-      storagePath: slot.path,
-      caption: input.caption.trim() || "Family memory",
-      albumKey: input.albumKey,
-      linkedEvent: input.linkedEvent?.trim() || null,
-      width: art.width,
-      height: art.height,
-      originalMimeType: art.originalMime,
-      optimizedSizeBytes: art.optimizedSizeBytes,
-      processingStatus: slot.processingStatus,
-      rawStoragePath: slot.path.startsWith("uploads/raw/") ? slot.path : null,
-      thumbnailUrl: null,
-      fullScreenUrl: null,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    try {
+      uploadStage("album: firestore sync started", { id, index: i });
+      uploadFinalizeTrace("firestore write begin", { domain: "album", id, index: i });
+      await setDoc(ref, {
+        authorId: input.authorId,
+        authorDisplayName: input.authorDisplayName,
+        authorPhotoUrl: input.authorPhotoUrl ?? null,
+        storageUrl: slot.url,
+        storagePath: slot.path,
+        caption: input.caption.trim() || "Family memory",
+        albumKey: input.albumKey,
+        linkedEvent: input.linkedEvent?.trim() || null,
+        width: art.width,
+        height: art.height,
+        originalMimeType: art.originalMime,
+        optimizedSizeBytes: art.optimizedSizeBytes,
+        processingStatus: slot.processingStatus,
+        rawStoragePath: slot.path.startsWith("uploads/raw/") ? slot.path : null,
+        thumbnailUrl: null,
+        fullScreenUrl: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
-    uploadStage("album: firestore sync complete", { id, index: i });
+      uploadFinalizeTrace("firestore write success", { domain: "album", id, index: i });
+      uploadStage("album: firestore sync complete", { id, index: i });
+      uploadFinalizeTrace("optimistic replacement begin", { domain: "album", id });
+      uploadFinalizeTrace("optimistic replacement success", { domain: "album", id });
+    } catch (e) {
+      uploadFinalizeTrace("finalize failed", { domain: "album", id, index: i, error: String(e) });
+      const stalled =
+        e instanceof Error &&
+        (e.message.includes("Timed out") || e.message.includes("offline") || e.message.includes("network"));
+      if (stalled) {
+        uploadFinalizeTrace("stalled during firestore sync", { domain: "album", id, error: String(e) });
+      }
+      throw e;
+    }
     onProgress?.({ phase: "uploading", done: i + 1, total });
     actionDebug("album", "item saved", { id });
   }
 
+  uploadFinalizeTrace("cleanup begin", { domain: "album", itemCount: total });
   if (shouldUseSimpleIOSWebKitUpload()) {
     safariUploadLog("finalize success", { domain: "album", itemCount: total });
   }
+  uploadFinalizeTrace("finalize success", { domain: "album", itemCount: total });
 }
 
 export async function createAlbumMediaItems(

@@ -4,7 +4,7 @@ import { uploadBytes, uploadBytesResumable } from "firebase/storage";
 import type { BrowserIntervalId, BrowserTimeoutId } from "@/lib/browser-timer";
 import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
 import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
-import { uploadLog, uploadStage } from "@/lib/upload-log";
+import { uploadFinalizeTrace, uploadLog, uploadStage } from "@/lib/upload-log";
 import type { UploadTrace } from "@/lib/upload-trace";
 
 /** Hard ceiling — slow networks + large albums should still finish or hit stall watchdog first. */
@@ -122,20 +122,22 @@ async function runFirebaseUploadBytesSimple(
   uploadStage("upload bytes in flight (uploadBytes)", { label });
 
   try {
+    uploadFinalizeTrace("upload promise created (uploadBytes)", { label, bytes: data.size });
     const uploadPromise = uploadBytes(objectRef, data, metadata);
     const wrapped = wrapUploadWithAbort(opts?.signal, uploadPromise);
     await wrapUploadWithDeadline(label, wrapped);
+    uploadFinalizeTrace("upload promise resolved", { label, transport: "uploadBytes" });
   } finally {
     stopSynthetic();
   }
 
-  opts?.onProgress?.(96);
+  uploadFinalizeTrace("upload bytes complete", { label, transport: "uploadBytes" });
+  opts?.onProgress?.(100);
   safariUploadLog("upload complete", { label });
   uploadStage("finalize success — Storage bytes complete (uploadBytes)", { label });
   uploadLog("complete", { label, transport: "uploadBytes" });
   opts?.trace?.("storage: upload complete (uploadBytes)", { label });
   mobileUploadLog("storage upload bytes complete — uploadBytes", { label });
-  opts?.onProgress?.(100);
 }
 
 /**
@@ -381,6 +383,9 @@ export async function runFirebaseResumableUpload(
         },
         () => {
           settle(() => {
+            uploadFinalizeTrace("upload bytes complete", { label, transport: "resumable" });
+            opts?.onProgress?.(100);
+            uploadFinalizeTrace("upload promise resolved", { label, transport: "resumable" });
             uploadStage("finalize success — Storage bytes complete", { label });
             uploadLog("complete", { label });
             trace?.("storage: upload complete", { label });

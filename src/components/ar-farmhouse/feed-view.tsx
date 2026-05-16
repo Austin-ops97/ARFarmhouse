@@ -23,6 +23,7 @@ import { handoffEphemeralImageFromFile, revokeUiFeedPostHandoffMedia } from "@/l
 import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
 import type { UiFeedPost } from "@/models/feed-post";
+import { uploadFinalizeTrace } from "@/lib/upload-log";
 import { startUploadTrace } from "@/lib/upload-trace";
 import {
   allocateFeedPostDocId,
@@ -172,6 +173,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return;
         const msg = e instanceof Error ? e.message : "Could not publish.";
+        uploadFinalizeTrace("finalize failed", { domain: "feed", postId, error: msg });
         setOptimisticFeed((prev) =>
           prev.map((row) =>
             row.id === postId
