@@ -174,6 +174,8 @@ export const processUploadedRawMedia = onObjectFinalized(
     const name = object.name;
     const bucketName = object.bucket;
 
+    logger.info("[storage] finalize trigger", { bucket: bucketName, path: name });
+
     const postMatch = name.match(POST_RAW);
     const albumMatch = name.match(ALBUM_RAW);
 

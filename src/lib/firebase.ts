@@ -5,6 +5,27 @@ import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 import { readPublicFirebaseConfig } from "@/lib/firebase/env";
 
+let firebaseStorageBucketLogged = false;
+
+function logFirebaseActiveBucketOnce(bucketId: string) {
+  if (firebaseStorageBucketLogged) return;
+  firebaseStorageBucketLogged = true;
+  if (typeof window !== "undefined") {
+    console.info("[storage] active bucket:", bucketId);
+  }
+}
+
+/** Prefer explicit `gs://` bucket binding so the SDK always targets the resolved bucket id from env. */
+function connectFirebaseStorage(app: FirebaseApp, bucketIdFromConfig: string): FirebaseStorage {
+  const id = bucketIdFromConfig.replace(/^gs:\/\//i, "").trim();
+  logFirebaseActiveBucketOnce(id);
+  try {
+    return getStorage(app, `gs://${id}`);
+  } catch {
+    return getStorage(app);
+  }
+}
+
 /**
  * Lazy init (no module-level singleton). Avoids evaluating Firebase when
  * `NEXT_PUBLIC_*` is unavailable during SSR of client bundles, and keeps
@@ -63,7 +84,11 @@ export function getFirebaseStorage(): FirebaseStorage {
   if (!app) {
     throw new Error("Firebase is not configured. Add NEXT_PUBLIC_FIREBASE_* to `.env.local`.");
   }
-  return getStorage(app);
+  const cfg = readPublicFirebaseConfig();
+  if (!cfg?.storageBucket) {
+    throw new Error("Firebase Storage bucket not configured. Set NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET.");
+  }
+  return connectFirebaseStorage(app, cfg.storageBucket);
 }
 
 export function tryGetFirebaseStorage(): FirebaseStorage | null {
@@ -72,7 +97,7 @@ export function tryGetFirebaseStorage(): FirebaseStorage | null {
   const cfg = readPublicFirebaseConfig();
   if (!cfg?.storageBucket) return null;
   try {
-    return getStorage(app);
+    return connectFirebaseStorage(app, cfg.storageBucket);
   } catch {
     return null;
   }

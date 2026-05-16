@@ -9,7 +9,7 @@ All client variables must be prefixed with `NEXT_PUBLIC_` so Next.js inlines the
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Web API key |
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `project-id.firebaseapp.com` |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `project-id.appspot.com` or `*.firebasestorage.app` |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | **Must match** Firebase Console → Storage → bucket id (typically `<project-id>.firebasestorage.app`). Legacy `<project-id>.appspot.com` env values are **auto-normalized** to `.firebasestorage.app` when they match `NEXT_PUBLIC_FIREBASE_PROJECT_ID`. Cloud Functions triggers may still report `*.appspot.com` — that is the same default bucket resource as the `.firebasestorage.app` id. |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | FCM sender ID (future push) |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Web app ID |
 
@@ -46,3 +46,5 @@ Never commit `.env.local`.
 ## Vercel
 
 Set the same keys for **Production** and optionally different Firebase projects for **Preview** branches.
+
+**Storage uploads:** `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` on Vercel must equal the bucket string from the Firebase Console (usually `<project-id>.firebasestorage.app`). Mismatched or stale `.appspot.com` defaults cause `storage/unauthorized` even when Auth and Firestore work.

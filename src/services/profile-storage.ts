@@ -5,6 +5,7 @@ import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
 import { getUploadMaxBytes } from "@/lib/image-process";
 import { isFirebaseStorageAvailable, tryGetFirebaseStorage } from "@/lib/firebase";
 import { uploadLog, uploadStage } from "@/lib/upload-log";
+import { readPublicFirebaseConfig } from "@/lib/firebase/env";
 import { uploadStorageImageResumable, waitForStorageDownloadURL } from "@/services/storage-upload";
 
 const STORAGE_UNAVAILABLE_MESSAGE =
@@ -52,8 +53,11 @@ async function uploadPath(
   validateImage(file, maxBytes);
   const ext = extFromMime(file.type || "image/jpeg");
   const fullPath = `${path}.${ext}`;
+  const cfg = readPublicFirebaseConfig();
+  const storageBucket = cfg?.storageBucket ?? "(firebase storage bucket not configured)";
   uploadStage("storage upload path resolved", {
     domain: "profile_family_or_pet",
+    storageBucket,
     fullPath,
     template: `${path}.{jpg|jpeg|png|webp|gif}`,
   });

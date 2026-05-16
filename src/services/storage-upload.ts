@@ -3,6 +3,7 @@ import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 import type { ProcessedImageFile } from "@/lib/image-process";
 import { getUploadMaxBytes } from "@/lib/image-process";
 import { tryGetFirebaseStorage } from "@/lib/firebase";
+import { readPublicFirebaseConfig } from "@/lib/firebase/env";
 import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
 import type { MediaProcessingStatus } from "@/models/media-processing";
 import { promiseWithTimeout } from "@/lib/promise-timeout";
@@ -143,8 +144,10 @@ function logResolvedStorageDestination(
   fullPath: string,
   meta: Record<string, string | number | undefined>
 ) {
-  uploadStage("storage upload path resolved", { domain, fullPath, ...meta });
-  mobileUploadLog("storage destination", { domain, fullPath, ...meta });
+  const cfg = readPublicFirebaseConfig();
+  const storageBucket = cfg?.storageBucket ?? "(firebase storage bucket not configured)";
+  uploadStage("storage upload path resolved", { domain, storageBucket, fullPath, ...meta });
+  mobileUploadLog("storage destination", { domain, storageBucket, fullPath, ...meta });
 }
 
 export type UploadedObject = { url: string; path: string; processingStatus: MediaProcessingStatus };
