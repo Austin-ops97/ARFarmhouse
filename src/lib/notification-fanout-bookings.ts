@@ -103,12 +103,14 @@ export async function notifyBookingDenied(input: {
   reason?: string;
 }) {
   if (input.creatorId === input.actorId) return;
+  const trimmed = input.reason?.trim();
+  const body = trimmed
+    ? `Your booking request was denied. Reason: ${trimmed}`
+    : "Your booking request was denied.";
   await writeNotification(input.creatorId, {
     type: "booking_denied",
-    title: `Booking declined`,
-    body: input.reason?.trim()
-      ? `${input.title} — ${input.reason.trim()}`
-      : `${input.title} was not approved`,
+    title: "Booking request denied",
+    body,
     actorId: input.actorId,
     actorDisplayName: input.actorName,
     actorAvatarUrl: input.actorAvatarUrl,
@@ -118,6 +120,37 @@ export async function notifyBookingDenied(input: {
     routeEventId: input.calendarEventId ?? undefined,
     routeBookingId: input.bookingId,
     groupKey: `booking_denied_${input.bookingId}`,
+  });
+}
+
+export async function notifyBookingRemoved(input: {
+  actorId: string;
+  actorName: string;
+  actorAvatarUrl: string | null;
+  bookingId: string;
+  calendarEventId?: string | null;
+  creatorId: string;
+  title: string;
+  reason?: string;
+}) {
+  if (input.creatorId === input.actorId) return;
+  const trimmed = input.reason?.trim();
+  const body = trimmed
+    ? `Your booking was removed by an administrator. Reason: ${trimmed}`
+    : "Your booking was removed by an administrator.";
+  await writeNotification(input.creatorId, {
+    type: "booking_removed",
+    title: "Booking removed",
+    body,
+    actorId: input.actorId,
+    actorDisplayName: input.actorName,
+    actorAvatarUrl: input.actorAvatarUrl,
+    entityKind: "booking",
+    entityId: input.bookingId,
+    routeNav: "calendar",
+    routeEventId: input.calendarEventId ?? undefined,
+    routeBookingId: input.bookingId,
+    groupKey: `booking_removed_${input.bookingId}`,
   });
 }
 

@@ -27,6 +27,7 @@ function booking(partial: Partial<Booking> & Pick<Booking, "id" | "status">): Bo
     deleted: partial.deleted ?? false,
     deletedAt: null,
     deletedBy: null,
+    deletedReason: null,
   };
 }
 

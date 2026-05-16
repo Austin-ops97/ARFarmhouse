@@ -42,8 +42,22 @@ export function canEditBooking(user: PermissionUser, booking: PermissionBooking)
   );
 }
 
+/** Owner may remove their own booking (soft delete). */
+export function canRemoveOwnBooking(user: PermissionUser, booking: PermissionBooking): boolean {
+  return isBookingOwner(user, booking);
+}
+
+/** Admin override — remove any booking with optional reason. */
+export function canAdminDeleteBooking(user: PermissionUser): boolean {
+  return (
+    hasCapability(user?.role, "bookings.delete_any") ||
+    hasCapability(user?.role, "bookings.approve")
+  );
+}
+
+/** @deprecated Prefer canRemoveOwnBooking or canAdminDeleteBooking */
 export function canDeleteBooking(user: PermissionUser, booking: PermissionBooking): boolean {
-  return canEditBooking(user, booking);
+  return canRemoveOwnBooking(user, booking) || canAdminDeleteBooking(user);
 }
 
 export function canManageBlackoutDates(user: PermissionUser): boolean {

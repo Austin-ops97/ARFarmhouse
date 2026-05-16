@@ -27,6 +27,7 @@ import {
   notifyBookingApproved,
   notifyBookingCancelled,
   notifyBookingDenied,
+  notifyBookingRemoved,
   notifyBookingSubmitted,
 } from "@/lib/notification-fanout-bookings";
 import { guardedMutation, mutationKey } from "@/lib/request-guard";
@@ -420,16 +421,21 @@ export async function denyBooking(
     if (!db) throw new Error("Firestore unavailable");
 
     const booking = await loadBooking(bookingId);
-    const reason = deniedReason.trim() || "Declined by admin";
+    const reason = deniedReason.trim();
     const bookingRef = doc(db, BOOKINGS_COLLECTION, bookingId);
     const calendarEventId = booking.calendarEventId ?? undefined;
 
-    const deniedEntry = buildActivityEntry("denied", actor.uid, actor.displayName, reason);
+    const deniedEntry = buildActivityEntry(
+      "denied",
+      actor.uid,
+      actor.displayName,
+      reason || undefined
+    );
     assertFirestoreWriteSafe({ activityLog: [deniedEntry] }, "bookings deny activityLog");
     const batch = writeBatch(db);
     batch.update(bookingRef, {
       status: "denied",
-      deniedReason: reason,
+      deniedReason: reason || null,
       approvedBy: actor.uid,
       approvedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -452,7 +458,7 @@ export async function denyBooking(
       calendarEventId,
       creatorId: booking.createdBy,
       title: booking.title,
-      reason,
+      reason: reason || undefined,
     }).catch(() => {});
   });
 }
@@ -503,23 +509,31 @@ export async function cancelBooking(
 /** Soft-delete preserves history; use `permanentlyDeleteBooking` for hard removal. */
 export async function softDeleteBooking(
   bookingId: string,
-  actor: BookingMutationActor
+  actor: BookingMutationActor,
+  deleteReason = ""
 ): Promise<void> {
   return guardedMutation(mutationKey("booking", "soft-delete", bookingId), async () => {
     const db = tryGetFirestoreDb();
     if (!db) throw new Error("Firestore unavailable");
 
     const booking = await loadBooking(bookingId);
+    const reason = deleteReason.trim();
     const bookingRef = doc(db, BOOKINGS_COLLECTION, bookingId);
     const calendarEventId = booking.calendarEventId ?? undefined;
 
-    const deletedEntry = buildActivityEntry("deleted", actor.uid, actor.displayName);
+    const deletedEntry = buildActivityEntry(
+      "deleted",
+      actor.uid,
+      actor.displayName,
+      reason || undefined
+    );
     assertFirestoreWriteSafe({ activityLog: [deletedEntry] }, "bookings delete activityLog");
     const batch = writeBatch(db);
     batch.update(bookingRef, {
       deleted: true,
       deletedAt: serverTimestamp(),
       deletedBy: actor.uid,
+      deletedReason: reason || null,
       updatedAt: serverTimestamp(),
       activityLog: arrayUnion(deletedEntry),
     });
@@ -531,6 +545,17 @@ export async function softDeleteBooking(
       });
     }
     await batch.commit();
+
+    void notifyBookingRemoved({
+      actorId: actor.uid,
+      actorName: actor.displayName,
+      actorAvatarUrl: actor.avatarUrl ?? null,
+      bookingId,
+      calendarEventId,
+      creatorId: booking.createdBy,
+      title: booking.title,
+      reason: reason || undefined,
+    }).catch(() => {});
   });
 }
 

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, LayoutGrid, List, Rows3 } from "lucide-react
 import { useMemo, useRef } from "react";
 
 import type { CalendarGridDay, CalendarMonthMeta } from "@/lib/calendar-month-meta";
+import { eventIsActive } from "@/lib/calendar-event-merge";
 import { dayCellOverlayClass, statusAccentClass } from "@/lib/booking-status-styles";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import { cn } from "@/lib/utils";
@@ -21,13 +22,16 @@ function eventDotClass(ev: PropertyCalendarEvent): string {
 
 function eventsForDay(day: number, events: PropertyCalendarEvent[]) {
   return events.filter((e) => {
+    if (!eventIsActive(e)) return false;
     const end = e.endDay ?? e.startDay;
     return day >= e.startDay && day <= end;
   });
 }
 
 function agendaRows(events: PropertyCalendarEvent[], monthName: string) {
-  const sorted = [...events].sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
+  const sorted = [...events]
+    .filter(eventIsActive)
+    .sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
   return sorted.map((e) => ({
     ...e,
     rangeLabel:

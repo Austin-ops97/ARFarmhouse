@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canAdminDeleteBooking,
   canApproveBookings,
   canDeleteBooking,
   canEditBooking,
   canManageBlackoutDates,
+  canRemoveOwnBooking,
   isAdmin,
   isBookingOwner,
 } from "@/lib/permissions";
@@ -38,10 +40,18 @@ describe("permissions", () => {
     expect(canManageBlackoutDates(user)).toBe(false);
   });
 
-  it("allows owners and admins to edit or delete bookings", () => {
+  it("allows owners and admins to edit bookings", () => {
     expect(canEditBooking(user, booking)).toBe(true);
     expect(canEditBooking(user, otherBooking)).toBe(false);
     expect(canEditBooking(admin, otherBooking)).toBe(true);
+  });
+
+  it("splits owner remove vs admin delete", () => {
+    expect(canRemoveOwnBooking(user, booking)).toBe(true);
+    expect(canRemoveOwnBooking(user, otherBooking)).toBe(false);
+    expect(canAdminDeleteBooking(admin)).toBe(true);
+    expect(canAdminDeleteBooking(user)).toBe(false);
     expect(canDeleteBooking(admin, otherBooking)).toBe(true);
+    expect(canDeleteBooking(user, otherBooking)).toBe(false);
   });
 });

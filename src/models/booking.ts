@@ -38,6 +38,8 @@ export type FirestoreBooking = PropertyScoped & {
   deleted?: boolean;
   deletedAt?: Timestamp | null;
   deletedBy?: string | null;
+  /** Optional admin reason when a booking is removed (soft delete). */
+  deletedReason?: string | null;
 };
 
 export type Booking = PropertyScoped & {
@@ -62,6 +64,7 @@ export type Booking = PropertyScoped & {
   deleted: boolean;
   deletedAt: Date | null;
   deletedBy: string | null;
+  deletedReason: string | null;
 };
 
 export type FirestoreBlackoutDate = {

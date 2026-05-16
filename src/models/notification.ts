@@ -7,6 +7,7 @@ export type NotificationType =
   | "booking_submitted"
   | "booking_approved"
   | "booking_denied"
+  | "booking_removed"
   | "booking_cancelled"
   | "blackout_affects_booking"
   | "admin_message"

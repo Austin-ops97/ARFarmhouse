@@ -30,6 +30,7 @@ function booking(partial: Partial<Booking> & Pick<Booking, "id" | "startDate" | 
     deleted: false,
     deletedAt: null,
     deletedBy: null,
+    deletedReason: null,
   };
 }
 

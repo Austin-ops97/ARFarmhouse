@@ -4,10 +4,10 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AlertTriangle, Check, Loader2, Shield, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { BookingModerationDialog } from "@/components/ar-farmhouse/booking-moderation-dialog";
 import { Button } from "@/components/ui/button";
 import { ActionToastBanner } from "@/components/ui/action-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/auth-context";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { statusBadgeLabel } from "@/lib/booking-status-styles";
@@ -31,6 +31,8 @@ function formatBookingRange(b: Booking): string {
   return `${start} – ${end}`;
 }
 
+type ModerationTarget = { booking: Booking; mode: "deny" | "delete" };
+
 export function AdminModerationView({ embedded = false }: { embedded?: boolean }) {
   const reduceMotion = useReducedMotion();
   const { user, profile, displayName, avatarUrl } = useAuth();
@@ -39,8 +41,8 @@ export function AdminModerationView({ embedded = false }: { embedded?: boolean }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
-  const [denyTarget, setDenyTarget] = useState<Booking | null>(null);
-  const [denyReason, setDenyReason] = useState("");
+  const [moderationTarget, setModerationTarget] = useState<ModerationTarget | null>(null);
+  const [moderationReason, setModerationReason] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [conflictsOnly, setConflictsOnly] = useState(false);
 
@@ -85,6 +87,24 @@ export function AdminModerationView({ embedded = false }: { embedded?: boolean }
     [actingId, showToast, user]
   );
 
+  const confirmModeration = () => {
+    if (!moderationTarget || !user) return;
+    const { booking, mode } = moderationTarget;
+    const reason = moderationReason;
+    void runAction(
+      booking.id,
+      mode,
+      () =>
+        mode === "deny"
+          ? denyBooking(booking.id, actor!, reason)
+          : softDeleteBooking(booking.id, actor!, reason),
+      mode === "deny" ? "Request denied." : "Booking deleted."
+    ).then(() => {
+      setModerationTarget(null);
+      setModerationReason("");
+    });
+  };
+
   if (!canModerate) {
     return (
       <section className="mx-auto max-w-lg px-4 py-16 text-center text-sm text-muted-foreground">
@@ -98,7 +118,8 @@ export function AdminModerationView({ embedded = false }: { embedded?: boolean }
     : null;
 
   return (
-    <div
+    <motion.div
+      layout={!reduceMotion}
       className={cn(
         "min-w-0 space-y-6",
         embedded ? "px-4 py-6 sm:px-6" : "mx-auto max-w-2xl px-4 py-6 sm:px-6"
@@ -191,7 +212,7 @@ export function AdminModerationView({ embedded = false }: { embedded?: boolean }
                       <p className="text-[12px] text-muted-foreground">
                         {b.createdByName} · {formatBookingRange(b)}
                       </p>
-                      <div className="flex flex-wrap gap-2 pt-1">
+                      <motion.div layout={!reduceMotion} className="flex flex-wrap gap-2 pt-1">
                         <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           {b.type === "event" ? "Event" : "Booking"}
                         </span>
@@ -205,7 +226,7 @@ export function AdminModerationView({ embedded = false }: { embedded?: boolean }
                         >
                           {statusBadgeLabel(b.status, b.type)}
                         </span>
-                      </div>
+                      </motion.div>
                     </motion.div>
                   </motion.div>
 
@@ -245,8 +266,8 @@ export function AdminModerationView({ embedded = false }: { embedded?: boolean }
                       className="min-h-10 flex-1 rounded-xl sm:flex-none"
                       disabled={busy}
                       onClick={() => {
-                        setDenyTarget(b);
-                        setDenyReason("");
+                        setModerationTarget({ booking: b, mode: "deny" });
+                        setModerationReason("");
                       }}
                     >
                       <X className="size-4" data-icon="inline-start" />
@@ -255,17 +276,13 @@ export function AdminModerationView({ embedded = false }: { embedded?: boolean }
                     <Button
                       type="button"
                       size="sm"
-                      variant="ghost"
-                      className="min-h-10 rounded-xl text-muted-foreground"
+                      variant="destructive"
+                      className="min-h-10 rounded-xl"
                       disabled={busy || !user}
-                      onClick={() =>
-                        void runAction(
-                          b.id,
-                          "delete",
-                          () => softDeleteBooking(b.id, actor!),
-                          "Request removed."
-                        )
-                      }
+                      onClick={() => {
+                        setModerationTarget({ booking: b, mode: "delete" });
+                        setModerationReason("");
+                      }}
                     >
                       <Trash2 className="size-4" data-icon="inline-start" />
                       Delete
@@ -278,69 +295,20 @@ export function AdminModerationView({ embedded = false }: { embedded?: boolean }
         </ul>
       )}
 
-      <AnimatePresence>
-        {denyTarget && (
-          <motion.div
-            className="fixed inset-0 z-[75] flex items-end justify-center sm:items-center sm:p-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <button
-              type="button"
-              className="ar-scrim absolute inset-0"
-              aria-label="Close"
-              onClick={() => !actingId && setDenyTarget(null)}
-            />
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              initial={reduceMotion ? false : { y: 24, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={reduceMotion ? undefined : { y: 16, opacity: 0 }}
-              className="ar-modal-shell relative z-10 w-full max-w-md rounded-t-[1.75rem] p-5 sm:rounded-[1.75rem]"
-            >
-              <p className="font-heading text-lg font-semibold text-foreground">Deny request</p>
-              <p className="mt-1 text-sm text-muted-foreground">{denyTarget.title}</p>
-              <Textarea
-                value={denyReason}
-                onChange={(e) => setDenyReason(e.target.value)}
-                placeholder="Optional reason for the requester…"
-                className="mt-4 min-h-[88px] rounded-2xl"
-              />
-              <motion.div layout={!reduceMotion} className="mt-4 flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="min-h-11 flex-1 rounded-xl"
-                  disabled={!!actingId}
-                  onClick={() => setDenyTarget(null)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  className="min-h-11 flex-1 rounded-xl"
-                  disabled={!!actingId || !user}
-                  onClick={() => {
-                    const target = denyTarget;
-                    void runAction(
-                      target.id,
-                      "deny",
-                      () => denyBooking(target.id, actor!, denyReason),
-                      "Request denied."
-                    ).then(() => setDenyTarget(null));
-                  }}
-                >
-                  {actingId ? <Loader2 className="size-4 animate-spin" /> : "Confirm deny"}
-                </Button>
-              </motion.div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {moderationTarget && (
+        <BookingModerationDialog
+          open
+          variant={moderationTarget.mode}
+          bookingTitle={moderationTarget.booking.title}
+          reason={moderationReason}
+          onReasonChange={setModerationReason}
+          onClose={() => !actingId && setModerationTarget(null)}
+          onConfirm={confirmModeration}
+          busy={!!actingId}
+        />
+      )}
 
       <ActionToastBanner toast={toast} />
-    </div>
+    </motion.div>
   );
 }

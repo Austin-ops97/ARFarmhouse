@@ -77,6 +77,7 @@ export function mapBookingDoc(snap: QueryDocumentSnapshot<DocumentData>): Bookin
     deleted: data.deleted === true,
     deletedAt: timestampToDate(data.deletedAt),
     deletedBy: typeof data.deletedBy === "string" ? data.deletedBy : null,
+    deletedReason: typeof data.deletedReason === "string" ? data.deletedReason : null,
   };
 }
 

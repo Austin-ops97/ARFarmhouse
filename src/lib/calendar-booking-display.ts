@@ -4,6 +4,14 @@ import type { CalendarMonthMeta } from "@/lib/calendar-month-meta";
 import type { PropertyCalendarEvent, PropertyCalendarEventAccent } from "@/lib/property-calendar-events";
 import type { BlackoutDate, Booking, BookingType } from "@/models/booking";
 
+/** Active calendar rows — excludes moderation-terminal and soft-deleted bookings. */
+export function bookingIsCalendarVisible(
+  booking: Pick<Booking, "status" | "deleted">
+): boolean {
+  if (booking.deleted) return false;
+  return booking.status !== "denied" && booking.status !== "cancelled";
+}
+
 const EVENT_ACCENT: PropertyCalendarEventAccent = "violet";
 const BOOKING_ACCENT: PropertyCalendarEventAccent = "mint";
 const CONFLICT_ACCENT: PropertyCalendarEventAccent = "amber";
@@ -108,6 +116,7 @@ export function mergeBookingsAndBlackoutsForMonth(
 ): PropertyCalendarEvent[] {
   const events: PropertyCalendarEvent[] = [];
   for (const b of bookings) {
+    if (!bookingIsCalendarVisible(b)) continue;
     const ev = bookingToMonthCalendarEvent(b, month);
     if (ev) events.push(ev);
   }
