@@ -30,7 +30,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { FeedPollBlock } from "@/components/ar-farmhouse/feed-poll-block";
-import { FeedMediaFrame, useViewportHeightPx } from "@/components/ar-farmhouse/feed-media-frame";
+import { FeedMediaFrame } from "@/components/ar-farmhouse/feed-media-frame";
 import { FeedMediaLightbox, type FeedMediaLightboxState } from "@/components/ar-farmhouse/feed-media-lightbox";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { PostShareSheet } from "@/components/ar-farmhouse/post-share-sheet";
@@ -45,11 +45,8 @@ import { reactionTotal } from "@/lib/reaction-counts";
 import { useSavedPosts } from "@/contexts/saved-posts-context";
 import { setPostSaved } from "@/services/post-engagement";
 import { buildPostDeepLink } from "@/lib/app-url";
-import {
-  feedMediaStableBoxStyle,
-  resolveAlbumCarouselAspect,
-  type FeedMediaDims,
-} from "@/lib/feed-media-aspect";
+import { type FeedMediaDims } from "@/lib/feed-media-aspect";
+import { useLockedAlbumCarouselLayout } from "@/lib/use-locked-feed-media-layout";
 import { FEED_IMAGE_SIZES, FEED_MEDIA_BLEED } from "@/lib/feed-layout";
 import { hubSlugFromLinkedEventLabel } from "@/lib/linked-event-hub";
 import { isEphemeralLocalImageUrl } from "@/lib/image-display-url";
@@ -57,13 +54,10 @@ import type { UiFeedPost } from "@/models/feed-post";
 import { deleteFeedPost } from "@/services/feed-posts";
 import { cn } from "@/lib/utils";
 
-const FEED_BLUR_FALLBACK =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Crect fill='%231a1a1a' width='8' height='10'/%3E%3C/svg%3E";
-
 function ephemeralImageProps(src: string) {
   return isEphemeralLocalImageUrl(src)
-    ? { unoptimized: true as const }
-    : { placeholder: "blur" as const, blurDataURL: FEED_BLUR_FALLBACK };
+    ? { unoptimized: true as const, placeholder: "empty" as const }
+    : { placeholder: "empty" as const };
 }
 
 const categoryLabel: Record<UiFeedPost["category"], string> = {
@@ -197,24 +191,10 @@ export function FeedPostCard({
 
   const album = post.album ?? [];
 
-  const vhPx = useViewportHeightPx();
-
-  const albumCarouselDims = useMemo((): FeedMediaDims | null => {
-    for (let i = 0; i < album.length; i++) {
-      const d = mediaDimsAt(post, i);
-      if (d) return d;
-    }
-    return null;
-  }, [album.length, post]);
-
-  const albumCarouselBoxStyle = useMemo(() => {
-    const dimsList = Array.from({ length: album.length }, (_, i) => mediaDimsAt(post, i));
-    const aspect = resolveAlbumCarouselAspect(dimsList, album.length);
-    const dims =
-      albumCarouselDims ??
-      ({ width: Math.max(1, Math.round(aspect * 100)), height: 100 } satisfies FeedMediaDims);
-    return feedMediaStableBoxStyle(dims, vhPx);
-  }, [album.length, albumCarouselDims, post, vhPx]);
+  const albumCarouselLayout = useLockedAlbumCarouselLayout(
+    Array.from({ length: album.length }, (_, i) => mediaDimsAt(post, i)),
+    album.length
+  );
 
   const openLightboxAt = (index: number) => {
     if (!lightboxUrls.length) return;
@@ -547,21 +527,22 @@ export function FeedPostCard({
               onTouchEnd={onAlbumTouchEnd}
             >
               <div
-              className="ar-feed-media-stable relative mx-auto w-full max-w-full overflow-hidden"
-              style={albumCarouselBoxStyle}
-            >
-              <button type="button" className="absolute inset-0 block" onClick={openAlbumLightbox}>
-                <FeedMediaFrame
-                  src={album[albumNav.i] ?? album[0]}
-                  alt=""
-                  sizes="100vw"
-                  dims={mediaDimsAt(post, albumNav.i)}
-                  applyParentHeightCap
-                  frameClassName="absolute inset-0 h-full min-h-0 w-full min-w-0"
-                  imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(album[albumNav.i] ?? album[0]) }}
-                />
-              </button>
-            </div>
+                className="ar-feed-media-stable relative mx-auto w-full max-w-full overflow-hidden"
+                style={albumCarouselLayout.boxStyle}
+              >
+                <button type="button" className="absolute inset-0 block" onClick={openAlbumLightbox}>
+                  <FeedMediaFrame
+                    src={album[albumNav.i] ?? album[0]}
+                    alt=""
+                    sizes="100vw"
+                    dims={mediaDimsAt(post, albumNav.i)}
+                    applyParentHeightCap
+                    parentLayoutDims={albumCarouselLayout.layoutDims}
+                    frameClassName="absolute inset-0 h-full min-h-0 w-full min-w-0"
+                    imageProps={{ loading: "lazy" as const, ...ephemeralImageProps(album[albumNav.i] ?? album[0]) }}
+                  />
+                </button>
+              </div>
               {album.length > 1 && (
                 <div className="pointer-events-auto absolute bottom-2.5 left-0 right-0 z-[1] flex justify-center gap-1.5">
                   {album.map((_, idx) => (

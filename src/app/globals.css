@@ -409,11 +409,25 @@ html.ar-theme-transitioning .ar-app-shell {
     max-width: 100%;
     margin-left: auto;
     margin-right: auto;
+    overflow: hidden;
+    flex-shrink: 0;
+    transform: translateZ(0);
+    backface-visibility: hidden;
   }
-  .ar-feed-media-stable > span,
+  .ar-feed-media-stable > span {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    transition: none !important;
+  }
   .ar-feed-media-stable img {
     object-fit: cover;
     object-position: center;
+    transition: none !important;
+    animation: none !important;
   }
 
   .ar-modal-shell {

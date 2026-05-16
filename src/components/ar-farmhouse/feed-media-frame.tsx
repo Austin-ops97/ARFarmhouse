@@ -1,33 +1,18 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import {
-  feedMediaMaxHeightPx,
-  resolveFeedAspectRatio,
-  type FeedMediaDims,
-} from "@/lib/feed-media-aspect";
+import { type FeedMediaDims } from "@/lib/feed-media-aspect";
+import { useLockedFeedMediaLayout } from "@/lib/use-locked-feed-media-layout";
 import { cn } from "@/lib/utils";
-
-function subscribeViewportHeight(cb: () => void) {
-  window.addEventListener("resize", cb, { passive: true });
-  return () => window.removeEventListener("resize", cb);
-}
-
-function getViewportHeight() {
-  return typeof window !== "undefined" ? window.innerHeight : 812;
-}
-
-export function useViewportHeightPx() {
-  return useSyncExternalStore(subscribeViewportHeight, getViewportHeight, () => 812);
-}
 
 function FeedImageLayer({
   src,
   thumbnailSrc,
   alt,
   sizes,
+  layoutDims,
   imageExtraClassName,
   imageProps,
 }: {
@@ -35,10 +20,12 @@ function FeedImageLayer({
   thumbnailSrc?: string | null;
   alt: string;
   sizes: string;
+  layoutDims: FeedMediaDims;
   imageExtraClassName?: string;
   imageProps?: Record<string, unknown>;
 }) {
   const showThumb = Boolean(thumbnailSrc && thumbnailSrc !== src);
+  const { width, height } = layoutDims;
 
   return (
     <>
@@ -48,8 +35,10 @@ function FeedImageLayer({
           alt=""
           aria-hidden
           fill
+          width={width}
+          height={height}
           sizes={sizes}
-          className="pointer-events-none select-none object-cover object-center opacity-90"
+          className="pointer-events-none select-none object-cover object-center"
           unoptimized
         />
       ) : null}
@@ -57,6 +46,8 @@ function FeedImageLayer({
         src={src}
         alt={alt}
         fill
+        width={width}
+        height={height}
         sizes={sizes}
         loading="lazy"
         draggable={false}
@@ -82,6 +73,7 @@ export function FeedMediaFrame({
   imageProps,
   overlay,
   applyParentHeightCap = false,
+  parentLayoutDims,
 }: {
   src: string;
   thumbnailSrc?: string | null;
@@ -94,28 +86,23 @@ export function FeedMediaFrame({
   imageProps?: Record<string, unknown>;
   overlay?: ReactNode;
   applyParentHeightCap?: boolean;
+  /** When parent owns the box (carousel/grid), pass its locked dims for intrinsic image sizing. */
+  parentLayoutDims?: FeedMediaDims | null;
 }) {
-  const vhPx = useViewportHeightPx();
-
-  const boxStyle = useMemo((): CSSProperties | undefined => {
-    if (applyParentHeightCap) return undefined;
-    const ratio = resolveFeedAspectRatio(dims);
-    return {
-      aspectRatio: String(ratio),
-      maxHeight: `${feedMediaMaxHeightPx(dims, vhPx)}px`,
-    };
-  }, [applyParentHeightCap, dims, vhPx]);
+  const locked = useLockedFeedMediaLayout(parentLayoutDims ?? dims);
+  const layoutDims = parentLayoutDims ?? locked.layoutDims;
+  const boxStyle = applyParentHeightCap ? undefined : locked.boxStyle;
 
   if (applyParentHeightCap) {
     return (
       <div className={cn("absolute inset-0 h-full min-h-0 w-full min-w-0", frameClassName)}>
         <div className={cn("relative h-full w-full overflow-hidden", className)}>
           <FeedImageLayer
-            key={src}
             src={src}
             thumbnailSrc={thumbnailSrc}
             alt={alt}
             sizes={sizes}
+            layoutDims={layoutDims}
             imageExtraClassName={imageExtraClassName}
             imageProps={imageProps}
           />
@@ -133,11 +120,11 @@ export function FeedMediaFrame({
           style={boxStyle}
         >
           <FeedImageLayer
-            key={src}
             src={src}
             thumbnailSrc={thumbnailSrc}
             alt={alt}
             sizes={sizes}
+            layoutDims={layoutDims}
             imageExtraClassName={imageExtraClassName}
             imageProps={imageProps}
           />
