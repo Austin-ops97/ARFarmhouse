@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "firebase:deploy": "firebase deploy --only firestore:rules,firestore:indexes,storage"
+    "firebase:deploy": "firebase deploy --only firestore:rules,firestore:indexes,storage",
+    "firebase:deploy:functions": "firebase deploy --only functions",
+    "firebase:deploy:with-functions": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

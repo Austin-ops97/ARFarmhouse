@@ -28,8 +28,8 @@ export function mergeOptimisticUploadProgress(p: FeedPublishProgress): Optimisti
       progress,
       message:
         total > 1
-          ? `Optimizing ${Math.min(p.done + 1, total)} of ${total}…`
-          : "Optimizing photo for upload…",
+          ? `Preparing photo ${Math.min(p.done + 1, total)} of ${total}…`
+          : "Preparing photo for upload…",
     };
   }
 

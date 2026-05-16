@@ -1,11 +1,11 @@
-import { deleteObject, getDownloadURL, ref } from "firebase/storage";
+import { deleteObject, ref } from "firebase/storage";
 
 import { actionDebug } from "@/lib/action-debug";
 import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
 import { getUploadMaxBytes } from "@/lib/image-process";
 import { isFirebaseStorageAvailable, tryGetFirebaseStorage } from "@/lib/firebase";
-import { uploadLog } from "@/lib/upload-log";
-import { runFirebaseResumableUpload } from "@/lib/resumable-firebase-upload";
+import { uploadLog, uploadStage } from "@/lib/upload-log";
+import { uploadStorageImageResumable, waitForStorageDownloadURL } from "@/services/storage-upload";
 
 const STORAGE_UNAVAILABLE_MESSAGE =
   "Photo uploads are not available yet. Firebase Storage may still be setting up — you can save other profile details in the meantime.";
@@ -23,7 +23,8 @@ function extFromMime(mime: string) {
   if (mime === "image/png") return "png";
   if (mime === "image/webp") return "webp";
   if (mime === "image/gif") return "gif";
-  return "img";
+  if (mime.startsWith("image/")) return "jpg";
+  return "jpg";
 }
 
 function validateImage(file: File, maxBytes: number) {
@@ -50,23 +51,28 @@ async function uploadPath(
   if (!storage) throw new Error(STORAGE_UNAVAILABLE_MESSAGE);
   validateImage(file, maxBytes);
   const ext = extFromMime(file.type || "image/jpeg");
-  const objectRef = ref(storage, `${path}.${ext}`);
+  const fullPath = `${path}.${ext}`;
+  uploadStage("storage upload path resolved", {
+    domain: "profile_family_or_pet",
+    fullPath,
+    template: `${path}.{jpg|jpeg|png|webp|gif}`,
+  });
+  uploadLog("profile_upload_start", { path: fullPath });
+  const objectRef = ref(storage, fullPath);
   try {
-    uploadLog("profile_upload_start", { path });
-    await runFirebaseResumableUpload(objectRef, file, {
-      contentType: file.type || "image/jpeg",
+    await uploadStorageImageResumable(objectRef, file, {
       signal,
-      label: `${path}.${ext}`,
+      label: fullPath,
       onProgress,
     });
-    const url = await getDownloadURL(objectRef);
-    actionDebug("profile-upload", "complete", { path });
-    uploadLog("profile_upload_complete", { path });
+    const url = await waitForStorageDownloadURL(objectRef, fullPath);
+    actionDebug("profile-upload", "complete", { path: fullPath });
+    uploadLog("profile_upload_complete", { path: fullPath });
     return url;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    actionDebug("profile-upload", "failed", { path, msg });
-    uploadLog("profile_upload_failed", { path, msg });
+    actionDebug("profile-upload", "failed", { path: fullPath, msg });
+    uploadLog("profile_upload_failed", { path: fullPath, msg });
     if (msg.includes("storage/unauthorized") || msg.includes("permission") || msg.includes("403")) {
       throw new Error("Photo upload was denied. Sign in again and check Storage rules in Firebase Console.");
     }

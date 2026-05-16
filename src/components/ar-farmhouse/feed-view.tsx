@@ -19,10 +19,8 @@ import { buildOptimisticFeedPost, mergeOptimisticUploadProgress, patchOptimistic
 import { probeImageDimensions } from "@/lib/image-dimensions";
 import { postsSignature } from "@/lib/mutation-lifecycle";
 import { deferMediaCpuWork } from "@/lib/image-scheduler";
-import {
-  handoffEphemeralImageUrlList,
-  revokeUiFeedPostHandoffMedia,
-} from "@/lib/ephemeral-media-handoff";
+import { handoffEphemeralImageFromFile, revokeUiFeedPostHandoffMedia } from "@/lib/ephemeral-media-handoff";
+import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
 import type { UiFeedPost } from "@/models/feed-post";
 import { startUploadTrace } from "@/lib/upload-trace";
@@ -160,7 +158,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         if (input.files.length === 0) {
           await finalizeFeedPostFromOptimizedArtifacts(postId, input, [], finalizeOpts);
         } else {
-          trace("waiting for CPU queue (optimize)", { segment: "cpu" });
+          trace("waiting for CPU queue (normalize)", { segment: "cpu" });
           const artifacts = await enqueueCpuBoundMediaTask(() =>
             prepareFeedPostPublishingArtifacts(input.files, finalizeOpts)
           );
@@ -205,7 +203,12 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
         throw new Error("Firestore unavailable. Check your connection and try again.");
       }
 
-      const previewHandoff = await handoffEphemeralImageUrlList(payload.imagePreviewUrls ?? []);
+      /** File-backed URLs avoid `fetch(blob:)` cloning — critical on Mobile Safari memory. */
+      const previewHandoff = payload.files.map((f) => handoffEphemeralImageFromFile(f) ?? "").filter(Boolean);
+      mobileUploadLog("feed optimistic previews wired from File refs", {
+        count: previewHandoff.length,
+        bytes: payload.files.reduce((n, f) => n + f.size, 0),
+      });
 
       const baseRow = buildOptimisticFeedPost({
         id: postId,
@@ -232,8 +235,8 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
 
       setOptimisticFeed((prev) => [baseRow, ...prev]);
       if (payload.files.length > 0) {
-        void Promise.all(
-          payload.files.map(async (file, idx) => {
+        void (async () => {
+          const runners = payload.files.map(async (file, idx) => {
             const dims = await probeImageDimensions(file);
             if (!dims?.width || !dims?.height) return;
             setOptimisticFeed((prev) =>
@@ -242,8 +245,13 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
                 height: dims.height,
               })
             );
-          })
-        );
+          });
+          if (isMobileUploadHost()) {
+            for (const r of runners) await r;
+          } else {
+            await Promise.all(runners);
+          }
+        })();
       }
       runFinalizeFeedJob(postId, input);
     },

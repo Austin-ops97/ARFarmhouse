@@ -1,10 +1,16 @@
 import { dimensionsForLongestEdge, probeImageDimensions } from "@/lib/image-dimensions";
+import { isMobileUploadHost } from "@/lib/mobile-upload-debug";
 import { yieldWhenIdle } from "@/lib/image-scheduler";
 import { promiseWithTimeout } from "@/lib/promise-timeout";
 import { uploadStage } from "@/lib/upload-log";
 
 /** Preview longest edge — small grid thumbs without decoding multi‑MP originals. */
-const PREVIEW_MAX_EDGE = 480;
+const PREVIEW_MAX_EDGE_DESKTOP = 480;
+const PREVIEW_MAX_EDGE_MOBILE = 360;
+
+function previewMaxEdge(): number {
+  return isMobileUploadHost() ? PREVIEW_MAX_EDGE_MOBILE : PREVIEW_MAX_EDGE_DESKTOP;
+}
 
 const PREVIEW_JPEG_QUALITY = 0.82;
 
@@ -58,6 +64,7 @@ async function bitmapToJpegBlob(bitmap: ImageBitmap): Promise<Blob> {
  */
 export async function createPreviewObjectUrl(file: File): Promise<string> {
   uploadStage("preview generated (start)", { name: file.name, bytes: file.size, type: file.type });
+  const maxEdge = previewMaxEdge();
   if (file.type === "image/gif") {
     return URL.createObjectURL(file);
   }
@@ -73,18 +80,18 @@ export async function createPreviewObjectUrl(file: File): Promise<string> {
     let rw: number;
     let rh: number;
     if (dims && dims.width > 0 && dims.height > 0) {
-      const s = dimensionsForLongestEdge(dims.width, dims.height, PREVIEW_MAX_EDGE);
+      const s = dimensionsForLongestEdge(dims.width, dims.height, maxEdge);
       rw = s.width;
       rh = s.height;
     } else {
       await yieldWhenIdle();
       const sizingBmp = await createImageBitmap(file, {
-        resizeWidth: Math.min(960, PREVIEW_MAX_EDGE * 4),
+        resizeWidth: Math.min(960, maxEdge * 4),
         imageOrientation: "from-image",
         resizeQuality: "medium",
       });
       try {
-        const capped = dimensionsForLongestEdge(sizingBmp.width, sizingBmp.height, PREVIEW_MAX_EDGE);
+        const capped = dimensionsForLongestEdge(sizingBmp.width, sizingBmp.height, maxEdge);
         rw = capped.width;
         rh = capped.height;
       } finally {
@@ -100,12 +107,12 @@ export async function createPreviewObjectUrl(file: File): Promise<string> {
       imageOrientation: "from-image",
     });
 
-    if (bitmap.width > PREVIEW_MAX_EDGE || bitmap.height > PREVIEW_MAX_EDGE) {
+    if (bitmap.width > maxEdge || bitmap.height > maxEdge) {
       bitmap.close();
       await yieldWhenIdle();
       bitmap = await createImageBitmap(file, {
-        resizeWidth: Math.min(PREVIEW_MAX_EDGE, rw),
-        resizeHeight: Math.min(PREVIEW_MAX_EDGE, rh),
+        resizeWidth: Math.min(maxEdge, rw),
+        resizeHeight: Math.min(maxEdge, rh),
         resizeQuality: "low",
         imageOrientation: "from-image",
       });

@@ -229,7 +229,7 @@ export function PhotoAlbumLightbox({ open, items, initialIndex, onClose }: Photo
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={current.src}
+                src={current.fullSrc ?? current.src}
                 alt=""
                 width={current.width}
                 height={current.height}

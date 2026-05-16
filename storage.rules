@@ -5,71 +5,132 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    /** Mirrors Firestore `users/{uid}.role` — owners may delete any album object (moderation). */
+    /** Some clients send empty / octet-stream Content-Type during resumable uploads — keep authenticated-only paths tight via filename + size + uid. */
+    function imageLikeContentType(ct) {
+      return (ct is string && ct.matches('image/.*'))
+        || ct == ''
+        || ct == 'application/octet-stream';
+    }
+
+    function rawOriginalStillImageName(fn) {
+      return fn.matches('^original\\.(jpg|jpeg|webp|png|gif)$');
+    }
+
+    function rawPayloadWithinAlbumFeedCap() {
+      return request.resource.size > 0 && request.resource.size <= 12 * 1024 * 1024;
+    }
+
+    /** Mirrors Firestore `users/{uid}.role` — owners may delete moderated objects */
     function familyOwner() {
       return signedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
         && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'owner';
     }
 
-    function albumUploader(mediaId) {
+    /** Album doc author — guarded by caller */
+    function albumDocAuthorId(mediaId) {
       return firestore.get(/databases/(default)/documents/albumMedia/$(mediaId)).data.authorId;
     }
 
-    match /albums/{mediaId}/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.resource.size < 8 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*')
-        && fileName.matches('^[0-9]+-[0-9]+\\.(jpg|jpeg|png|webp|gif)$');
+    /** Lightweight normalized originals — Sharp pipeline consumes these asynchronously */
+    match /uploads/raw/{uid}/posts/{postId}/{slot}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.auth.uid == uid
+        && rawPayloadWithinAlbumFeedCap()
+        && imageLikeContentType(request.resource.contentType)
+        && rawOriginalStillImageName(fileName);
       allow delete: if signedIn()
-        && firestore.exists(/databases/(default)/documents/albumMedia/$(mediaId))
         && (
-          albumUploader(mediaId) == request.auth.uid
+          request.auth.uid == uid
           || familyOwner()
         );
     }
 
+    match /uploads/raw/{uid}/albumMedia/{mediaId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.auth.uid == uid
+        && rawPayloadWithinAlbumFeedCap()
+        && imageLikeContentType(request.resource.contentType)
+        && rawOriginalStillImageName(fileName);
+      allow delete: if signedIn()
+        && (
+          request.auth.uid == uid
+          || familyOwner()
+          || (
+            firestore.exists(/databases/(default)/documents/albumMedia/$(mediaId))
+            && albumDocAuthorId(mediaId) == request.auth.uid
+          )
+        );
+    }
+
+    /** CDN variants — Firebase Admin SDK only (Functions bypass rules) */
+    match /media/processed/{allPaths=**} {
+      allow read: if signedIn();
+      allow write, delete: if false;
+    }
+
+    /** Legacy album prefix — reads / deletes only */
+    match /albums/{mediaId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if false;
+      allow delete: if signedIn()
+        && firestore.exists(/databases/(default)/documents/albumMedia/$(mediaId))
+        && (
+          albumDocAuthorId(mediaId) == request.auth.uid
+          || familyOwner()
+        );
+    }
+
+    /** GIF / legacy flat uploads under posts/{postId}/… */
     match /posts/{postId}/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.resource.size < 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*')
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.resource.size > 0
+        && request.resource.size <= 12 * 1024 * 1024
+        && imageLikeContentType(request.resource.contentType)
         && fileName.matches('^[a-zA-Z0-9._-]+$');
+      allow delete: if signedIn();
     }
 
     match /avatars/{userId}/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow read: if signedIn();
+      allow write: if signedIn()
         && request.auth.uid == userId
-        && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*')
+        && request.resource.size > 0
+        && request.resource.size <= 2 * 1024 * 1024
+        && imageLikeContentType(request.resource.contentType)
         && fileName.matches('^profile\\.(jpg|jpeg|png|webp|gif)$');
     }
 
     match /users/{userId}/profile/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow read: if signedIn();
+      allow write: if signedIn()
         && request.auth.uid == userId
-        && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*')
+        && request.resource.size > 0
+        && request.resource.size <= 2 * 1024 * 1024
+        && imageLikeContentType(request.resource.contentType)
         && fileName.matches('^avatar\\.(jpg|jpeg|png|webp|gif)$');
     }
 
     match /users/{userId}/family/{memberId}/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow read: if signedIn();
+      allow write: if signedIn()
         && request.auth.uid == userId
-        && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*')
+        && request.resource.size > 0
+        && request.resource.size <= 2 * 1024 * 1024
+        && imageLikeContentType(request.resource.contentType)
         && fileName.matches('^photo\\.(jpg|jpeg|png|webp|gif)$');
     }
 
     match /users/{userId}/pets/{petId}/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow read: if signedIn();
+      allow write: if signedIn()
         && request.auth.uid == userId
-        && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*')
+        && request.resource.size > 0
+        && request.resource.size <= 2 * 1024 * 1024
+        && imageLikeContentType(request.resource.contentType)
         && fileName.matches('^photo\\.(jpg|jpeg|png|webp|gif)$');
     }
 

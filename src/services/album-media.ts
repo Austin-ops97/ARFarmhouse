@@ -17,13 +17,14 @@ import { formatFeedTimeLabel } from "@/lib/datetime/relative";
 import { validateRawImageFile } from "@/lib/image-input";
 import { getUploadMaxBytes, type ProcessedImageFile } from "@/lib/image-process";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
+import { mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadStage } from "@/lib/upload-log";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
 import type { UploadTrace } from "@/lib/upload-trace";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FirestoreAlbumMedia } from "@/models/album-media";
 import type { UserRole } from "@/models/user";
-import { uploadAlbumImages, deleteStoragePath } from "@/services/storage-upload";
+import { deleteAlbumMediaArtifacts, uploadAlbumImages } from "@/services/storage-upload";
 
 const COLLECTION = "albumMedia";
 
@@ -33,10 +34,16 @@ function mapAlbumMediaDoc(snapshot: QueryDocumentSnapshot<DocumentData>): AlbumM
   const albumKey = typeof d.albumKey === "string" ? d.albumKey : "general";
   const width = typeof d.width === "number" && d.width > 0 ? d.width : undefined;
   const height = typeof d.height === "number" && d.height > 0 ? d.height : undefined;
+  const thumb =
+    typeof d.thumbnailUrl === "string" && d.thumbnailUrl.trim().length > 0 ? d.thumbnailUrl.trim() : "";
+  const storageUrl = typeof d.storageUrl === "string" ? d.storageUrl.trim() : "";
+  const fullScreen =
+    typeof d.fullScreenUrl === "string" && d.fullScreenUrl.trim().length > 0 ? d.fullScreenUrl.trim() : undefined;
 
   return {
     id: snapshot.id,
-    src: d.storageUrl ?? "",
+    src: thumb || storageUrl,
+    ...(fullScreen ? { fullSrc: fullScreen } : {}),
     ...(width != null && height != null ? { width, height } : {}),
     caption: d.caption ?? "",
     source: "upload",
@@ -105,7 +112,7 @@ export async function prepareAlbumUploadArtifacts(
   const total = files.length;
   const { signal, trace } = options ?? {};
   const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
-  trace?.("album compression begins", { segment: "cpu", fileCount: total });
+  trace?.("album normalization begins", { segment: "cpu", fileCount: total });
   const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(files, "album", {
     signal,
     onProgress: (p) => {
@@ -118,7 +125,7 @@ export async function prepareAlbumUploadArtifacts(
       onProgress({ phase: "preparing", done: p.done, total });
     },
   });
-  trace?.("album compression completes", {
+  trace?.("album normalization completes", {
     segment: "cpu",
     fileCount: total,
     durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0),
@@ -186,25 +193,31 @@ async function finalizeAlbumMediaDocuments(
 
   for (let i = 0; i < total; i++) {
     if (signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
-    const file = optimizedArtifacts[i]!.file;
     const id = mediaIds[i]!;
     const ref = doc(db, COLLECTION, id);
     actionDebug("album", "upload begin", { id, index: i });
     uploadStage("album: Storage + Firestore pipeline item", { id, index: i, total });
 
     const art = optimizedArtifacts[i]!;
-    const uploaded = await uploadAlbumImages(id, [file], (_done, _total, percent) => {
-      onProgress?.({ phase: "uploading", done: i, total, percent });
-    }, signal, trace);
-    const { url, path } = uploaded[0]!;
+    const uploaded = await uploadAlbumImages(
+      input.authorId,
+      id,
+      [art],
+      (_done, _total, percent) => {
+        onProgress?.({ phase: "uploading", done: i, total, percent });
+      },
+      signal,
+      trace
+    );
+    const slot = uploaded[0]!;
 
     uploadStage("album: firestore sync started", { id, index: i });
     await setDoc(ref, {
       authorId: input.authorId,
       authorDisplayName: input.authorDisplayName,
       authorPhotoUrl: input.authorPhotoUrl ?? null,
-      storageUrl: url,
-      storagePath: path,
+      storageUrl: slot.url,
+      storagePath: slot.path,
       caption: input.caption.trim() || "Family memory",
       albumKey: input.albumKey,
       linkedEvent: input.linkedEvent?.trim() || null,
@@ -212,6 +225,10 @@ async function finalizeAlbumMediaDocuments(
       height: art.height,
       originalMimeType: art.originalMime,
       optimizedSizeBytes: art.optimizedSizeBytes,
+      processingStatus: slot.processingStatus,
+      rawStoragePath: slot.path.startsWith("uploads/raw/") ? slot.path : null,
+      thumbnailUrl: null,
+      fullScreenUrl: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -260,13 +277,8 @@ export async function deleteAlbumMediaItem(
   }
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable.");
-  /* Storage rules still read albumMedia/{itemId} — delete objects before the Firestore doc. */
-  if (storagePath) {
-    try {
-      await deleteStoragePath(storagePath);
-    } catch (e) {
-      actionDebug("album", "storage cleanup failed", e);
-    }
-  }
+  mobileUploadLog("delete album item — starting", { itemId, hasStoragePath: Boolean(storagePath) });
+  await deleteAlbumMediaArtifacts(authorId, itemId, storagePath);
   await deleteDoc(doc(db, COLLECTION, itemId));
+  mobileUploadLog("delete album item — Firestore doc removed", { itemId });
 }

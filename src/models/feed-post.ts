@@ -1,6 +1,7 @@
 import type { Timestamp } from "firebase/firestore";
 
 import type { FeedPostCategory } from "@/models/feed-post-category";
+import type { MediaProcessingStatus } from "@/models/media-processing";
 
 export type { FeedPostCategory };
 
@@ -40,6 +41,8 @@ export type UiFeedPost = {
    * Used for orientation-aware in-feed sizing when present (`mediaMeta` on write).
    */
   mediaDimensions?: ({ width: number; height: number } | undefined)[];
+  /** Parallel with {@link album}/{@link cover} — fullscreen URLs when backend variants exist */
+  mediaFullUrls?: (string | undefined)[];
   /** Local-only optimistic row merged above the realtime list */
   optimistic?: boolean;
   optimisticUpload?: OptimisticFeedUpload;
@@ -51,6 +54,13 @@ export type FeedMediaAttachmentMeta = {
   originalMime: string;
   optimizedSizeBytes: number;
   skippedOptimization: boolean;
+  /** Pending until Firebase Functions finishes Sharp variants */
+  processingStatus?: MediaProcessingStatus;
+  rawStoragePath?: string | null;
+  thumbnailUrl?: string | null;
+  /** Canonical CDN URL for in-feed scrolling — mirrors {@link FirestorePost.mediaUrls}[i] once ready */
+  feedUrl?: string | null;
+  fullUrl?: string | null;
 };
 
 export type FirestorePost = {

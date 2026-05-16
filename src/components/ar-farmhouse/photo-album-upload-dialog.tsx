@@ -18,9 +18,7 @@ import { overlayFromAlbumProgress } from "@/lib/album-upload-status";
 import { enqueueCpuBoundMediaTask } from "@/lib/media-upload-queue";
 import { createRafProgressBridge } from "@/lib/upload-progress-bridge";
 import { startUploadTrace } from "@/lib/upload-trace";
-import {
-  handoffEphemeralImageUrl,
-} from "@/lib/ephemeral-media-handoff";
+import { handoffEphemeralImageFromFile } from "@/lib/ephemeral-media-handoff";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { ALBUM_UPLOAD_BUCKETS } from "@/lib/photo-album-media";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
@@ -31,6 +29,7 @@ import {
   type AlbumUploadProgress,
 } from "@/services/album-media";
 import { cn } from "@/lib/utils";
+import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
 
 type PhotoAlbumUploadDialogProps = {
   open: boolean;
@@ -99,12 +98,8 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
     const optimisticRows: AlbumMediaItem[] = [];
     for (let idx = 0; idx < attachments.length; idx++) {
       const item = attachments[idx]!;
-      let rawSrc = item.preview ?? URL.createObjectURL(item.file);
-      const handed = await handoffEphemeralImageUrl(rawSrc);
-      const src = handed ?? rawSrc;
-      if (handed && handed !== rawSrc && rawSrc.startsWith("blob:")) {
-        URL.revokeObjectURL(rawSrc);
-      }
+      /** Same pattern as feed — never fetch-clone blob previews on iOS. */
+      const src = handoffEphemeralImageFromFile(item.file) ?? URL.createObjectURL(item.file);
       optimisticRows.push({
         id: mediaIds[idx]!,
         src,
@@ -143,21 +138,27 @@ export function PhotoAlbumUploadDialog({ open, onOpenChange, onUploaded }: Photo
 
     void (async () => {
       await deferMediaCpuWork();
+      mobileUploadLog("album finalize job started", { files: filesSnapshot.length });
       const runId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `album-${Date.now()}`;
       const trace = startUploadTrace(runId, "album_archive_upload");
-      void Promise.all(
-        filesSnapshot.map(async (file, idx) => {
+      void (async () => {
+        const probes = filesSnapshot.map(async (file, idx) => {
           const id = mediaIds[idx];
           if (!id) return;
           const dims = await probeImageDimensions(file);
           if (dims?.width && dims.height) {
             patchOptimisticAlbumItem(id, { width: dims.width, height: dims.height });
           }
-        })
-      );
+        });
+        if (isMobileUploadHost()) {
+          for (const p of probes) await p;
+        } else {
+          await Promise.all(probes);
+        }
+      })();
       try {
         const scheduleAlbumProgress = createRafProgressBridge<AlbumUploadProgress>((p) => {
           const o = overlayFromAlbumProgress(p);

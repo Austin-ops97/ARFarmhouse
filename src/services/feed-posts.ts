@@ -20,11 +20,12 @@ import { validateFeedImageFiles, validateOptimizedFeedFiles } from "@/lib/feed-p
 import type { ProcessedImageFile } from "@/lib/image-process";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import { tryGetFirestoreDb } from "@/lib/firebase";
+import { mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadStage } from "@/lib/upload-log";
 import type { UploadTrace } from "@/lib/upload-trace";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
-import { deletePostMediaStorage, uploadPostImages } from "@/services/storage-upload";
+import { deletePostMediaArtifacts, uploadPostImages } from "@/services/storage-upload";
 
 const POSTS = "posts";
 
@@ -53,6 +54,13 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
 
   const hasDims = mediaDimensions.some((x) => x != null);
 
+  const mediaFullUrls = media.map((_, i) => {
+    const m = Array.isArray(d.mediaMeta) ? d.mediaMeta[i] : undefined;
+    const fu = typeof m?.fullUrl === "string" && m.fullUrl.length > 0 ? m.fullUrl : undefined;
+    return fu;
+  });
+  const hasFull = mediaFullUrls.some((x) => typeof x === "string");
+
   return {
     id: snapshot.id,
     authorId: typeof d.authorId === "string" ? d.authorId : "",
@@ -80,6 +88,7 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
     commentsPreview: [],
     commentCount: typeof d.commentCount === "number" ? d.commentCount : 0,
     ...(hasDims ? { mediaDimensions } : {}),
+    ...(hasFull ? { mediaFullUrls } : {}),
   };
 }
 
@@ -140,7 +149,7 @@ export async function prepareFeedPostPublishingArtifacts(
   const total = files.length;
   const { onProgress, signal, trace } = options ?? {};
   const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
-    trace?.("compression begins", { segment: "cpu", fileCount: total });
+    trace?.("normalization begins", { segment: "cpu", fileCount: total });
   actionDebug("feed", "optimize begin");
   const optimizedArtifacts = await prepareOptimizedArtifactsForFirebase(files, "feed", {
     signal,
@@ -154,11 +163,11 @@ export async function prepareFeedPostPublishingArtifacts(
       onProgress({ phase: "preparing", done: pipe.done, total });
     },
   });
-  trace?.("compression completes", {
+  trace?.("normalization completes", {
     segment: "cpu",
     fileCount: total,
     durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0),
-    optimizedBytes: optimizedArtifacts.reduce((n, a) => n + a.optimizedSizeBytes, 0),
+    normalizedBytes: optimizedArtifacts.reduce((n, a) => n + a.optimizedSizeBytes, 0),
   });
   return optimizedArtifacts;
 }
@@ -184,13 +193,6 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
   if (optimizedArtifacts.length > 0) {
     const optimized = optimizedArtifacts.map((a) => a.file);
     validateOptimizedFeedFiles(optimized);
-    mediaMeta = optimizedArtifacts.map((a) => ({
-      width: a.width,
-      height: a.height,
-      originalMime: a.originalMime,
-      optimizedSizeBytes: a.optimizedSizeBytes,
-      skippedOptimization: a.skippedOptimization,
-    }));
     const uploadT0 = typeof performance !== "undefined" ? performance.now() : Date.now();
     trace?.("upload to Storage begins", {
       segment: "storage",
@@ -200,13 +202,30 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
     actionDebug("feed", "upload begin");
     uploadStage("firestore sync — upload to Storage starting", { postId, fileCount: optimized.length });
     onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
-    mediaUrls = await uploadPostImages(
+    const uploadedSlots = await uploadPostImages(
+      input.authorId,
       postId,
-      optimized,
+      optimizedArtifacts,
       (done, t, percent) => onProgress?.({ phase: "uploading", done, total: t, percent }),
       signal,
       trace
     );
+    mediaUrls = uploadedSlots.map((u) => u.url);
+    mediaMeta = optimizedArtifacts.map((a, i) => ({
+      width: a.width,
+      height: a.height,
+      originalMime: a.originalMime,
+      optimizedSizeBytes: a.optimizedSizeBytes,
+      skippedOptimization: a.skippedOptimization,
+      processingStatus: uploadedSlots[i]?.processingStatus ?? "pending",
+      rawStoragePath: (() => {
+        const p = uploadedSlots[i]?.path ?? "";
+        return p.startsWith("uploads/raw/") ? p : null;
+      })(),
+      thumbnailUrl: null,
+      feedUrl: null,
+      fullUrl: null,
+    }));
     trace?.("upload to Storage completes", {
       segment: "storage",
       durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - uploadT0),
@@ -294,6 +313,7 @@ export async function deleteFeedPost(
   mediaUrls: string[] = []
 ) {
   if (viewerUid !== authorId) throw new Error("Only the author can delete this post.");
+  mobileUploadLog("delete feed post — starting Firestore batch", { postId, mediaCount: mediaUrls.length });
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable");
   const batch = writeBatch(db);
@@ -305,7 +325,9 @@ export async function deleteFeedPost(
   commentsSnap.forEach((d) => batch.delete(d.ref));
   batch.delete(doc(db, POSTS, postId));
   await batch.commit();
+  mobileUploadLog("delete feed post — Firestore committed", { postId });
   if (mediaUrls.length > 0) {
-    await deletePostMediaStorage(postId, mediaUrls);
+    await deletePostMediaArtifacts(authorId, postId, mediaUrls);
+    mobileUploadLog("delete feed post — Storage cleanup settled", { postId });
   }
 }

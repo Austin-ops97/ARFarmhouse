@@ -1,4 +1,5 @@
 import { dimensionsForLongestEdge, probeImageDimensions } from "@/lib/image-dimensions";
+import { mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { shrinkResizeTargetUniform } from "@/lib/image-resize";
 import { validateRawImageFile } from "@/lib/image-input";
 import {
@@ -12,50 +13,36 @@ import { uploadLog, uploadStage } from "@/lib/upload-log";
 
 export type ImageUploadPreset = "feed" | "album" | "family" | "pet";
 
+/** Client presets: modest resize + one lightweight encode — heavy tuning happens in Cloud Functions (Sharp). */
 export type ImagePresetConfig = {
-  /** Longest edge cap — never upscale beyond source. */
+  /** Longest edge cap — never upscale beyond source */
   maxEdge: number;
-  /** Initial encoder quality (WebP / JPEG). */
-  quality: number;
-  /** Floor quality — avoids visible banding from over-compression. */
-  minQuality: number;
-  /** Preferred output size; we accept larger files when quality would suffer. */
-  softTargetBytes: number;
-  /** Hard cap after processing (must align with Storage rules). */
+  /** Single-pass lossy encoder quality (WebP / JPEG) — no iterative recompression loops */
+  encodeQuality: number;
+  /** Hard cap after processing (must align with Storage rules) */
   uploadMaxBytes: number;
 };
 
-/**
- * Social-style presets: HD-first, bandwidth second.
- */
 export const IMAGE_PRESETS: Record<ImageUploadPreset, ImagePresetConfig> = {
   feed: {
-    maxEdge: 2000,
-    quality: 0.86,
-    minQuality: 0.78,
-    softTargetBytes: 1800 * 1024,
-    uploadMaxBytes: 5 * 1024 * 1024,
-  },
-  album: {
-    maxEdge: 3200,
-    quality: 0.9,
-    minQuality: 0.82,
-    softTargetBytes: 5 * 1024 * 1024,
+    maxEdge: 2480,
+    encodeQuality: 0.87,
     uploadMaxBytes: 8 * 1024 * 1024,
   },
+  album: {
+    maxEdge: 2890,
+    encodeQuality: 0.89,
+    uploadMaxBytes: 10 * 1024 * 1024,
+  },
   family: {
-    maxEdge: 720,
-    quality: 0.84,
-    minQuality: 0.72,
-    softTargetBytes: 380 * 1024,
-    uploadMaxBytes: 2 * 1024 * 1024,
+    maxEdge: 820,
+    encodeQuality: 0.82,
+    uploadMaxBytes: 1024 * 1024,
   },
   pet: {
-    maxEdge: 720,
-    quality: 0.84,
-    minQuality: 0.72,
-    softTargetBytes: 380 * 1024,
-    uploadMaxBytes: 2 * 1024 * 1024,
+    maxEdge: 820,
+    encodeQuality: 0.82,
+    uploadMaxBytes: 1024 * 1024,
   },
 };
 
@@ -64,9 +51,13 @@ export type ProcessedImageFile = {
   width: number;
   height: number;
   originalSize: number;
-  /** MIME from the picker before optimization (never uploaded raw). */
+  /** MIME from the picker before normalization (never upload raw HDR/PNG unbounded for lossy presets) */
   originalMime: string;
+  normalizedSizeBytes: number;
+  /** Alias for legacy callers / Firestore field names — same as {@link normalizedSizeBytes} */
   optimizedSizeBytes: number;
+  skippedNormalization: boolean;
+  /** Alias for skippedOptimization semantics */
   skippedOptimization: boolean;
 };
 
@@ -164,55 +155,28 @@ function canPassThroughOriginal(
   if (!LOSSY_OUTPUT.has(file.type)) return false;
 
   const longest = Math.max(srcW, srcH);
-  if (longest > config.maxEdge) return false;
-
-  if (file.size <= config.softTargetBytes) return true;
-
-  return file.size <= config.softTargetBytes * 1.35;
+  return longest <= config.maxEdge;
 }
 
-const MAX_ENCODE_ATTEMPTS = 6;
-
-async function encodeAdaptive(
+async function encodeOnce(
   canvas: HTMLCanvasElement,
   mime: string,
-  config: ImagePresetConfig
+  quality: number,
+  uploadMaxBytes: number,
+  context: string
 ): Promise<Blob> {
-  const { quality: startQuality, minQuality, softTargetBytes, uploadMaxBytes } = config;
-
-  uploadStage("optimization encode pass", { mime, startQuality });
-  let blob = await canvasToBlob(canvas, mime, startQuality, "encodeAdaptive:start");
+  uploadStage("normalization encode (single pass)", { mime, quality, context });
+  const blob = await canvasToBlob(canvas, mime, quality, context);
   if (!blob) {
-    throw new Error("Could not compress that photo. Try a different image.");
+    throw new Error("Could not prepare that photo. Try a different image.");
   }
-
-  if (blob.size <= softTargetBytes) return blob;
-
-  let best = blob;
-  let q = startQuality;
-  let attempts = 1;
-
-  while (attempts < MAX_ENCODE_ATTEMPTS && q > minQuality) {
-    await yieldWhenIdle();
-    q = Math.max(minQuality, q - 0.04);
-    attempts += 1;
-    const candidate = await canvasToBlob(canvas, mime, q, "encodeAdaptive:step");
-    if (!candidate) break;
-    blob = candidate;
-    if (blob.size < best.size) best = blob;
-    if (blob.size <= softTargetBytes) return blob;
-    if (blob.size <= uploadMaxBytes && attempts >= 3) return blob;
-  }
-
-  if (best.size <= uploadMaxBytes) return best;
-
-  if (best.size > uploadMaxBytes) {
+  if (blob.size > uploadMaxBytes) {
+    const mb = Math.round(uploadMaxBytes / (1024 * 1024));
     throw new Error(
-      "That photo is still too large after optimization. Try a simpler image or upload fewer photos at once."
+      `That photo exceeds the ~${mb} MB upload envelope after normalization. Try a simpler image or fewer photos — the server still optimizes it further.`
     );
   }
-
-  return best;
+  return blob;
 }
 
 function outputFileName(originalName: string, mime: string): string {
@@ -226,7 +190,7 @@ type ResizeBitmapOpts = Omit<ImageBitmapOptions, "resizeWidth"> & {
 };
 
 /**
- * Decode + resize in one GPU-friendly step when supported (critical for giant iPhone photos).
+ * Decode + resize in one GPU-friendly step when supported (reduces peaks on giant camera photos).
  */
 async function createResizedBitmap(file: File, rw: number, rh: number, qualityTier: number): Promise<ImageBitmap> {
   const resizeQuality = qualityTier <= 1 ? "high" : qualityTier <= 3 ? "medium" : "low";
@@ -241,7 +205,6 @@ async function createResizedBitmap(file: File, rw: number, rh: number, qualityTi
   return bmp;
 }
 
-/** Decrementally shrink resize box on decode failure / memory pressure. */
 async function decodeBitmapWithBackoff(file: File, targetW: number, targetH: number): Promise<ImageBitmap> {
   let w = Math.max(1, targetW);
   let h = Math.max(1, targetH);
@@ -266,8 +229,7 @@ async function decodeBitmapWithBackoff(file: File, targetW: number, targetH: num
 }
 
 /**
- * Last-resort path: Image() decode then draw into a canvas capped by {@link ImagePresetConfig.maxEdge}.
- * Can spike RAM on enormous HEIF — prefer {@link decodeBitmapWithBackoff} when it succeeds.
+ * Fallback: decode with Image(), draw into canvas capped by {@link ImagePresetConfig.maxEdge}.
  */
 async function decodeViaCanvasDownscale(
   file: File,
@@ -287,7 +249,7 @@ async function decodeViaCanvasDownscale(
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Could not process image on this device.");
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = "medium";
     await yieldWhenIdle();
     ctx.drawImage(img, 0, 0, outW, outH);
     return { canvas, width: outW, height: outH };
@@ -315,29 +277,55 @@ async function bitmapToEncodeCanvas(bitmap: ImageBitmap): Promise<{
   return { canvas, width: canvas.width, height: canvas.height };
 }
 
+function buildProcessedArtifact(
+  file: File,
+  blob: Blob,
+  width: number,
+  height: number,
+  mime: string,
+  originalMime: string,
+  originalSize: number,
+  skippedNormalization: boolean
+): ProcessedImageFile {
+  const outFile = skippedNormalization
+    ? file
+    : new File([blob], outputFileName(file.name, mime), {
+        type: mime,
+        lastModified: file.lastModified,
+      });
+  const bytes = skippedNormalization ? file.size : blob.size;
+
+  return {
+    file: outFile,
+    width,
+    height,
+    originalSize,
+    originalMime,
+    normalizedSizeBytes: bytes,
+    optimizedSizeBytes: bytes,
+    skippedNormalization,
+    skippedOptimization: skippedNormalization,
+  };
+}
+
 /**
- * Resize and compress for Firebase. GIFs pass through unchanged.
+ * Light orientation-aware resize + one encode — variants and aggressive compression happen server-side (Sharp).
  */
 export async function processImageFile(file: File, preset: ImageUploadPreset): Promise<ProcessedImageFile> {
   validateRawImageFile(file);
   const config = IMAGE_PRESETS[preset];
   const originalMime = file.type || "application/octet-stream";
-  uploadStage("optimization start", { name: file.name, bytes: file.size, preset });
+  uploadStage("normalization start", { name: file.name, bytes: file.size, preset });
+  mobileUploadLog("light normalization pipeline start", { name: file.name, bytes: file.size, preset });
 
   if (file.type === "image/gif") {
     if (file.size > config.uploadMaxBytes) {
       throw new Error(`"${file.name}" is too large. Try a shorter GIF or smaller dimensions.`);
     }
-    uploadStage("optimization skipped (GIF pass-through)", { name: file.name, bytes: file.size });
-    return {
-      file,
-      width: 0,
-      height: 0,
-      originalSize: file.size,
-      originalMime,
-      optimizedSizeBytes: file.size,
-      skippedOptimization: true,
-    };
+    uploadStage("GIF pass-through — server does not GIF-reencode here", { name: file.name, bytes: file.size });
+    const out = buildProcessedArtifact(file, file, 0, 0, "image/gif", originalMime, file.size, true);
+    uploadStage("GIF ready", { name: file.name });
+    return out;
   }
 
   if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif|avif)$/i.test(file.name)) {
@@ -348,36 +336,33 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
   const probed = await probeImageDimensions(file);
   await yieldWhenIdle();
 
-  /** Without trusted WxH, never pass resizeWidth+resizeHeight into createImageBitmap — a square fallback distorts non‑square sources (common when probes miss HEIC/HDR). Canvas/Image fallback derives oriented natural dimensions instead. */
   let bitmapResizeTarget: { width: number; height: number } | null = null;
 
   if (probed && probed.width > 0 && probed.height > 0) {
     const longest = Math.max(probed.width, probed.height);
     const needsResize = longest > config.maxEdge;
     if (canPassThroughOriginal(file, probed.width, probed.height, config, needsResize)) {
-      uploadStage("optimization skipped (pass-through original)", {
+      uploadStage("normalization skipped (small lossy JPEG/WebP fits envelope)", {
         name: file.name,
         width: probed.width,
         height: probed.height,
       });
-      return {
-        file,
-        width: probed.width,
-        height: probed.height,
-        originalSize: file.size,
-        originalMime,
-        optimizedSizeBytes: file.size,
-        skippedOptimization: true,
-      };
+      const out = buildProcessedArtifact(file, file, probed.width, probed.height, file.type, originalMime, file.size, true);
+      uploadStage("pass-through ready", { name: file.name });
+      return out;
     }
     bitmapResizeTarget = dimensionsForLongestEdge(probed.width, probed.height, config.maxEdge);
   }
 
-  async function finalize(canvas: HTMLCanvasElement, width: number, height: number): Promise<ProcessedImageFile> {
+  async function finalizeNormalized(
+    canvas: HTMLCanvasElement,
+    width: number,
+    height: number
+  ): Promise<ProcessedImageFile> {
     try {
       await yieldWhenIdle();
       const mime = preferredOutputMime();
-      const blob = await encodeAdaptive(canvas, mime, config);
+      const blob = await encodeOnce(canvas, mime, config.encodeQuality, config.uploadMaxBytes, "finalizeNormalized");
       uploadStage("blob generated", {
         name: file.name,
         mime,
@@ -385,20 +370,15 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
         width,
         height,
       });
-      const outFile = new File([blob], outputFileName(file.name, mime), {
-        type: mime,
-        lastModified: file.lastModified,
-      });
-      uploadStage("optimization complete", { name: file.name, outBytes: outFile.size });
-      return {
-        file: outFile,
+      mobileUploadLog("normalization complete", {
+        name: file.name,
+        blobBytes: blob.size,
         width,
         height,
-        originalSize: file.size,
-        originalMime,
-        optimizedSizeBytes: outFile.size,
-        skippedOptimization: false,
-      };
+      });
+      const artifact = buildProcessedArtifact(file, blob, width, height, mime, originalMime, file.size, false);
+      uploadStage("normalization complete", { name: file.name, outBytes: artifact.file.size });
+      return artifact;
     } finally {
       releaseCanvas(canvas);
     }
@@ -408,14 +388,14 @@ export async function processImageFile(file: File, preset: ImageUploadPreset): P
     try {
       const bmp = await decodeBitmapWithBackoff(file, bitmapResizeTarget.width, bitmapResizeTarget.height);
       const { canvas, width, height } = await bitmapToEncodeCanvas(bmp);
-      return finalize(canvas, width, height);
+      return finalizeNormalized(canvas, width, height);
     } catch {
       /* fall through */
     }
   }
 
   const { canvas, width, height } = await decodeViaCanvasDownscale(file, config);
-  return finalize(canvas, width, height);
+  return finalizeNormalized(canvas, width, height);
 }
 
 export async function processImageFiles(
@@ -438,7 +418,8 @@ export function getUploadMaxBytes(preset: ImageUploadPreset): number {
   return IMAGE_PRESETS[preset].uploadMaxBytes;
 }
 
-/** @deprecated Use softTargetBytes on IMAGE_PRESETS */
+/** @deprecated Rough guidance only — Sharp pipeline owns final encoded bytes */
 export function getSoftTargetBytes(preset: ImageUploadPreset): number {
-  return IMAGE_PRESETS[preset].softTargetBytes;
+  const m = IMAGE_PRESETS[preset].uploadMaxBytes;
+  return Math.floor(m * 0.42);
 }

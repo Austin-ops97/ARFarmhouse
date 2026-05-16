@@ -37,11 +37,11 @@ function optimizingMessage(files: File[], done: number, total: number): string {
   const hasLarge = files.some(isLargeRawImage);
   if (total > 1) {
     if (hasLarge) {
-      return `Optimizing large photo ${Math.min(done + 1, total)} of ${total}…`;
+      return `Preparing large photo ${Math.min(done + 1, total)} of ${total}…`;
     }
-    return `Optimizing ${Math.min(done + 1, total)} of ${total}…`;
+    return `Preparing photo ${Math.min(done + 1, total)} of ${total}…`;
   }
-  return hasLarge ? "Optimizing large photo…" : "Optimizing…";
+  return hasLarge ? "Preparing large photo…" : "Preparing photo…";
 }
 
 /** Full optimization result + metadata for Firestore (Firebase stores URLs only — meta is supplementary). */
@@ -79,8 +79,8 @@ export async function prepareOptimizedArtifactsForFirebase(
   });
 
   assertNotAborted(signal);
-  uploadStage("optimization phase start", { total, preset });
-  uploadLog("compressing", { total, preset });
+  uploadStage("normalization phase start", { total, preset });
+  uploadLog("normalizing", { total, preset });
   onProgress?.({
     phase: "optimizing",
     done: 0,
@@ -98,12 +98,12 @@ export async function prepareOptimizedArtifactsForFirebase(
     });
   });
 
-  uploadStage("all artifacts optimized", {
+  uploadStage("all artifacts normalized", {
     preset,
     fileCount: artifacts.length,
     totalBytes: artifacts.reduce((n, a) => n + a.optimizedSizeBytes, 0),
   });
-  uploadLog("optimized", {
+  uploadLog("normalized", {
     total,
     preset,
     bytes: artifacts.reduce((n, a) => n + a.optimizedSizeBytes, 0),

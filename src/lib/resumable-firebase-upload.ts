@@ -2,6 +2,7 @@ import type { StorageReference } from "firebase/storage";
 import { uploadBytesResumable } from "firebase/storage";
 
 import type { BrowserIntervalId, BrowserTimeoutId } from "@/lib/browser-timer";
+import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadLog, uploadStage } from "@/lib/upload-log";
 import type { UploadTrace } from "@/lib/upload-trace";
 
@@ -11,8 +12,16 @@ const ABSOLUTE_MAX_MS = 50 * 60 * 1000;
 /** No byte progress while state is `running` → cancel as stuck (Firebase retries transient errors internally). */
 const DEFAULT_STALL_MS = 135_000;
 
+/** Cellular Safari often pauses byte snapshots longer without being a dead upload. */
+const MOBILE_STALL_MS = 210_000;
+
 /** iOS Safari + cold tunnels can legitimately spend a long time at 0 bytes before first chunk — avoids false stalls. */
 const ZERO_BYTE_GRACE_MS = 75_000;
+
+function stallBudgetMs(override?: number): number {
+  if (override !== undefined) return override;
+  return isMobileUploadHost() ? MOBILE_STALL_MS : DEFAULT_STALL_MS;
+}
 
 function cancelUploadTask(task: { cancel?: () => boolean }) {
   try {
@@ -41,7 +50,7 @@ export async function runFirebaseResumableUpload(
   }
 ): Promise<void> {
   const label = opts?.label ?? objectRef.fullPath;
-  const stallMs = opts?.stallMs ?? DEFAULT_STALL_MS;
+  const stallMs = stallBudgetMs(opts?.stallMs);
   const trace = opts?.trace;
 
   if (typeof window === "undefined") {
@@ -58,6 +67,11 @@ export async function runFirebaseResumableUpload(
     type: opts?.contentType ?? data.type,
   });
   trace?.("storage: blob ready", { label, bytes: data.size });
+  mobileUploadLog("upload blob ready — Firebase task starting", {
+    label,
+    bytes: data.size,
+    stallMs,
+  });
 
   const metadata = opts?.contentType ? { contentType: opts.contentType } : undefined;
   uploadStage("upload task created", { label });
@@ -76,6 +90,10 @@ export async function runFirebaseResumableUpload(
   let seededPctZero = false;
   let indeterminateNudgeSent = false;
 
+  const bumpProgressClock = () => {
+    lastProgressAt = Date.now();
+  };
+
   const cleanupTimers = () => {
     if (stallInterval !== undefined) {
       window.clearInterval(stallInterval);
@@ -86,6 +104,19 @@ export async function runFirebaseResumableUpload(
       deadlineTimer = undefined;
     }
   };
+
+  const onVisibilityChange = () => {
+    if (typeof document === "undefined") return;
+    if (document.visibilityState === "visible") {
+      bumpProgressClock();
+      mobileUploadLog("tab visible — refreshed upload stall clock", { label });
+    } else {
+      mobileUploadLog("tab hidden — stall watchdog paused", { label });
+    }
+  };
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", onVisibilityChange);
+  }
 
   const abortListener = () => {
     uploadLog("cancelled", { label });
@@ -122,6 +153,9 @@ export async function runFirebaseResumableUpload(
       }, ABSOLUTE_MAX_MS);
 
       stallInterval = window.setInterval(() => {
+        if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+          return;
+        }
         const snap = task.snapshot;
         if (!snap || snap.state !== "running") return;
         const finishDenom =
@@ -152,6 +186,12 @@ export async function runFirebaseResumableUpload(
             stallMs,
             bytesTransferred: snap.bytesTransferred,
             cause: "no_byte_progress_while_running",
+          });
+          mobileUploadLog("upload stalled — cancelling task", {
+            label,
+            idleMs,
+            stallMs,
+            bytesTransferred: snap.bytesTransferred,
           });
           cancelUploadTask(task);
           settle(() =>
@@ -229,6 +269,7 @@ export async function runFirebaseResumableUpload(
             uploadStage("finalize success — Storage bytes complete", { label });
             uploadLog("complete", { label });
             trace?.("storage: upload complete", { label });
+            mobileUploadLog("storage upload bytes complete — listener success callback", { label });
             resolve();
           });
         }
@@ -242,5 +283,8 @@ export async function runFirebaseResumableUpload(
       /* noop */
     }
     opts?.signal?.removeEventListener("abort", abortListener);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    }
   }
 }

@@ -168,11 +168,17 @@ export function FeedPostCard({
     return [];
   }, [post]);
 
+  const lightboxUrls = useMemo(() => {
+    const overlay = post.mediaFullUrls;
+    if (!overlay?.some((u) => typeof u === "string" && u.length > 0)) return albumUrls;
+    return albumUrls.map((u, i) => overlay[i] ?? u);
+  }, [albumUrls, post.mediaFullUrls]);
+
   const album = post.album ?? [];
 
   const openLightboxAt = (index: number) => {
-    if (!albumUrls.length) return;
-    setLightbox({ urls: albumUrls, index: Math.min(index, albumUrls.length - 1) });
+    if (!lightboxUrls.length) return;
+    setLightbox({ urls: lightboxUrls, index: Math.min(index, lightboxUrls.length - 1) });
   };
 
   const lightboxPrev = () =>
@@ -254,13 +260,17 @@ export function FeedPostCard({
 
   useEffect(() => {
     if (!menuOpen) return;
-    const onDoc = (e: MouseEvent) => {
+    const onOutside = (e: Event) => {
       const t = e.target as Node;
       if (menuPanelRef.current?.contains(t) || menuBtnRef.current?.contains(t)) return;
       closeMenu();
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("mousedown", onOutside);
+    document.addEventListener("touchstart", onOutside, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      document.removeEventListener("touchstart", onOutside);
+    };
   }, [closeMenu, menuOpen]);
 
   useEffect(() => {

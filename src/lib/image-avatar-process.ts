@@ -140,16 +140,10 @@ async function compressAvatarBlob(initial: Blob, mime: string): Promise<Blob> {
   }
   ctx.drawImage(img, 0, 0, AVATAR_OUTPUT_SIZE, AVATAR_OUTPUT_SIZE);
 
-  let q = AVATAR_QUALITY;
-  let blob: Blob | null = initial;
-  let attempts = 0;
-  while (q >= 0.72 && attempts < 5) {
-    await yieldToMainThread();
-    attempts += 1;
-    blob = await canvasToBlob(canvas, mime, q);
-    if (!blob) break;
-    if (blob.size <= AVATAR_TARGET_MAX_BYTES) return blob;
-    q -= 0.04;
+  await yieldToMainThread();
+  let blob = await canvasToBlob(canvas, mime, AVATAR_QUALITY);
+  if (blob && blob.size > AVATAR_TARGET_MAX_BYTES) {
+    blob = await canvasToBlob(canvas, mime, Math.max(0.74, AVATAR_QUALITY - 0.1));
   }
   canvas.width = 0;
   canvas.height = 0;

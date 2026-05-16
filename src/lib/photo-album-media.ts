@@ -5,6 +5,8 @@ export type AlbumSource = "feed" | "upload";
 export type AlbumMediaItem = {
   id: string;
   src: string;
+  /** Fullscreen — prefers Sharp “full” tier when present */
+  fullSrc?: string;
   /** Optimized pixel dimensions when known (Firestore / feed meta) — drives natural aspect in the grid. */
   width?: number;
   height?: number;
