@@ -4,11 +4,11 @@ import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 
-export type ChecklistSegment = "active" | "history";
+export type ChecklistSegment = "active" | "status";
 
 const segments: { id: ChecklistSegment; label: string }[] = [
   { id: "active", label: "Last Man Out" },
-  { id: "history", label: "Previously Submitted" },
+  { id: "status", label: "Current Status" },
 ];
 
 type ChecklistSegmentSwitcherProps = {

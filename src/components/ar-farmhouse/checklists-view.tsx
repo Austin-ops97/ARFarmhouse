@@ -27,7 +27,7 @@ export function ChecklistsView() {
           Checklists
         </h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Property walkthrough and shutdown confirmation.
+          Live property walkthrough and operational handoff.
         </p>
       </header>
 
@@ -46,7 +46,7 @@ export function ChecklistsView() {
               <ChecklistLastManOutForm
                 userId={user.uid}
                 displayName={displayName}
-                onSubmitted={() => setSegment("history")}
+                onSubmitted={() => setSegment("status")}
               />
             ) : (
               <p className="text-sm text-muted-foreground">Sign in to submit a checklist.</p>

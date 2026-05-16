@@ -21,4 +21,7 @@ export const COLLECTIONS = {
   properties: "properties",
 } as const;
 
+/** Firestore document id for the live property checklist snapshot. */
+export const CHECKLIST_CURRENT_DOC_ID = "current";
+
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];

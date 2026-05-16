@@ -1,29 +1,34 @@
+import { ref } from "firebase/storage";
 import {
-  collection,
   doc,
+  getDoc,
   onSnapshot,
-  orderBy,
-  query,
   serverTimestamp,
   setDoc,
   type DocumentData,
-  type QueryDocumentSnapshot,
+  type DocumentSnapshot,
   type Timestamp,
 } from "firebase/firestore";
-import { ref } from "firebase/storage";
 
 import { stripUndefinedDeep } from "@/lib/datetime/firestore-write";
 import { tryGetFirestoreDb, tryGetFirebaseStorage } from "@/lib/firebase";
 import { processImageFile } from "@/lib/image-process";
 import { validateRawImageFile } from "@/lib/image-input";
 import { enqueueCpuBoundMediaTask } from "@/lib/media-upload-queue";
-import { COLLECTIONS } from "@/platform/constants/collections";
+import {
+  CHECKLIST_CURRENT_DOC_ID,
+  COLLECTIONS,
+} from "@/platform/constants/collections";
 import type {
   ChecklistImageFieldKey,
   ChecklistSubmission,
   ChecklistSubmitInput,
 } from "@/models/checklist";
-import { uploadStorageImageResumable, waitForStorageDownloadURL } from "@/services/storage-upload";
+import {
+  deleteStoragePath,
+  uploadStorageImageResumable,
+  waitForStorageDownloadURL,
+} from "@/services/storage-upload";
 
 const CHECKLIST_UPLOAD_MAX_BYTES = 12 * 1024 * 1024;
 
@@ -51,21 +56,23 @@ function timestampToDate(value: unknown): Date | null {
   return null;
 }
 
-function mapChecklistDoc(snap: QueryDocumentSnapshot<DocumentData>): ChecklistSubmission {
-  const d = snap.data();
-  const imageUrlsRaw = d.imageUrls;
+function parseImageUrls(raw: unknown): ChecklistSubmission["imageUrls"] {
   const imageUrls: ChecklistSubmission["imageUrls"] = {};
-  if (imageUrlsRaw && typeof imageUrlsRaw === "object") {
-    for (const [k, v] of Object.entries(imageUrlsRaw)) {
-      if (typeof v === "string" && v.length > 0) {
-        imageUrls[k as ChecklistImageFieldKey] = v;
-      }
+  if (!raw || typeof raw !== "object") return imageUrls;
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof v === "string" && v.length > 0) {
+      imageUrls[k as ChecklistImageFieldKey] = v;
     }
   }
+  return imageUrls;
+}
+
+function mapChecklistDoc(snap: DocumentSnapshot<DocumentData>): ChecklistSubmission | null {
+  if (!snap.exists()) return null;
+  const d = snap.data();
 
   return {
-    submissionId: snap.id,
-    createdAt: timestampToDate(d.createdAt),
+    updatedAt: timestampToDate(d.updatedAt ?? d.createdAt),
     submittedBy: (d.submittedBy as string) ?? "",
     submittedByName: (d.submittedByName as string) ?? "",
     propaneLevel: typeof d.propaneLevel === "number" ? d.propaneLevel : 0,
@@ -79,7 +86,7 @@ function mapChecklistDoc(snap: QueryDocumentSnapshot<DocumentData>): ChecklistSu
     trashcanLidsClosed: Boolean(d.trashcanLidsClosed),
     trashOut: Boolean(d.trashOut),
     gasCansFilled: Boolean(d.gasCansFilled),
-    imageUrls,
+    imageUrls: parseImageUrls(d.imageUrls),
     metadata:
       d.metadata && typeof d.metadata === "object"
         ? (d.metadata as ChecklistSubmission["metadata"])
@@ -87,30 +94,23 @@ function mapChecklistDoc(snap: QueryDocumentSnapshot<DocumentData>): ChecklistSu
   };
 }
 
-/** Pre-allocate a Firestore document id before uploading images. */
-export function allocateChecklistSubmissionId(): string {
-  const db = tryGetFirestoreDb();
-  if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
-  return doc(collection(db, COLLECTIONS.checklists)).id;
-}
-
-export function subscribeChecklistSubmissions(
-  onSubmissions: (rows: ChecklistSubmission[]) => void,
+/** Realtime listener for the single current checklist document. */
+export function subscribeChecklistCurrent(
+  onCurrent: (checklist: ChecklistSubmission | null) => void,
   onError?: (e: Error) => void
 ): () => void {
   const db = tryGetFirestoreDb();
   if (!db) {
-    onSubmissions([]);
+    onCurrent(null);
     return () => {};
   }
 
-  const q = query(collection(db, COLLECTIONS.checklists), orderBy("createdAt", "desc"));
+  const docRef = doc(db, COLLECTIONS.checklists, CHECKLIST_CURRENT_DOC_ID);
 
   return onSnapshot(
-    q,
+    docRef,
     (snap) => {
-      const rows = snap.docs.map(mapChecklistDoc);
-      onSubmissions(rows);
+      onCurrent(mapChecklistDoc(snap));
     },
     (err) => {
       onError?.(err instanceof Error ? err : new Error(String(err)));
@@ -119,7 +119,6 @@ export function subscribeChecklistSubmissions(
 }
 
 async function uploadChecklistFieldImage(
-  submissionId: string,
   field: ChecklistImageFieldKey,
   file: File,
   onProgress?: (percent: number) => void,
@@ -138,7 +137,7 @@ async function uploadChecklistFieldImage(
   const processed = await enqueueCpuBoundMediaTask(() => processImageFile(file, "family"));
 
   const ext = extFromMime(processed.file.type || "image/jpeg");
-  const storagePath = `checklists/${submissionId}/${field}/photo.${ext}`;
+  const storagePath = `checklists/${CHECKLIST_CURRENT_DOC_ID}/${field}/photo.${ext}`;
   const objectRef = ref(storage, storagePath);
 
   await uploadStorageImageResumable(objectRef, processed.file, {
@@ -150,16 +149,46 @@ async function uploadChecklistFieldImage(
   return waitForStorageDownloadURL(objectRef, storagePath);
 }
 
+function storagePathFromDownloadUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.includes("firebasestorage.googleapis.com")) return null;
+    const encoded = parsed.pathname.split("/o/")[1];
+    if (!encoded) return null;
+    return decodeURIComponent(encoded.split("?")[0] ?? encoded);
+  } catch {
+    return null;
+  }
+}
+
+async function deleteChecklistImageUrl(url: string): Promise<void> {
+  const path = storagePathFromDownloadUrl(url);
+  if (!path) return;
+  await deleteStoragePath(path);
+}
+
+function collectReplacedImageUrls(
+  previous: Partial<Record<ChecklistImageFieldKey, string>> | undefined,
+  next: Partial<Record<ChecklistImageFieldKey, string>>
+): string[] {
+  if (!previous) return [];
+  const nextUrls = new Set(Object.values(next).filter(Boolean));
+  const stale: string[] = [];
+  for (const url of Object.values(previous)) {
+    if (url && !nextUrls.has(url)) stale.push(url);
+  }
+  return stale;
+}
+
 export type SubmitChecklistOptions = {
-  submissionId: string;
   input: ChecklistSubmitInput;
   images: Partial<Record<ChecklistImageFieldKey, File>>;
   signal?: AbortSignal;
   onUploadProgress?: (progress: ChecklistUploadProgress) => void;
 };
 
-export async function submitChecklistSubmission({
-  submissionId,
+/** Overwrites checklists/current with the latest walkthrough state. */
+export async function submitChecklistCurrent({
   input,
   images,
   signal,
@@ -168,16 +197,17 @@ export async function submitChecklistSubmission({
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable. Check your connection and try again.");
 
-  const imageUrls: Partial<Record<ChecklistImageFieldKey, string>> = {
-    ...input.imageUrls,
-  };
+  const docRef = doc(db, COLLECTIONS.checklists, CHECKLIST_CURRENT_DOC_ID);
+  const existingSnap = await getDoc(docRef);
+  const previous = existingSnap.exists() ? mapChecklistDoc(existingSnap) : null;
+
+  const imageUrls: Partial<Record<ChecklistImageFieldKey, string>> = {};
 
   const entries = Object.entries(images) as [ChecklistImageFieldKey, File][];
   for (const [field, file] of entries) {
     if (!file) continue;
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const url = await uploadChecklistFieldImage(
-      submissionId,
       field,
       file,
       (percent) => onUploadProgress?.({ field, percent }),
@@ -186,8 +216,9 @@ export async function submitChecklistSubmission({
     imageUrls[field] = url;
   }
 
+  const staleUrls = collectReplacedImageUrls(previous?.imageUrls, imageUrls);
+
   const payload = stripUndefinedDeep({
-    submissionId,
     submittedBy: input.submittedBy,
     submittedByName: input.submittedByName,
     propaneLevel: Math.round(input.propaneLevel),
@@ -203,11 +234,13 @@ export async function submitChecklistSubmission({
     gasCansFilled: input.gasCansFilled,
     imageUrls,
     metadata: {
-      clientVersion: "checklists-v1",
+      clientVersion: "checklists-v2-current",
       userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     },
-    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 
-  await setDoc(doc(db, COLLECTIONS.checklists, submissionId), payload);
+  await setDoc(docRef, payload);
+
+  await Promise.all(staleUrls.map((url) => deleteChecklistImageUrl(url)));
 }

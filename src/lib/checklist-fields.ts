@@ -104,7 +104,7 @@ export function formatChecklistYesNo(value: boolean): string {
   return value ? "Yes" : "No";
 }
 
-/** Rows for history cards — sliders, toggles, then media-only fields. */
+/** Rows for the current status card — sliders, toggles, then media-only fields. */
 export function checklistSubmissionToHistoryRows(
   submission: ChecklistSubmission
 ): ChecklistHistoryRow[] {

@@ -144,7 +144,8 @@ service firebase.storage {
         && validImageContentType()
         && notDangerousUpload();
 
-      allow delete: if isAppAdmin();
+      allow delete: if signedIn() && submissionId == 'current'
+        || isAppAdmin();
     }
 
     /*

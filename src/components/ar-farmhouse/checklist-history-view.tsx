@@ -9,7 +9,7 @@ import { checklistSubmissionToHistoryRows } from "@/lib/checklist-fields";
 import { formatLocalDateTime } from "@/lib/datetime/time";
 import type { ChecklistHistoryRow } from "@/lib/checklist-fields";
 import type { ChecklistSubmission } from "@/models/checklist";
-import { subscribeChecklistSubmissions } from "@/services/checklists";
+import { subscribeChecklistCurrent } from "@/services/checklists";
 import { cn } from "@/lib/utils";
 import { ClipboardList } from "lucide-react";
 
@@ -18,7 +18,7 @@ const cardSurface = cn(
   "dark:border-white/[0.08] dark:bg-white/[0.04]"
 );
 
-const HistoryThumbnail = memo(function HistoryThumbnail({
+const StatusThumbnail = memo(function StatusThumbnail({
   url,
   label,
   onOpen,
@@ -40,7 +40,7 @@ const HistoryThumbnail = memo(function HistoryThumbnail({
   );
 });
 
-const HistoryRow = memo(function HistoryRow({
+const StatusRow = memo(function StatusRow({
   row,
   onOpenImage,
 }: {
@@ -53,30 +53,34 @@ const HistoryRow = memo(function HistoryRow({
         <p className="text-sm font-medium text-foreground">{row.label}</p>
         <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">{row.value}</p>
       </div>
-      {row.imageUrl ? <HistoryThumbnail url={row.imageUrl} label={row.label} onOpen={() => onOpenImage(row.imageUrl!)} /> : null}
+      {row.imageUrl ? (
+        <StatusThumbnail url={row.imageUrl} label={row.label} onOpen={() => onOpenImage(row.imageUrl!)} />
+      ) : null}
     </div>
   );
 });
 
-const SubmissionCard = memo(function SubmissionCard({
-  submission,
+const CurrentStatusCard = memo(function CurrentStatusCard({
+  checklist,
   onOpenImage,
 }: {
-  submission: ChecklistSubmission;
+  checklist: ChecklistSubmission;
   onOpenImage: (url: string) => void;
 }) {
-  const rows = checklistSubmissionToHistoryRows(submission);
-  const when = submission.createdAt ? formatLocalDateTime(submission.createdAt) : "Just now";
+  const rows = checklistSubmissionToHistoryRows(checklist);
+  const when = checklist.updatedAt ? formatLocalDateTime(checklist.updatedAt) : "Just now";
 
   return (
     <article className={cn(cardSurface, "overflow-hidden")}>
       <header className="border-b border-border/45 px-4 py-3.5 dark:border-white/[0.06]">
-        <p className="text-[15px] font-semibold text-foreground">{submission.submittedByName || "Family member"}</p>
-        <p className="mt-0.5 text-sm text-muted-foreground">{when}</p>
+        <p className="text-[15px] font-semibold text-foreground">
+          {checklist.submittedByName || "Family member"}
+        </p>
+        <p className="mt-0.5 text-sm text-muted-foreground">Last updated {when}</p>
       </header>
       <div className="divide-y divide-border/45 dark:divide-white/[0.06]">
         {rows.map((row) => (
-          <HistoryRow key={row.key} row={row} onOpenImage={onOpenImage} />
+          <StatusRow key={row.key} row={row} onOpenImage={onOpenImage} />
         ))}
       </div>
     </article>
@@ -84,15 +88,15 @@ const SubmissionCard = memo(function SubmissionCard({
 });
 
 export function ChecklistHistoryView() {
-  const [submissions, setSubmissions] = useState<ChecklistSubmission[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistSubmission | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = subscribeChecklistSubmissions(
-      (rows) => {
-        setSubmissions(rows);
+    const unsub = subscribeChecklistCurrent(
+      (current) => {
+        setChecklist(current);
         setLoading(false);
         setError(null);
       },
@@ -105,13 +109,7 @@ export function ChecklistHistoryView() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="space-y-4">
-        {[0, 1].map((i) => (
-          <Skeleton key={i} className="h-48 w-full rounded-[1.35rem]" />
-        ))}
-      </div>
-    );
+    return <Skeleton className="h-64 w-full rounded-[1.35rem]" />;
   }
 
   if (error) {
@@ -122,27 +120,22 @@ export function ChecklistHistoryView() {
     );
   }
 
-  if (submissions.length === 0) {
+  if (!checklist) {
     return (
       <EmptyState
         icon={ClipboardList}
-        title="No walkthroughs yet"
-        description="Submitted Last Man Out checklists will appear here in real time."
+        title="No walkthrough on record"
+        description="Submit a Last Man Out checklist to set the live property status for everyone."
       />
     );
   }
 
   return (
-  <>
-      <div className="space-y-4">
-        {submissions.map((submission) => (
-          <SubmissionCard
-            key={submission.submissionId}
-            submission={submission}
-            onOpenImage={setLightboxUrl}
-          />
-        ))}
-      </div>
+    <>
+      <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+        Live operational snapshot — the latest known property condition and shutdown confirmation.
+      </p>
+      <CurrentStatusCard checklist={checklist} onOpenImage={setLightboxUrl} />
       <ChecklistImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </>
   );

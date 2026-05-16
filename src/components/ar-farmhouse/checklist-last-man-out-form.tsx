@@ -19,11 +19,7 @@ import {
   createEmptyChecklistFormValues,
 } from "@/lib/checklist-fields";
 import type { ChecklistImageFieldKey } from "@/models/checklist";
-import {
-  allocateChecklistSubmissionId,
-  submitChecklistSubmission,
-  type ChecklistUploadProgress,
-} from "@/services/checklists";
+import { submitChecklistCurrent, type ChecklistUploadProgress } from "@/services/checklists";
 import { cn } from "@/lib/utils";
 
 type FormValues = ReturnType<typeof createEmptyChecklistFormValues>;
@@ -71,15 +67,13 @@ export function ChecklistLastManOutForm({ userId, displayName, onSubmitted }: Ch
     setStatusMessage("Preparing walkthrough…");
 
     try {
-      const submissionId = allocateChecklistSubmissionId();
       const files: Partial<Record<ChecklistImageFieldKey, File>> = {};
       for (const [key, attachment] of Object.entries(images)) {
         if (attachment?.file) files[key as ChecklistImageFieldKey] = attachment.file;
       }
 
       setStatusMessage("Uploading photos…");
-      await submitChecklistSubmission({
-        submissionId,
+      await submitChecklistCurrent({
         input: {
           submittedBy: userId,
           submittedByName: displayName,
@@ -91,7 +85,7 @@ export function ChecklistLastManOutForm({ userId, displayName, onSubmitted }: Ch
 
       setValues(createEmptyChecklistFormValues());
       setImages({});
-      setStatusMessage("Checklist submitted.");
+      setStatusMessage("Property status updated.");
       onSubmitted();
     } catch (e) {
       const message =

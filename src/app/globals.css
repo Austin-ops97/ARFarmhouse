@@ -431,7 +431,6 @@ html.ar-theme-transitioning .ar-app-shell {
     transition: none !important;
   }
   .ar-feed-media-stable img {
-    object-fit: cover;
     object-position: center;
     transition: none !important;
     animation: none !important;

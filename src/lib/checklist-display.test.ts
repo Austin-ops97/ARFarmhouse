@@ -10,8 +10,7 @@ import type { ChecklistSubmission } from "@/models/checklist";
 
 function sampleSubmission(overrides: Partial<ChecklistSubmission> = {}): ChecklistSubmission {
   return {
-    submissionId: "sub-1",
-    createdAt: new Date("2026-05-16T12:00:00Z"),
+    updatedAt: new Date("2026-05-16T12:00:00Z"),
     submittedBy: "uid-1",
     submittedByName: "Alex",
     ...createEmptyChecklistFormValues(),
@@ -30,7 +29,7 @@ describe("checklist display helpers", () => {
     expect(formatChecklistYesNo(false)).toBe("No");
   });
 
-  it("maps submission to ordered history rows", () => {
+  it("maps submission to ordered status rows", () => {
     const rows = checklistSubmissionToHistoryRows(sampleSubmission());
     expect(rows[0]).toMatchObject({ key: "propaneLevel", value: "85%", imageUrl: "https://example.com/p.jpg" });
     const doors = rows.find((r) => r.key === "doorsLocked");

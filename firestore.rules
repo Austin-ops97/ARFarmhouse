@@ -230,10 +230,8 @@ service cloud.firestore {
         && request.resource.data[field] <= 100;
     }
 
-    match /checklists/{submissionId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && request.resource.data.submittedBy == request.auth.uid
+    function validChecklistSubmission() {
+      return request.resource.data.submittedBy == request.auth.uid
         && request.resource.data.submittedByName is string
         && request.resource.data.submittedByName.size() > 0
         && request.resource.data.submittedByName.size() <= 120
@@ -249,7 +247,16 @@ service cloud.firestore {
         && request.resource.data.trashOut is bool
         && request.resource.data.gasCansFilled is bool
         && request.resource.data.imageUrls is map;
-      allow update: if false;
+    }
+
+    match /checklists/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && docId == 'current'
+        && validChecklistSubmission();
+      allow update: if isSignedIn()
+        && docId == 'current'
+        && validChecklistSubmission();
       allow delete: if isAppAdmin();
     }
 

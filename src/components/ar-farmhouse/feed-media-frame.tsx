@@ -3,7 +3,11 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import { type FeedMediaDims } from "@/lib/feed-media-aspect";
+import {
+  feedMediaImageFitClass,
+  type FeedMediaDims,
+  type FeedMediaRenderContext,
+} from "@/lib/feed-media-aspect";
 import { useLockedFeedMediaLayout } from "@/lib/use-locked-feed-media-layout";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +17,8 @@ function FeedImageLayer({
   alt,
   sizes,
   layoutDims,
+  fitDims,
+  renderContext,
   imageExtraClassName,
   imageProps,
 }: {
@@ -21,11 +27,14 @@ function FeedImageLayer({
   alt: string;
   sizes: string;
   layoutDims: FeedMediaDims;
+  fitDims?: FeedMediaDims | null;
+  renderContext: FeedMediaRenderContext;
   imageExtraClassName?: string;
   imageProps?: Record<string, unknown>;
 }) {
   const showThumb = Boolean(thumbnailSrc && thumbnailSrc !== src);
   const { width, height } = layoutDims;
+  const fitClass = feedMediaImageFitClass(fitDims ?? layoutDims, renderContext);
 
   return (
     <>
@@ -38,7 +47,7 @@ function FeedImageLayer({
           width={width}
           height={height}
           sizes={sizes}
-          className="pointer-events-none select-none object-cover object-center"
+          className={cn("pointer-events-none select-none", fitClass)}
           unoptimized
         />
       ) : null}
@@ -52,7 +61,8 @@ function FeedImageLayer({
         loading="lazy"
         draggable={false}
         className={cn(
-          "pointer-events-none select-none object-cover object-center bg-muted/20 dark:bg-zinc-950/60",
+          "pointer-events-none select-none bg-muted/20 dark:bg-zinc-950/60",
+          fitClass,
           imageExtraClassName
         )}
         {...imageProps}
@@ -74,6 +84,7 @@ export function FeedMediaFrame({
   overlay,
   applyParentHeightCap = false,
   parentLayoutDims,
+  renderContext = "standalone",
 }: {
   src: string;
   thumbnailSrc?: string | null;
@@ -88,10 +99,12 @@ export function FeedMediaFrame({
   applyParentHeightCap?: boolean;
   /** When parent owns the box (carousel/grid), pass its locked dims for intrinsic image sizing. */
   parentLayoutDims?: FeedMediaDims | null;
+  renderContext?: FeedMediaRenderContext;
 }) {
   const locked = useLockedFeedMediaLayout(parentLayoutDims ?? dims);
   const layoutDims = parentLayoutDims ?? locked.layoutDims;
   const boxStyle = applyParentHeightCap ? undefined : locked.boxStyle;
+  const fitContext: FeedMediaRenderContext = applyParentHeightCap ? "embedded" : renderContext;
 
   if (applyParentHeightCap) {
     return (
@@ -103,6 +116,8 @@ export function FeedMediaFrame({
             alt={alt}
             sizes={sizes}
             layoutDims={layoutDims}
+            fitDims={dims}
+            renderContext={fitContext}
             imageExtraClassName={imageExtraClassName}
             imageProps={imageProps}
           />
@@ -125,6 +140,8 @@ export function FeedMediaFrame({
             alt={alt}
             sizes={sizes}
             layoutDims={layoutDims}
+            fitDims={dims}
+            renderContext={fitContext}
             imageExtraClassName={imageExtraClassName}
             imageProps={imageProps}
           />

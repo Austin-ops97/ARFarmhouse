@@ -1,6 +1,5 @@
 /**
- * Last Man Out property checklist — submission document shape.
- * Structured for future template / inspection extensions.
+ * Last Man Out property checklist — live current-state document shape.
  */
 
 export type ChecklistSliderFieldKey =
@@ -25,9 +24,9 @@ export type ChecklistImageFieldKey =
   | ChecklistToggleFieldKey
   | ChecklistMediaOnlyFieldKey;
 
+/** Latest checklist state stored at checklists/current. */
 export type ChecklistSubmission = {
-  submissionId: string;
-  createdAt: Date | null;
+  updatedAt: Date | null;
   submittedBy: string;
   submittedByName: string;
   propaneLevel: number;
@@ -52,7 +51,7 @@ export type ChecklistSubmissionMetadata = {
 
 export type ChecklistSubmitInput = Omit<
   ChecklistSubmission,
-  "submissionId" | "createdAt" | "imageUrls" | "metadata"
+  "updatedAt" | "imageUrls" | "metadata"
 > & {
   imageUrls?: Partial<Record<ChecklistImageFieldKey, string>>;
 };

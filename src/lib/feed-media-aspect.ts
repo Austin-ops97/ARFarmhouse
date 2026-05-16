@@ -1,8 +1,15 @@
+import type { CSSProperties } from "react";
+
+import { FEED_STREAM_MAX_WIDTH_PX } from "@/lib/feed-layout";
+
 /** Natural width / height for layout math (not CSS `aspect-ratio` order). */
 export type FeedMediaDims = { width: number; height: number };
 
 /** Locked fallback when Firestore/client dims are missing — never changes after mount. */
 export const FEED_MEDIA_FALLBACK_ASPECT = 4 / 5;
+
+/** Where the image is rendered — controls object-fit when the shell aspect may differ. */
+export type FeedMediaRenderContext = "standalone" | "embedded";
 
 export function mediaOrientation(
   nw: number,
@@ -24,15 +31,15 @@ export function viewportMaxFeedMediaHeight(
   const v = Math.max(320, vhPx);
   switch (orientation) {
     case "portrait":
-      return Math.min(v * 0.64, 500);
+      return Math.min(v * 0.72, 560);
     case "square":
-      return Math.min(v * 0.68, 520);
-    case "landscape":
       return Math.min(v * 0.7, 540);
+    case "landscape":
+      return Math.min(v * 0.72, 560);
     case "panorama":
-      return Math.min(v * 0.42, 300);
+      return Math.min(v * 0.52, 380);
     default:
-      return Math.min(v * 0.66, 500);
+      return Math.min(v * 0.7, 540);
   }
 }
 
@@ -98,13 +105,50 @@ export function feedMediaMaxHeightPx(dims: FeedMediaDims | null | undefined, vhP
  */
 export function feedMediaStableBoxStyle(
   dims: FeedMediaDims | null | undefined,
-  vhPx: number
-): { aspectRatio: string; maxHeight: string } {
+  vhPx: number,
+  containerWidthPx: number = FEED_STREAM_MAX_WIDTH_PX
+): CSSProperties {
+  const maxHeightPx = feedMediaMaxHeightPx(dims, vhPx);
   const ratio = resolveFeedAspectRatio(dims);
-  return {
+
+  const style: CSSProperties = {
+    width: "100%",
     aspectRatio: String(ratio),
-    maxHeight: `${feedMediaMaxHeightPx(dims, vhPx)}px`,
+    maxHeight: `${maxHeightPx}px`,
   };
+
+  if (dims && dims.width > 0 && dims.height > 0) {
+    const { widthPx } = computeFeedMediaDisplaySize({
+      containerWidthPx,
+      naturalWidth: dims.width,
+      naturalHeight: dims.height,
+      maxHeightPx,
+      streamMaxWidthPx: FEED_STREAM_MAX_WIDTH_PX,
+    });
+    if (widthPx < containerWidthPx - 1) {
+      style.maxWidth = `${widthPx}px`;
+    }
+  }
+
+  return style;
+}
+
+/**
+ * Object-fit for feed previews — not global `object-contain`.
+ * Standalone boxes are sized from metadata; embedded shells (carousel/grid) may differ.
+ */
+export function feedMediaImageFitClass(
+  dims: FeedMediaDims | null | undefined,
+  context: FeedMediaRenderContext
+): string {
+  if (context === "embedded") {
+    return "object-contain object-center sm:object-cover sm:object-center";
+  }
+  const hasRealDims = Boolean(dims && dims.width > 0 && dims.height > 0);
+  if (!hasRealDims) {
+    return "object-contain object-center";
+  }
+  return "object-cover object-center";
 }
 
 /** Single aspect for mobile album carousel so slides do not resize when swiping. */
@@ -112,9 +156,13 @@ export function resolveAlbumCarouselAspect(
   dimensions: (FeedMediaDims | null | undefined)[],
   count: number
 ): number {
+  const aspects: number[] = [];
   for (let i = 0; i < count; i++) {
     const d = dimensions[i];
-    if (d && d.width > 0 && d.height > 0) return d.width / d.height;
+    if (d && d.width > 0 && d.height > 0) aspects.push(d.width / d.height);
   }
-  return FEED_MEDIA_FALLBACK_ASPECT;
+  if (aspects.length === 0) return FEED_MEDIA_FALLBACK_ASPECT;
+  if (aspects.length === 1) return aspects[0]!;
+  const logSum = aspects.reduce((sum, aspect) => sum + Math.log(aspect), 0);
+  return Math.exp(logSum / aspects.length);
 }
