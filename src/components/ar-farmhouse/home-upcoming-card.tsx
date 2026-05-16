@@ -19,13 +19,13 @@ export function HomeUpcomingCard() {
 
   if (snapshot.kind === "empty") {
     return (
-      <section className={cn(surface, "p-5 sm:p-7")} aria-label="Upcoming bookings">
+      <section className={cn(surface, "p-5 sm:p-6 md:p-7")} aria-label="Upcoming bookings">
         <div className="flex items-start gap-4">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-muted/60 ring-1 ring-border/50 dark:bg-white/[0.05] dark:ring-white/[0.08]">
             <CalendarRange className="size-5 text-muted-foreground" aria-hidden />
           </div>
           <div className="min-w-0 flex-1 space-y-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground/80">
+            <p className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground/80 sm:text-[11px]">
               Upcoming
             </p>
             <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
@@ -49,7 +49,7 @@ export function HomeUpcomingCard() {
   return (
     <section className={cn(surface)} aria-label="Upcoming bookings">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.06] via-transparent to-mist/[0.04]" aria-hidden />
-      <div className="relative p-5 sm:p-7">
+      <div className="relative p-5 sm:p-6 md:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-primary/90">
@@ -80,9 +80,9 @@ export function HomeUpcomingCard() {
           <div className="flex items-start gap-3 rounded-2xl border border-border/40 bg-muted/30 px-4 py-3.5 dark:border-white/[0.06] dark:bg-white/[0.03]">
             <CalendarRange className="mt-0.5 size-4 shrink-0 text-primary/90" aria-hidden />
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Dates</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground sm:text-[11px]">Dates</p>
               <p className="mt-1 text-sm font-medium text-foreground">{dateLabel}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-sm text-muted-foreground sm:text-xs">
                 {durationNights} night{durationNights === 1 ? "" : "s"}
               </p>
             </div>

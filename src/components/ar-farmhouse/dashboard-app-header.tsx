@@ -70,7 +70,7 @@ export function DashboardAppHeader({
       <div className="ar-header-blur-layer" aria-hidden />
       <div
         className={cn(
-          "ar-header-content relative flex min-h-[var(--ar-header-height)] w-full items-center justify-between gap-2 px-2.5 sm:gap-3 sm:px-4",
+          "ar-header-content relative flex min-h-[var(--ar-header-height)] w-full items-center justify-between gap-3 px-3 sm:gap-3 sm:px-4",
           "pt-[var(--ar-header-safe-top)] pb-[var(--ar-header-pad-bottom)]"
         )}
       >
@@ -82,10 +82,10 @@ export function DashboardAppHeader({
           <ArFarmhouseLogo size={36} className="shadow-inner dark:shadow-inner dark:shadow-white/5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-heading text-[13px] font-semibold leading-snug tracking-tight text-foreground sm:text-base">
+          <p className="truncate font-heading text-base font-semibold leading-snug tracking-tight text-foreground sm:text-base">
             {activeId === "home" ? "AR Farmhouse" : activeMeta.label}
           </p>
-          <p className="line-clamp-1 text-[10px] leading-tight text-muted-foreground sm:text-xs sm:leading-snug">
+          <p className="line-clamp-1 text-xs leading-snug text-muted-foreground sm:text-xs">
             {sectionSubtitle[activeId]}
           </p>
         </div>
@@ -97,15 +97,15 @@ export function DashboardAppHeader({
             <button
               type="button"
               onClick={() => setAccountOpen((o) => !o)}
-              className="flex max-w-[min(10.5rem,40vw)] items-center gap-1 rounded-full border border-border/60 bg-card/50 py-0.5 pl-0.5 pr-1.5 text-left transition-colors hover:border-border hover:bg-muted/50 sm:max-w-[220px] sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2.5 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/16 dark:hover:bg-white/[0.08]"
+              className="ar-touch-press flex max-w-[min(11rem,42vw)] min-h-11 items-center gap-1.5 rounded-full border border-border/60 bg-card/50 py-1 pl-1 pr-2 text-left transition-colors hover:border-border hover:bg-muted/50 sm:max-w-[220px] sm:min-h-0 sm:gap-2 sm:py-1 sm:pl-1 sm:pr-2.5 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/16 dark:hover:bg-white/[0.08]"
               aria-expanded={accountOpen}
               aria-haspopup="menu"
             >
-              <Avatar size="default" className="size-7 ring-1 ring-border/60 sm:size-9 dark:ring-white/10">
+              <Avatar size="default" className="size-8 ring-1 ring-border/60 sm:size-9 dark:ring-white/10">
                 <AvatarImage src={avatarUrl ?? undefined} alt="" />
-                <AvatarFallback className="text-[10px] sm:text-xs">{displayName.slice(0, 2)}</AvatarFallback>
+                <AvatarFallback className="text-xs sm:text-xs">{displayName.slice(0, 2)}</AvatarFallback>
               </Avatar>
-              <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-foreground sm:text-xs">
+              <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground sm:text-xs">
                 {displayName}
               </span>
             </button>
@@ -124,7 +124,7 @@ export function DashboardAppHeader({
                   className={AR_ACCOUNT_MENU}
                   role="menu"
                 >
-                  <p className="truncate px-3 py-2 text-[11px] text-muted-foreground">{user.email}</p>
+                  <p className="truncate px-3 py-2 text-xs text-muted-foreground sm:text-[11px]">{user.email}</p>
                   <button
                     type="button"
                     role="menuitem"

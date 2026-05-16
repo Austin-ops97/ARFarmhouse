@@ -12,8 +12,8 @@ export const FEED_LAYOUT_CLASS =
 /** Right contextual column */
 export const FEED_RAIL_CLASS = "hidden w-full min-w-0 max-w-[300px] shrink-0 xl:block";
 
-/** Mobile edge-bleed for media (pairs with dashboard `px-3` / `sm:px-6`) */
-export const FEED_MEDIA_BLEED = "-mx-3 sm:mx-0";
+/** Mobile edge-bleed for media (pairs with dashboard `px-4` / `sm:px-6`) */
+export const FEED_MEDIA_BLEED = "-mx-4 sm:mx-0";
 
 /** Next/Image sizes — tuned to ~520px stream */
 export const FEED_IMAGE_SIZES =

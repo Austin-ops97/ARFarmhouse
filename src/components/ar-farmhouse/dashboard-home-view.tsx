@@ -41,7 +41,7 @@ export function DashboardHomeView() {
         initial={reduceMotion ? false : "hidden"}
         animate="show"
         variants={container}
-        className="flex flex-col gap-6 pb-2 sm:gap-8 lg:gap-10"
+        className="flex flex-col gap-7 pb-2 sm:gap-8 lg:gap-10"
       >
         <motion.div variants={item}>
           <HomeDashboardHeader />
@@ -49,7 +49,7 @@ export function DashboardHomeView() {
         <motion.div variants={item}>
           <HomeUpcomingCard />
         </motion.div>
-        <motion.div variants={item} className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+        <motion.div variants={item} className="grid gap-4 sm:gap-4 lg:grid-cols-2">
           <HomeWeatherCard />
           <HomeTasksPreview />
         </motion.div>

@@ -66,11 +66,11 @@ export function TaskCard({
     >
       <span className={cn("absolute left-0 top-0 h-full w-1 rounded-l-2xl", priorityDot[task.priority])} aria-hidden />
 
-      <div className="flex gap-2 pl-3 pr-2.5 pt-3 sm:pl-4 sm:pr-3.5">
+      <div className="flex gap-3 pl-4 pr-3 pt-4 sm:gap-2 sm:pl-4 sm:pr-3.5 sm:pt-3">
         {dragHandle && (
           <button
             type="button"
-            className="mt-0.5 flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+            className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground sm:h-8 sm:w-6"
             aria-label="Drag to reorder"
             {...dragAttributes}
             {...dragListeners}
@@ -89,7 +89,7 @@ export function TaskCard({
                 <p className={cn("text-sm font-semibold leading-snug text-foreground", task.done && "line-through")}>
                   {task.title}
                 </p>
-                <p className="text-[11px] text-muted-foreground">{task.dueLabel}</p>
+                <p className="text-sm text-muted-foreground sm:text-[11px]">{task.dueLabel}</p>
               </div>
             </div>
             {onToggleDone && (
@@ -98,7 +98,7 @@ export function TaskCard({
                 onClick={() => onToggleDone(task.id)}
                 whileTap={reduceMotion ? undefined : { scale: 0.92 }}
                 className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                  "ar-touch-press flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors sm:size-9",
                   task.done
                     ? "border-primary/40 bg-primary/20 text-primary"
                     : "border-white/12 bg-white/[0.04] text-muted-foreground hover:border-white/20 hover:text-foreground"

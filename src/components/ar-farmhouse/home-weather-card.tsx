@@ -8,7 +8,7 @@ import { MENA_WEATHER } from "@/lib/weather-mena";
 import { cn } from "@/lib/utils";
 
 const surface =
-  "h-full rounded-[1.125rem] border border-border/42 bg-card/74 p-4 shadow-[var(--ar-float-subtle)] backdrop-blur-[1px] dark:border-white/[0.065] dark:bg-white/[0.032] dark:shadow-[var(--ar-float-subtle)] sm:rounded-xl sm:p-[1.05rem]";
+  "h-full rounded-[1.125rem] border border-border/42 bg-card/74 p-4 shadow-[var(--ar-float-subtle)] backdrop-blur-[1px] dark:border-white/[0.065] dark:bg-white/[0.032] dark:shadow-[var(--ar-float-subtle)] sm:rounded-xl sm:p-[1.05rem] md:p-[1.05rem]";
 
 export function HomeWeatherCard() {
   const { weather, loading, error } = useHomeWeather();
@@ -17,7 +17,7 @@ export function HomeWeatherCard() {
     <section className={cn(surface)} aria-label="Weather">
       <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground/78 sm:text-[11px] sm:tracking-[0.21em]">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground/78 sm:text-[11px] sm:tracking-[0.21em]">
             Conditions
           </p>
           <h2 className="mt-1 font-heading text-base font-semibold tracking-tight text-foreground sm:text-lg">

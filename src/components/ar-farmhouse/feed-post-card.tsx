@@ -348,23 +348,23 @@ export function FeedPostCard({
         viewport={{ once: true, margin: "-4% 0px" }}
         transition={{ duration: reduceMotion ? 0.2 : 0.55, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          "touch-manipulation scroll-mt-28 pb-7 sm:scroll-mt-32 sm:pb-9",
+          "touch-manipulation scroll-mt-28 pb-8 sm:scroll-mt-32 sm:pb-9",
           isHighlighted && "rounded-2xl ring-2 ring-primary/35 ring-offset-2 ring-offset-background sm:rounded-[1.35rem]"
         )}
       >
-        <header className="flex items-start gap-2.5 px-1 pb-2.5 sm:px-0">
+        <header className="flex items-start gap-3 px-0.5 pb-3 sm:gap-2.5 sm:px-0 sm:pb-2.5">
           <Avatar className="size-11 ring-2 ring-border/55 dark:ring-white/10 sm:size-12">
             <AvatarImage src={post.author.avatar} alt="" />
             <AvatarFallback>{initials(post.author.name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1 pt-0.5">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="text-[14px] font-semibold tracking-tight text-foreground sm:text-[15px]">{post.author.name}</span>
-              <span className="text-[12px] text-muted-foreground sm:text-[13px]">{post.timeLabel}</span>
-              <span className="text-[11px] font-medium text-primary/90">· {categoryLabel[post.category]}</span>
+              <span className="text-base font-semibold tracking-tight text-foreground sm:text-[15px]">{post.author.name}</span>
+              <span className="text-sm text-muted-foreground sm:text-[13px]">{post.timeLabel}</span>
+              <span className="text-xs font-medium text-primary/90 sm:text-[11px]">· {categoryLabel[post.category]}</span>
             </div>
             {post.location && (
-              <p className="mt-1 flex items-center gap-1 text-[12px] text-muted-foreground">
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground sm:text-[12px]">
                 <MapPin className="size-3 shrink-0 opacity-70" aria-hidden />
                 <span>{post.location}</span>
               </p>
@@ -376,7 +376,7 @@ export function FeedPostCard({
               type="button"
               onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
               className={cn(
-                "rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/[0.06]",
+                "ar-touch-press flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground sm:size-auto sm:p-2.5 dark:hover:bg-white/[0.06]",
                 menuOpen && "bg-muted/70 text-foreground dark:bg-white/[0.08]"
               )}
               aria-expanded={menuOpen}
@@ -643,7 +643,7 @@ export function FeedPostCard({
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-px px-1 pt-2.5 sm:px-0 sm:pt-3.5">
+        <div className="flex items-center gap-0.5 px-0.5 pt-3 sm:gap-px sm:px-0 sm:pt-3.5">
           <motion.button
             type="button"
             aria-label={heartActive ? "Unlike" : "Like"}
@@ -652,7 +652,7 @@ export function FeedPostCard({
             onClick={() => void toggleReaction(primaryKey)}
             whileTap={reduceMotion || !interactionsLive ? undefined : { scale: 0.86 }}
             className={cn(
-              "rounded-full p-2 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              "ar-touch-press flex size-11 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted/70 sm:size-auto sm:p-2 dark:hover:bg-white/[0.06]",
               heartActive && "text-red-400",
               !interactionsLive && "pointer-events-none opacity-45"
             )}
@@ -665,7 +665,7 @@ export function FeedPostCard({
             disabled={post.optimistic}
             title={post.optimistic ? "Comments unlock after the post syncs." : undefined}
             className={cn(
-              "rounded-full p-2 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              "ar-touch-press flex size-11 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted/70 sm:size-auto sm:p-2 dark:hover:bg-white/[0.06]",
               post.optimistic && "pointer-events-none opacity-45"
             )}
             aria-label="Comment"
@@ -678,7 +678,7 @@ export function FeedPostCard({
             disabled={post.optimistic}
             title={post.optimistic ? "Sharing unlocks after the post syncs." : undefined}
             className={cn(
-              "rounded-full p-2 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              "ar-touch-press flex size-11 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted/70 sm:size-auto sm:p-2 dark:hover:bg-white/[0.06]",
               post.optimistic && "pointer-events-none opacity-45"
             )}
             aria-label="Share"
@@ -694,7 +694,7 @@ export function FeedPostCard({
             onClick={() => void toggleSaved()}
             whileTap={reduceMotion || !interactionsLive ? undefined : { scale: 0.86 }}
             className={cn(
-              "rounded-full p-2 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
+              "ar-touch-press flex size-11 items-center justify-center rounded-full sm:size-auto sm:p-2 text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-white/[0.06]",
               savedRemote && "text-primary",
               !interactionsLive && "pointer-events-none opacity-45"
             )}
@@ -703,7 +703,7 @@ export function FeedPostCard({
           </motion.button>
         </div>
 
-        <div className={cn("flex flex-wrap gap-1.5 px-1 pt-1 sm:px-0", !interactionsLive && "opacity-45")}>
+        <div className={cn("flex flex-wrap gap-2 px-0.5 pt-2 sm:gap-1.5 sm:px-0 sm:pt-1 sm:px-0", !interactionsLive && "opacity-45")}>
           {displayReactions.map((r) => {
             const state = mergedReactionState[r.emoji] ?? { count: r.count, on: !!r.active };
             return (
@@ -727,7 +727,7 @@ export function FeedPostCard({
                 >
                   {r.emoji}
                 </motion.span>
-                <span className="text-[12px] font-medium tabular-nums text-muted-foreground">{Math.max(0, state.count)}</span>
+                <span className="text-sm font-medium tabular-nums text-muted-foreground sm:text-[12px]">{Math.max(0, state.count)}</span>
               </motion.button>
             );
           })}
@@ -740,9 +740,9 @@ export function FeedPostCard({
         )}
 
         {post.kind !== "text" && (
-          <div className="space-y-1.5 px-1 pt-2 sm:px-0 sm:pt-3">
-            {post.title && <p className="text-[15px] font-semibold leading-snug text-foreground">{post.title}</p>}
-            <p className="text-[15px] leading-relaxed text-foreground/90 sm:text-base">
+          <div className="space-y-2 px-0.5 pt-3 sm:space-y-1.5 sm:px-0 sm:pt-3">
+            {post.title && <p className="text-base font-semibold leading-snug text-foreground sm:text-[15px]">{post.title}</p>}
+            <p className="text-base leading-relaxed text-foreground/90 sm:text-[15px] md:text-base">
               <span className="font-semibold text-foreground">{post.author.name.split(" ")[0]} </span>
               {post.body}
             </p>
@@ -756,11 +756,11 @@ export function FeedPostCard({
               const slug = hubSlugFromLinkedEventLabel(post.linkedEvent!);
               if (slug) openWeekendHub(slug);
             }}
-            className="mx-1 mt-3 flex w-full items-center gap-2 rounded-xl border border-primary/20 bg-primary/[0.09] px-3 py-2 text-left text-xs text-primary-foreground/95 transition-colors hover:border-primary/35 hover:bg-primary/[0.12] sm:mx-0"
+            className="mx-0 mt-3 flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/[0.09] px-4 py-2.5 text-left text-sm text-primary-foreground/95 transition-colors hover:border-primary/35 hover:bg-primary/[0.12] sm:mx-0 sm:min-h-0 sm:px-3 sm:py-2 sm:text-xs"
           >
-            <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
+            <Sparkles className="size-4 shrink-0 text-primary sm:size-3.5" aria-hidden />
             <span className="font-medium">{post.linkedEvent}</span>
-            <span className="ml-auto text-[10px] text-muted-foreground">Open hub</span>
+            <span className="ml-auto text-xs text-muted-foreground sm:text-[10px]">Open hub</span>
           </button>
         )}
 
@@ -770,7 +770,7 @@ export function FeedPostCard({
           onClick={() => setCommentsOpen((v) => !v)}
           title={post.optimistic ? "Comments unlock after the post syncs." : undefined}
           className={cn(
-            "mt-2 flex w-full items-center justify-between gap-2 px-1 py-1 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:px-0",
+            "mt-3 flex min-h-11 w-full items-center justify-between gap-2 px-0.5 py-2 text-left text-base font-medium text-muted-foreground transition-colors hover:text-foreground sm:mt-2 sm:min-h-0 sm:px-0 sm:py-1 sm:text-sm",
             post.optimistic && "pointer-events-none opacity-45"
           )}
         >

@@ -140,14 +140,14 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
                 type="button"
                 onClick={close}
                 whileTap={reduceMotion ? undefined : { scale: 0.94 }}
-                className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-muted/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.08]"
+                className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-muted/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.08]"
                 aria-label="Close menu"
               >
                 <X className="size-[18px]" aria-hidden />
               </motion.button>
             </div>
 
-            <div className="ar-surface-float mt-4 rounded-2xl p-3">
+            <motion.div className="ar-surface-float mt-4 rounded-2xl p-4">
               <div className="flex items-center gap-3">
                 <Avatar size="lg" className="ring-2 ring-background/80">
                   <AvatarImage src={avatarUrl ?? undefined} alt="" />
@@ -155,12 +155,12 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
-                  <p className="truncate text-xs text-muted-foreground">{user?.email ?? "Signed in"}</p>
+                  <p className="truncate text-sm text-muted-foreground md:text-xs">{user?.email ?? "Signed in"}</p>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
-            <nav className="mt-5 flex flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain pr-1" aria-label="Primary">
+            <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto overscroll-contain pr-1" aria-label="Primary">
               {sidebarNav.map((item, index) => {
                 const active = activeId === item.id;
                 const Icon = item.icon;
@@ -176,7 +176,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
                     transition={{ delay: reduceMotion ? 0 : index * 0.03, duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                     whileTap={reduceMotion ? undefined : { scale: 0.98 }}
                     className={cn(
-                      "group relative flex min-h-[3.25rem] items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-[15px] transition-colors touch-manipulation",
+                      "group relative flex min-h-[3.5rem] items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left text-base transition-colors touch-manipulation",
                       active
                         ? "text-foreground"
                         : "text-muted-foreground hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/[0.05]"
@@ -205,7 +205,7 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
               })}
             </nav>
 
-            <p className="ar-surface-inset mt-4 rounded-2xl p-3 text-[11px] leading-relaxed text-muted-foreground">
+            <p className="ar-surface-inset mt-4 rounded-2xl p-4 text-xs leading-relaxed text-muted-foreground sm:text-[11px]">
               Private family network · navigation stays in sync with your session.
             </p>
           </motion.aside>

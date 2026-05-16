@@ -71,8 +71,8 @@ function CommentRow({
     .join(" · ");
 
   return (
-    <div className={cn("flex gap-2", depth > 0 && "ml-5 border-l border-border/50 pl-2.5 dark:border-white/10")}>
-      <Avatar className={cn("shrink-0 rounded-full", depth > 0 ? "size-6" : "size-7")}>
+    <div className={cn("flex gap-2.5", depth > 0 && "ml-5 border-l border-border/50 pl-3 dark:border-white/10")}>
+      <Avatar className={cn("shrink-0 rounded-full", depth > 0 ? "size-7" : "size-8")}>
         <AvatarImage src={comment.authorAvatarUrl ?? undefined} alt="" />
         <AvatarFallback className="rounded-full text-[9px]">{initials(comment.author)}</AvatarFallback>
       </Avatar>
@@ -97,7 +97,7 @@ function CommentRow({
         ) : (
           <>
             <div className="flex items-start gap-1">
-              <p className="min-w-0 flex-1 text-[13px] leading-snug text-foreground/90">
+              <p className="min-w-0 flex-1 text-base leading-relaxed text-foreground/90 sm:text-[13px] sm:leading-snug">
                 <span className="font-semibold text-foreground">{comment.author}</span>{" "}
                 <span className="whitespace-pre-wrap break-words">{comment.text}</span>
               </p>
@@ -105,7 +105,7 @@ function CommentRow({
                 <div className="relative -mt-0.5 shrink-0">
                   <button
                     type="button"
-                    className="rounded-full p-0.5 text-muted-foreground/80 hover:bg-muted/60 hover:text-muted-foreground"
+                    className="flex size-9 items-center justify-center rounded-full text-muted-foreground/80 hover:bg-muted/60 hover:text-muted-foreground sm:size-auto sm:p-0.5"
                     aria-label="Comment options"
                     onClick={() => setMenuOpen((o) => !o)}
                   >
@@ -140,7 +140,7 @@ function CommentRow({
                 </div>
               )}
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0 text-[11px] font-medium text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0 text-xs font-medium text-muted-foreground sm:mt-0.5 sm:text-[11px]">
               <span>{timeMeta}</span>
               {!isPending && depth === 0 && (
                 <button type="button" className="hover:text-foreground" onClick={() => onReply(comment.id)}>
@@ -175,9 +175,9 @@ export function FeedCommentList({
   }, {});
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3 sm:space-y-2.5">
       {topLevel.length === 0 && (
-        <p className="rounded-xl border border-dashed border-border/50 bg-muted/15 px-4 py-6 text-center text-[13px] leading-relaxed text-muted-foreground dark:border-white/10">
+        <p className="rounded-xl border border-dashed border-border/50 bg-muted/15 px-4 py-6 text-center text-base leading-relaxed text-muted-foreground sm:text-[13px] dark:border-white/10">
           No comments yet — share a warm note for the family.
         </p>
       )}
@@ -207,7 +207,7 @@ export function FeedCommentList({
 
       {currentUid && (
         <form
-          className="flex flex-col gap-2 border-t border-border/40 pt-2.5 dark:border-white/[0.06]"
+          className="flex flex-col gap-3 border-t border-border/40 pt-3 dark:border-white/[0.06] sm:gap-2 sm:pt-2.5"
           onSubmit={(e) => {
             e.preventDefault();
             if (!draft.trim() || busy) return;
@@ -223,7 +223,7 @@ export function FeedCommentList({
           }}
         >
           {replyToId && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground sm:text-[11px]">
               Replying ·{" "}
               <button type="button" className="font-medium text-foreground hover:underline" onClick={() => setReplyToId(null)}>
                 Cancel
@@ -235,14 +235,14 @@ export function FeedCommentList({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={replyToId ? "Write a reply…" : "Write a comment…"}
-              className="h-9 flex-1 rounded-full border-border/60 bg-muted/50 px-4 text-[13px] dark:border-white/10 dark:bg-white/[0.04]"
+              className="h-11 flex-1 rounded-full border-border/60 bg-muted/50 px-4 text-base sm:h-9 sm:text-[13px] dark:border-white/10 dark:bg-white/[0.04]"
               disabled={busy}
             />
             <Button
               type="submit"
               size="sm"
               variant="ghost"
-              className="h-9 shrink-0 px-2 text-[13px] font-semibold text-primary hover:bg-transparent hover:text-primary/80 disabled:opacity-40"
+              className="h-11 min-w-11 shrink-0 px-3 text-base font-semibold text-primary hover:bg-transparent hover:text-primary/80 disabled:opacity-40 sm:h-9 sm:min-w-0 sm:px-2 sm:text-[13px]"
               disabled={busy || !draft.trim()}
             >
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : "Post"}

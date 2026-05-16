@@ -11,7 +11,7 @@ import type { TaskPriority } from "@/lib/property-operations";
 import { cn } from "@/lib/utils";
 
 const surface =
-  "h-full rounded-[1.125rem] border border-border/38 bg-card/62 p-4 shadow-[var(--ar-float-subtle)] backdrop-blur-[1px] dark:border-white/[0.055] dark:bg-white/[0.025] dark:shadow-[var(--ar-float-subtle)] sm:rounded-xl sm:p-[1.05rem]";
+  "h-full rounded-[1.125rem] border border-border/38 bg-card/62 p-4 shadow-[var(--ar-float-subtle)] backdrop-blur-[1px] dark:border-white/[0.055] dark:bg-white/[0.025] dark:shadow-[var(--ar-float-subtle)] sm:rounded-xl sm:p-[1.05rem] md:p-[1.05rem]";
 
 const priorityLabel: Record<TaskPriority, string> = {
   low: "Low",
@@ -36,7 +36,7 @@ export function HomeTasksPreview() {
     <section className={cn(surface)} aria-label="Active tasks">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground/75 sm:text-[11px] sm:tracking-[0.21em]">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground/75 sm:text-[11px] sm:tracking-[0.21em]">
             Tasks
           </p>
           <h2 className="mt-1 font-heading text-base font-semibold tracking-tight text-foreground sm:text-lg">
@@ -46,7 +46,7 @@ export function HomeTasksPreview() {
         <button
           type="button"
           onClick={() => goTo("tasks")}
-          className="group inline-flex items-center gap-1 text-xs font-medium text-primary"
+          className="group inline-flex min-h-10 items-center gap-1.5 px-1 text-sm font-medium text-primary sm:min-h-0 sm:text-xs"
         >
           All tasks
           <ArrowUpRight className="size-3.5 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -90,7 +90,7 @@ export function HomeTasksPreview() {
                 />
                 <span className="min-w-0 flex-1">
                   <span className="line-clamp-2 text-sm font-medium text-foreground">{task.title}</span>
-                  <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:text-[11px]">
                     <span className={priorityTone[task.priority]}>{priorityLabel[task.priority]}</span>
                     {task.dueLabel ? <span>· {task.dueLabel}</span> : null}
                     <span>· {task.assignee.name}</span>

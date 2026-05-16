@@ -130,16 +130,25 @@
     inset 0 1px 0 oklch(1 0 0 / 0.52);
 
   --ar-header-safe-top: max(0.5rem, env(safe-area-inset-top, 0px));
-  /* Tighter on phones — more canvas for content; sm+ relaxes for tap targets. */
-  --ar-header-row-min: 3rem;
-  --ar-header-pad-bottom: 0.5rem;
+  /* Mobile: app-bar height for thumb reach; sm+ tightens for desktop density. */
+  --ar-header-row-min: 3.25rem;
+  --ar-header-pad-bottom: 0.625rem;
   --ar-header-height: calc(var(--ar-header-safe-top) + var(--ar-header-row-min) + var(--ar-header-pad-bottom));
   --ar-mobile-sticky-top: calc(var(--ar-header-height) + 0.125rem);
   --ar-sheet-max-height: min(
     85dvh,
     calc(100dvh - env(safe-area-inset-bottom, 0px))
   );
-  --ar-safe-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  --ar-safe-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 639px) {
+  :root:not(.dark) {
+    --muted-foreground: oklch(0.44 0.02 95);
+  }
+  .dark {
+    --muted-foreground: oklch(0.7 0.018 95);
+  }
 }
 
 @media (min-width: 640px) {
@@ -418,6 +427,24 @@ html.ar-theme-transitioning .ar-app-shell {
   .ar-header-content {
     position: relative;
     z-index: 1;
+  }
+
+  /** Subtle press feedback for primary touch targets (mobile-first). */
+  .ar-touch-press {
+    touch-action: manipulation;
+    transition:
+      transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  .ar-touch-press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  @media (min-width: 768px) {
+    .ar-touch-press:active:not(:disabled) {
+      transform: none;
+    }
   }
 }
 

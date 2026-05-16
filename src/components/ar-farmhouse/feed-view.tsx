@@ -64,9 +64,9 @@ function FeedSkeleton() {
 }
 
 const composerBar = cn(
-  "ar-surface-float flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left",
+  "ar-surface-float ar-touch-press flex w-full min-h-12 items-center gap-3.5 rounded-2xl px-4 py-3 text-left",
   "transition-[border-color,background-color,box-shadow] duration-300 hover:shadow-[var(--ar-panel-elevate)]",
-  "sm:rounded-[1.35rem] sm:px-4 sm:py-3"
+  "sm:min-h-0 sm:rounded-[1.35rem] sm:gap-3 sm:px-4 sm:py-3"
 );
 
 export function FeedView({ highlightPostId }: { highlightPostId?: string | null }) {
@@ -313,14 +313,14 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
           initial={reduceMotion ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: reduceMotion ? 0.15 : 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-5 flex items-end justify-between gap-4 sm:mb-7"
+          className="mb-6 flex items-end justify-between gap-4 sm:mb-7"
         >
-          <div className="min-w-0 space-y-1">
+          <motion.div className="min-w-0 space-y-1.5">
             <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Family feed</h1>
-            <p className="max-w-md text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
+            <p className="max-w-md text-base leading-relaxed text-muted-foreground sm:text-sm sm:text-[15px]">
               Private updates, photos, and reactions for people signed in to this home.
             </p>
-          </div>
+          </motion.div>
           <button
             type="button"
             onClick={() => setComposeOpen(true)}
@@ -333,7 +333,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
 
         <div
           className={cn(
-            "sticky z-20 -mx-3 mb-5 border-b border-border/50 bg-background/82 px-3 py-3 ar-header-blur supports-[backdrop-filter]:bg-background/70 sm:-mx-4 sm:px-4",
+            "sticky z-20 -mx-4 mb-6 border-b border-border/50 bg-background/82 px-4 py-3.5 ar-header-blur supports-[backdrop-filter]:bg-background/70 sm:-mx-4 sm:mb-7 sm:px-4 sm:py-3",
             "top-[var(--ar-mobile-sticky-top)] sm:top-[calc(var(--ar-header-height)+0.5rem)] lg:top-[calc(var(--ar-header-height)+0.75rem)]",
             "sm:-mx-0 sm:mb-7 sm:rounded-[1.35rem] sm:border sm:border-border/55 sm:bg-card/78 sm:px-4 sm:py-3 sm:shadow-[var(--ar-panel-elevate)] dark:border-white/[0.07] dark:bg-white/[0.035] dark:shadow-[0_20px_50px_-28px_rgba(0,0,0,0.72)]"
           )}
@@ -350,8 +350,8 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
               <AvatarImage src={meAvatar} alt="" />
               <AvatarFallback>{meName.slice(0, 1)}</AvatarFallback>
             </Avatar>
-            <span className="min-w-0 flex-1 text-[15px] text-muted-foreground">Share a moment with the family</span>
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-card/80 text-primary dark:border-white/10 dark:bg-white/[0.05]">
+            <span className="min-w-0 flex-1 text-base text-muted-foreground sm:text-[15px]">Share a moment with the family</span>
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-card/80 text-primary sm:size-9 dark:border-white/10 dark:bg-white/[0.05]">
               <ImagePlus className="size-[18px]" aria-hidden />
             </span>
           </motion.button>
@@ -406,7 +406,7 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
             onClick={() => setComposeOpen(true)}
             whileTap={reduceMotion ? undefined : { scale: 0.94 }}
             className={cn(
-              "fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-3 z-30 flex size-14 items-center justify-center rounded-full border border-border/60 sm:right-4",
+              "ar-touch-press fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-30 flex size-[3.75rem] items-center justify-center rounded-full border border-border/60 sm:right-4 sm:size-14",
               "bg-primary text-primary-foreground shadow-[var(--ar-modal-elevate)] dark:border-white/12 dark:shadow-[0_18px_50px_-18px_rgba(0,0,0,0.75)] lg:hidden"
             )}
             aria-label="Create post"

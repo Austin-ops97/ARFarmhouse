@@ -18,14 +18,14 @@ export const AR_MOBILE_SHEET = cn(
 );
 
 export const AR_SHEET_HEADER =
-  "shrink-0 border-b border-border/50 px-4 py-3 dark:border-white/[0.06] sm:px-5 sm:py-3.5";
+  "shrink-0 border-b border-border/50 px-5 py-4 dark:border-white/[0.06] sm:px-5 sm:py-3.5";
 
 export const AR_SHEET_BODY =
-  "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 sm:px-5";
+  "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 py-4 sm:px-5";
 
 export const AR_SHEET_FOOTER = cn(
-  "shrink-0 border-t border-border/50 bg-background/80 px-4 py-3 backdrop-blur-xl dark:border-white/[0.06]",
-  "pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-5"
+  "shrink-0 border-t border-border/50 bg-background/80 px-5 py-3.5 backdrop-blur-xl dark:border-white/[0.06]",
+  "pb-[max(1rem,env(safe-area-inset-bottom,0px))] sm:px-5 sm:py-3"
 );
 
 /** Side panel on sm+ (notifications) — full height below app header. */
