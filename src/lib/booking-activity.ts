@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-import { serverTimestamp } from "firebase/firestore";
+import { nowTimestamp } from "@/lib/datetime/time";
 
 export type BookingActivityAction =
   | "created"
@@ -16,6 +16,7 @@ export type BookingActivityEntry = {
   action: BookingActivityAction;
   byUser: string;
   byUserName: string;
+  /** Concrete Timestamp — Firestore rejects serverTimestamp() inside arrays. */
   timestamp: Timestamp;
   details?: string;
 };
@@ -61,7 +62,7 @@ export function buildActivityEntry(
     action,
     byUser,
     byUserName,
-    timestamp: serverTimestamp() as Timestamp,
+    timestamp: nowTimestamp(),
     ...(details?.trim() ? { details: details.trim() } : {}),
   };
 }

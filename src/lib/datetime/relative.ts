@@ -1,3 +1,5 @@
+import { APP_LOCALE } from "@/lib/datetime/time";
+
 export function formatFeedTimeLabel(date: Date, now = Date.now()): string {
   const diff = Math.max(0, now - date.getTime());
   const sec = Math.floor(diff / 1000);
@@ -8,7 +10,7 @@ export function formatFeedTimeLabel(date: Date, now = Date.now()): string {
   if (hr < 24) return `${hr}h ago`;
   const day = Math.floor(hr / 24);
   if (day < 7) return `${day}d ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return date.toLocaleDateString(APP_LOCALE, { month: "short", day: "numeric" });
 }
 
 export function handleFromDisplayName(name: string): string {

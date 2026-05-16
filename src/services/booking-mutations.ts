@@ -12,8 +12,9 @@ import {
   type DocumentReference,
 } from "firebase/firestore";
 
-import { appendActivity, buildActivityEntry } from "@/lib/booking-activity";
+import { buildActivityEntry } from "@/lib/booking-activity";
 import { calendarDayRangeToTimestamps, formatBookingDateRange, timestampToDate } from "@/lib/booking-dates";
+import { assertFirestoreWriteSafe } from "@/lib/datetime/firestore-write";
 import {
   BLACKOUT_BLOCK_MESSAGE,
   resolveBookingCreateConflict,
@@ -303,7 +304,7 @@ async function createBookingInner(input: CreateBookingInput): Promise<CreateBook
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    batch.set(bookingRef, {
+    const bookingPayload = {
       title,
       description,
       type: input.type,
@@ -322,7 +323,9 @@ async function createBookingInner(input: CreateBookingInput): Promise<CreateBook
       deleted: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+    assertFirestoreWriteSafe(bookingPayload, "bookings create");
+    batch.set(bookingRef, bookingPayload);
     await batch.commit();
 
     actionDebug("booking", "create complete", { bookingId: bookingRef.id, status });
@@ -371,17 +374,20 @@ export async function approveBooking(
     const calendarEventId = booking.calendarEventId ?? undefined;
     const dateLabel = formatBookingDateRange(booking.startDate, booking.endDate);
 
-    const batch = writeBatch(db);
-    batch.update(bookingRef, {
-      status: "approved",
+    const approvePatch = {
+      status: "approved" as const,
       approvedBy: actor.uid,
       approvedAt: serverTimestamp(),
-      conflictsWith: [],
+      conflictsWith: [] as string[],
       updatedAt: serverTimestamp(),
-      activityLog: arrayUnion(
-        buildActivityEntry("approved", actor.uid, actor.displayName)
-      ),
-    });
+      activityLog: arrayUnion(buildActivityEntry("approved", actor.uid, actor.displayName)),
+    };
+    assertFirestoreWriteSafe(
+      { activityLog: [buildActivityEntry("approved", actor.uid, actor.displayName)] },
+      "bookings approve activityLog"
+    );
+    const batch = writeBatch(db);
+    batch.update(bookingRef, approvePatch);
     if (calendarEventId) {
       batch.update(doc(db, "calendarEvents", calendarEventId), {
         status: "confirmed",
@@ -418,6 +424,8 @@ export async function denyBooking(
     const bookingRef = doc(db, BOOKINGS_COLLECTION, bookingId);
     const calendarEventId = booking.calendarEventId ?? undefined;
 
+    const deniedEntry = buildActivityEntry("denied", actor.uid, actor.displayName, reason);
+    assertFirestoreWriteSafe({ activityLog: [deniedEntry] }, "bookings deny activityLog");
     const batch = writeBatch(db);
     batch.update(bookingRef, {
       status: "denied",
@@ -425,9 +433,7 @@ export async function denyBooking(
       approvedBy: actor.uid,
       approvedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      activityLog: arrayUnion(
-        buildActivityEntry("denied", actor.uid, actor.displayName, reason)
-      ),
+      activityLog: arrayUnion(deniedEntry),
     });
     if (calendarEventId) {
       batch.update(doc(db, "calendarEvents", calendarEventId), {
@@ -464,13 +470,13 @@ export async function cancelBooking(
     const calendarEventId = booking.calendarEventId ?? undefined;
     const dateLabel = formatBookingDateRange(booking.startDate, booking.endDate);
 
+    const cancelledEntry = buildActivityEntry("cancelled", actor.uid, actor.displayName);
+    assertFirestoreWriteSafe({ activityLog: [cancelledEntry] }, "bookings cancel activityLog");
     const batch = writeBatch(db);
     batch.update(bookingRef, {
       status: "cancelled",
       updatedAt: serverTimestamp(),
-      activityLog: arrayUnion(
-        buildActivityEntry("cancelled", actor.uid, actor.displayName)
-      ),
+      activityLog: arrayUnion(cancelledEntry),
     });
     if (calendarEventId) {
       batch.update(doc(db, "calendarEvents", calendarEventId), {
@@ -507,15 +513,15 @@ export async function softDeleteBooking(
     const bookingRef = doc(db, BOOKINGS_COLLECTION, bookingId);
     const calendarEventId = booking.calendarEventId ?? undefined;
 
+    const deletedEntry = buildActivityEntry("deleted", actor.uid, actor.displayName);
+    assertFirestoreWriteSafe({ activityLog: [deletedEntry] }, "bookings delete activityLog");
     const batch = writeBatch(db);
     batch.update(bookingRef, {
       deleted: true,
       deletedAt: serverTimestamp(),
       deletedBy: actor.uid,
       updatedAt: serverTimestamp(),
-      activityLog: arrayUnion(
-        buildActivityEntry("deleted", actor.uid, actor.displayName)
-      ),
+      activityLog: arrayUnion(deletedEntry),
     });
     if (calendarEventId) {
       batch.update(doc(db, "calendarEvents", calendarEventId), {

@@ -19,6 +19,7 @@ import { useActionToast } from "@/hooks/use-action-toast";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { activityLabel } from "@/lib/booking-activity";
 import { formatBookingDateRange } from "@/lib/booking-dates";
+import { formatLocalDateTime } from "@/lib/datetime/time";
 import { statusBadgeLabel } from "@/lib/booking-status-styles";
 import { runMutation } from "@/lib/mutation-lifecycle";
 import {
@@ -219,12 +220,7 @@ export function BookingDetailSheet({ bookingId, open, onOpenChange }: BookingDet
                             <p className="text-sm font-medium text-foreground">{activityLabel(entry.action)}</p>
                             <p className="text-xs text-muted-foreground">
                               {entry.byUserName} ·{" "}
-                              {entry.timestamp.toLocaleString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                hour: "numeric",
-                                minute: "2-digit",
-                              })}
+                              {formatLocalDateTime(entry.timestamp)}
                             </p>
                             {entry.details ? (
                               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{entry.details}</p>
