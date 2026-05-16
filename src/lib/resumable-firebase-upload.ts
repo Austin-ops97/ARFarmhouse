@@ -3,6 +3,10 @@ import { uploadBytes, uploadBytesResumable } from "firebase/storage";
 
 import type { BrowserIntervalId, BrowserTimeoutId } from "@/lib/browser-timer";
 import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
+import {
+  safariRawDiagnosticLog,
+  shouldBypassBrowserTransformsForSafariRawDiagnostic,
+} from "@/lib/safari-raw-diagnostic";
 import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadFinalizeTrace, uploadLog, uploadStage } from "@/lib/upload-log";
 import type { UploadTrace } from "@/lib/upload-trace";
@@ -119,6 +123,13 @@ async function runFirebaseUploadBytesSimple(
   const stopSynthetic = startSyntheticUploadProgress(opts?.onProgress);
 
   safariUploadLog("upload start", { label, bytes: data.size });
+  if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+    safariRawDiagnosticLog("original file upload start", {
+      path: label,
+      size: data.size,
+      mime: opts?.contentType ?? data.type ?? "unknown",
+    });
+  }
   uploadStage("upload bytes in flight (uploadBytes)", { label });
 
   try {
@@ -132,6 +143,10 @@ async function runFirebaseUploadBytesSimple(
   }
 
   uploadFinalizeTrace("upload bytes complete", { label, transport: "uploadBytes" });
+  if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+    safariRawDiagnosticLog("original file upload success", { path: label, size: data.size });
+    safariRawDiagnosticLog("storage object confirmed", { path: label });
+  }
   opts?.onProgress?.(100);
   safariUploadLog("upload complete", { label });
   uploadStage("finalize success — Storage bytes complete (uploadBytes)", { label });

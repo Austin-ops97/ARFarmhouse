@@ -21,6 +21,10 @@ import { validateFeedImageFiles, validateOptimizedFeedFiles } from "@/lib/feed-p
 import type { ProcessedImageFile } from "@/lib/image-process";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
+import {
+  safariRawDiagnosticLog,
+  shouldBypassBrowserTransformsForSafariRawDiagnostic,
+} from "@/lib/safari-raw-diagnostic";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import { mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadFinalizeTrace, uploadStage } from "@/lib/upload-log";
@@ -308,6 +312,9 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
       postId,
       durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - fsT0),
     });
+    if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+      safariRawDiagnosticLog("firestore persistence success", { postId, hasMedia: optimizedArtifacts.length > 0 });
+    }
     trace?.("Firestore setDoc completes", {
       segment: "firestore",
       postId,

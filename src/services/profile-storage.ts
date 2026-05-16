@@ -4,6 +4,10 @@ import { actionDebug } from "@/lib/action-debug";
 import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
 import { getUploadMaxBytes } from "@/lib/image-process";
 import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
+import {
+  safariRawDiagnosticLog,
+  shouldBypassBrowserTransformsForSafariRawDiagnostic,
+} from "@/lib/safari-raw-diagnostic";
 import { validateRawImageFile } from "@/lib/image-input";
 import { isFirebaseStorageAvailable, tryGetFirebaseStorage } from "@/lib/firebase";
 import { uploadLog, uploadStage } from "@/lib/upload-log";
@@ -64,11 +68,28 @@ async function uploadPath(
   uploadLog("profile_upload_start", { path: fullPath });
   const objectRef = ref(storage, fullPath);
   try {
+    if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+      safariRawDiagnosticLog("original file upload start", {
+        path: fullPath,
+        size: file.size,
+        mime: file.type || "unknown",
+        name: file.name,
+        domain: safariDomain,
+      });
+    }
     await uploadStorageImageResumable(objectRef, file, {
       signal,
       label: fullPath,
       onProgress,
     });
+    if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+      safariRawDiagnosticLog("original file upload success", {
+        path: fullPath,
+        size: file.size,
+        mime: file.type || "unknown",
+      });
+      safariRawDiagnosticLog("storage object confirmed", { path: fullPath });
+    }
     const url = await waitForStorageDownloadURL(objectRef, fullPath);
     actionDebug("profile-upload", "complete", { path: fullPath });
     uploadLog("profile_upload_complete", { path: fullPath });

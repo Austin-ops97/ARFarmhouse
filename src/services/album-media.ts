@@ -19,6 +19,10 @@ import { validateRawImageFile } from "@/lib/image-input";
 import { getUploadMaxBytes, type ProcessedImageFile } from "@/lib/image-process";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
 import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
+import {
+  safariRawDiagnosticLog,
+  shouldBypassBrowserTransformsForSafariRawDiagnostic,
+} from "@/lib/safari-raw-diagnostic";
 import { mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadFinalizeTrace, uploadStage } from "@/lib/upload-log";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
@@ -248,6 +252,9 @@ async function finalizeAlbumMediaDocuments(
       });
 
       uploadFinalizeTrace("firestore persistence success", { domain: "album", id, index: i });
+      if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+        safariRawDiagnosticLog("firestore persistence success", { id, path: slot.path });
+      }
       uploadStage("album: firestore sync complete", { id, index: i });
       uploadFinalizeTrace("optimistic replacement begin", { domain: "album", id });
       uploadFinalizeTrace("optimistic replacement success", { domain: "album", id });

@@ -11,6 +11,10 @@ import { promiseWithTimeout } from "@/lib/promise-timeout";
 import type { UploadTrace } from "@/lib/upload-trace";
 import { uploadFinalizeTrace, uploadLog, uploadStage } from "@/lib/upload-log";
 import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
+import {
+  safariRawDiagnosticLog,
+  shouldBypassBrowserTransformsForSafariRawDiagnostic,
+} from "@/lib/safari-raw-diagnostic";
 import { runFirebaseResumableUpload } from "@/lib/resumable-firebase-upload";
 
 /** Per-attempt budget — retries cover Storage / CDN eventual consistency after `uploadBytes` settles. */
@@ -243,6 +247,14 @@ export async function uploadPostImages(
     try {
       onProgress?.(i, total, 0);
       uploadLog("post_file_upload", { postId, index: i + 1, total, path: storagePath });
+      if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+        safariRawDiagnosticLog("original file upload start", {
+          path: storagePath,
+          size: file.size,
+          mime: file.type || "unknown",
+          name: file.name,
+        });
+      }
       await uploadFileResumable(objectRef, file, {
         signal,
         label: storagePath,
@@ -250,6 +262,14 @@ export async function uploadPostImages(
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
       uploadFinalizeTrace("raw upload complete", { path: storagePath, index: i });
+      if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+        safariRawDiagnosticLog("original file upload success", {
+          path: storagePath,
+          size: file.size,
+          mime: file.type || "unknown",
+        });
+        safariRawDiagnosticLog("storage object confirmed", { path: storagePath });
+      }
       onProgress?.(i, total, 100);
       out.push({
         url: null,
@@ -297,6 +317,14 @@ export async function uploadAlbumImages(
     try {
       onProgress?.(i, total, 0);
       uploadLog("album_file_upload", { mediaId, index: i + 1, total, path });
+      if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+        safariRawDiagnosticLog("original file upload start", {
+          path,
+          size: file.size,
+          mime: file.type || "unknown",
+          name: file.name,
+        });
+      }
       await uploadFileResumable(objectRef, file, {
         signal,
         label: path,
@@ -304,6 +332,14 @@ export async function uploadAlbumImages(
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
       uploadFinalizeTrace("raw upload complete", { path, index: i });
+      if (shouldBypassBrowserTransformsForSafariRawDiagnostic()) {
+        safariRawDiagnosticLog("original file upload success", {
+          path,
+          size: file.size,
+          mime: file.type || "unknown",
+        });
+        safariRawDiagnosticLog("storage object confirmed", { path });
+      }
       onProgress?.(i, total, 100);
       out.push({
         url: null,
