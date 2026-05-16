@@ -32,13 +32,9 @@ export function HomeQuickActions() {
   return (
     <section
       className="relative rounded-[1.125rem] border border-border/32 bg-muted/14 px-4 py-4 dark:border-white/[0.04] dark:bg-white/[0.018] sm:px-4 sm:py-4"
-      aria-label="Quick paths"
+      aria-label="Shortcuts"
     >
-      <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground/72 sm:text-[11px] sm:tracking-[0.21em]">
-        Quick paths
-      </p>
-      <p className="mt-1.5 text-base leading-relaxed text-muted-foreground sm:text-sm">Jump to any area of the property app.</p>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-3 sm:grid-cols-4 sm:gap-2">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-2">
         {paths.map((a) => {
           const Icon = a.icon;
           return (

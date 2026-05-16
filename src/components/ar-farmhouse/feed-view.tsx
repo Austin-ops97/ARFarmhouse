@@ -315,12 +315,9 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
           transition={{ duration: reduceMotion ? 0.15 : 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="mb-6 flex items-end justify-between gap-4 sm:mb-7"
         >
-          <motion.div className="min-w-0 space-y-1.5">
-            <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Family feed</h1>
-            <p className="max-w-md text-base leading-relaxed text-muted-foreground sm:text-sm sm:text-[15px]">
-              Private updates, photos, and reactions for people signed in to this home.
-            </p>
-          </motion.div>
+          <div className="min-w-0">
+            <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Feed</h1>
+          </div>
           <button
             type="button"
             onClick={() => setComposeOpen(true)}

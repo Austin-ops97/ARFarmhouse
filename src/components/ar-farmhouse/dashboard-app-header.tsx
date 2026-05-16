@@ -17,17 +17,17 @@ import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AR_ACCOUNT_MENU } from "@/lib/mobile-overlay";
 import { cn } from "@/lib/utils";
 
-const sectionSubtitle: Record<NavId, string> = {
-  home: "Property overview · stays, weather, tasks",
-  feed: "Private · emotionally warm",
-  calendar: "Stays, bookings, and shared weekends",
-  guide: "Mena · trusted stops for the house",
-  map: "Trails, pins, and quiet orientation",
-  tasks: "Household rhythm · shared work",
-  album: "Visual memory archive · feed-connected",
-  property: "Status, binder, supplies",
-  profile: "Family, pets, and your photo",
-  settings: "Preferences · calm control room",
+const sectionSubtitle: Record<NavId, string | null> = {
+  home: null,
+  feed: null,
+  calendar: "Bookings",
+  guide: "Mena area",
+  map: null,
+  tasks: null,
+  album: null,
+  property: null,
+  profile: null,
+  settings: null,
 };
 
 type DashboardAppHeaderProps = {
@@ -85,9 +85,11 @@ export function DashboardAppHeader({
           <p className="truncate font-heading text-base font-semibold leading-snug tracking-tight text-foreground sm:text-base">
             {activeId === "home" ? "AR Farmhouse" : activeMeta.label}
           </p>
-          <p className="line-clamp-1 text-xs leading-snug text-muted-foreground sm:text-xs">
-            {sectionSubtitle[activeId]}
-          </p>
+          {sectionSubtitle[activeId] ? (
+            <p className="line-clamp-1 text-xs leading-snug text-muted-foreground sm:text-xs">
+              {sectionSubtitle[activeId]}
+            </p>
+          ) : null}
         </div>
       </div>
       <div className="relative flex shrink-0 items-center gap-1.5 sm:gap-2">

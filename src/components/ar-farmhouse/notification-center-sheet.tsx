@@ -70,8 +70,7 @@ export function NotificationCenterSheet({ open, onOpenChange }: NotificationCent
           >
             <div className={cn(AR_SHEET_HEADER, "flex items-center justify-between gap-3")}>
               <div>
-                <p className="font-heading text-base font-semibold text-foreground">Family activity</p>
-                <p className="text-[11px] text-muted-foreground">Stay connected with property updates</p>
+                <p className="font-heading text-base font-semibold text-foreground">Notifications</p>
               </div>
               <div className="flex items-center gap-1">
                 {unreadCount > 0 && (

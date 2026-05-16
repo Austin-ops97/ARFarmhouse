@@ -1,12 +1,11 @@
 "use client";
 
 import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
-import { Compass, Heart, Search, ShieldCheck } from "lucide-react";
+import { Heart, Search, ShieldCheck } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { LocalGuideDetailSheet } from "@/components/ar-farmhouse/local-guide-detail-sheet";
 import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
-import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
 import { LocalGuideListRow } from "@/components/ar-farmhouse/local-guide-list-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,8 +25,7 @@ const segments: GuideSegment[] = ["restaurants", "stores"];
 
 export function LocalGuideView() {
   const reduceMotion = useReducedMotion();
-  const { openWeekendHub, goTo } = useEcosystem();
-  const { prefs } = useSettingsPrefs();
+  const { openWeekendHub } = useEcosystem();
   const [segment, setSegment] = useState<GuideSegment>("restaurants");
   const [query, setQuery] = useState("");
   const [verifiedOnlyToggle, setVerifiedOnlyToggle] = useState(false);
@@ -79,33 +77,11 @@ export function LocalGuideView() {
   return (
     <div className="pb-6">
       <div className="mb-4 px-0.5 sm:mb-5">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border/55 bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-md dark:border-white/12 dark:bg-white/[0.04]">
-          <Compass className="size-3.5 text-primary" aria-hidden />
-          Mena & Ouachitas
-        </div>
-        <h1 className="mt-3 font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          Local guide
-        </h1>
-        <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">
-          Food and shops around the farmhouse — built for quick taps on the road.
-        </p>
-        {prefs.guidePreferMap && (
-          <button
-            type="button"
-            onClick={() => goTo("map")}
-            className="mt-3 text-sm font-medium text-primary transition hover:text-primary/85"
-          >
-            Open property map (preferred in settings)
-          </button>
-        )}
-        {prefs.guideQuietHours && (
-          <p className="mt-2 text-[11px] text-muted-foreground/85">Quiet hours on — detail sheets stay minimal.</p>
-        )}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Guide</h1>
+        <div className="mt-3">
           <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => openWeekendHub("current")}>
-            Weekend hub · trip context
+            Weekend hub
           </Button>
-          <span className="text-[11px] text-muted-foreground">Breakfast & essentials surface in the hub before arrivals.</span>
         </div>
       </div>
 

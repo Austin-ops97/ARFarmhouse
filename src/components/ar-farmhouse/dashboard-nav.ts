@@ -46,6 +46,6 @@ export const mobileDrawerLabel: Record<NavId, string> = {
   tasks: "Tasks",
   album: "Photo Album",
   property: "Property",
-  profile: "Your household identity",
+  profile: "Profile",
   settings: "Settings",
 };

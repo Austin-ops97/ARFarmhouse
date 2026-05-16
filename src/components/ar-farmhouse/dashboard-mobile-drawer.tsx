@@ -133,7 +133,6 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
                   <p id={titleId} className="font-heading text-base font-semibold tracking-tight text-foreground">
                     AR Farmhouse
                   </p>
-                  <p className="truncate text-[11px] text-muted-foreground">Navigate</p>
                 </div>
               </div>
               <motion.button
@@ -204,10 +203,6 @@ export function DashboardMobileDrawer({ open, onOpenChange, activeId, onSelect }
                 );
               })}
             </nav>
-
-            <p className="ar-surface-inset mt-4 rounded-2xl p-4 text-xs leading-relaxed text-muted-foreground sm:text-[11px]">
-              Private family network · navigation stays in sync with your session.
-            </p>
           </motion.aside>
         </motion.div>
       ) : null}
