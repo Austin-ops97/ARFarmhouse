@@ -21,7 +21,7 @@ import {
   type AlbumMediaItem,
 } from "@/lib/photo-album-media";
 import type { UiFeedPost } from "@/models/feed-post";
-import { subscribeAlbumMedia } from "@/services/album-media";
+import { isAlbumMediaDisplayReady, subscribeAlbumMedia } from "@/services/album-media";
 
 export type AlbumLightboxTarget = {
   items: AlbumMediaItem[];
@@ -84,14 +84,21 @@ export function PhotoAlbumProvider({ children }: { children: ReactNode }) {
   }, [configured]);
 
   useEffect(() => {
-    const ids = new Set(cloudUploads.map((c) => c.id));
+    const remoteById = new Map(cloudUploads.map((c) => [c.id, c]));
     startTransition(() => {
       setOptimisticAlbumItems((prev) => {
-        const dropped = prev.filter((o) => ids.has(o.id));
+        const dropped = prev.filter((o) => {
+          const remote = remoteById.get(o.id);
+          return remote && isAlbumMediaDisplayReady(remote);
+        });
         for (const o of dropped) {
           revokeAlbumItemHandoffSrc(o);
         }
-        return prev.filter((o) => !ids.has(o.id));
+        return prev.filter((o) => {
+          const remote = remoteById.get(o.id);
+          if (!remote) return true;
+          return !isAlbumMediaDisplayReady(remote);
+        });
       });
     });
   }, [cloudUploads]);
@@ -100,9 +107,18 @@ export function PhotoAlbumProvider({ children }: { children: ReactNode }) {
 
   const allItems = useMemo(() => {
     const mergedRemote = mergeAlbumCatalog(cloudUploads, feedBacked);
-    const remoteIds = new Set(mergedRemote.map((m) => m.id));
-    const pendingLocal = optimisticAlbumItems.filter((o) => !remoteIds.has(o.id));
-    return [...pendingLocal, ...mergedRemote].sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
+    const optimisticById = new Map(optimisticAlbumItems.map((o) => [o.id, o]));
+    const displayRemote = mergedRemote.filter((m) => {
+      const optimistic = optimisticById.get(m.id);
+      if (!optimistic) return true;
+      return isAlbumMediaDisplayReady(m);
+    });
+    const pendingLocal = optimisticAlbumItems.filter((o) => {
+      const remote = mergedRemote.find((m) => m.id === o.id);
+      if (!remote) return true;
+      return !isAlbumMediaDisplayReady(remote);
+    });
+    return [...pendingLocal, ...displayRemote].sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
   }, [cloudUploads, feedBacked, optimisticAlbumItems]);
 
   const setFeedPosts = useCallback((posts: readonly UiFeedPost[]) => {

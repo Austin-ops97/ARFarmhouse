@@ -157,8 +157,15 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && resource.data.authorId == request.auth.uid
         && unchanged('authorId')
-        && unchanged('storageUrl')
-        && unchanged('storagePath');
+        && unchanged('storagePath')
+        && (
+          unchanged('storageUrl')
+          || (
+            resource.data.processingStatus == 'processing'
+            && request.resource.data.processingStatus == 'processing'
+            && request.resource.data.storageUrl is string
+          )
+        );
       allow delete: if isSignedIn()
         && (resource.data.authorId == request.auth.uid || familyOwner());
     }

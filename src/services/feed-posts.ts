@@ -8,6 +8,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
@@ -26,23 +27,64 @@ import { uploadFinalizeTrace, uploadStage } from "@/lib/upload-log";
 import type { UploadTrace } from "@/lib/upload-trace";
 import type { FeedPostCategory } from "@/models/feed-post-category";
 import type { FirestorePost, UiFeedPost } from "@/models/feed-post";
-import { deletePostMediaArtifacts, uploadPostImages } from "@/services/storage-upload";
+import {
+  deletePostMediaArtifacts,
+  scheduleBackgroundStorageUrlHydration,
+  uploadPostImages,
+  type UploadedObject,
+} from "@/services/storage-upload";
 
 const POSTS = "posts";
+
+function feedMediaSlotCount(d: Partial<FirestorePost>): number {
+  const urls = Array.isArray(d.mediaUrls) ? d.mediaUrls : [];
+  const meta = Array.isArray(d.mediaMeta) ? d.mediaMeta : [];
+  return Math.max(urls.length, meta.length);
+}
+
+function resolveFeedMediaDisplayUrl(d: Partial<FirestorePost>, index: number): string {
+  const urls = Array.isArray(d.mediaUrls) ? d.mediaUrls : [];
+  const direct = typeof urls[index] === "string" ? urls[index]!.trim() : "";
+  if (direct) return direct;
+  const meta = Array.isArray(d.mediaMeta) ? d.mediaMeta : [];
+  const m = meta[index];
+  const feed = typeof m?.feedUrl === "string" ? m.feedUrl.trim() : "";
+  if (feed) return feed;
+  const thumb = typeof m?.thumbnailUrl === "string" ? m.thumbnailUrl.trim() : "";
+  if (thumb) return thumb;
+  return "";
+}
+
+/** Remote post is display-ready when persisted media has a resolvable URL (or is text-only). */
+export function isFeedPostMediaDisplayReady(post: UiFeedPost): boolean {
+  if (post.kind === "text") return true;
+  if (post.kind === "album") return (post.album ?? []).some((u) => u.length > 0);
+  return Boolean(post.cover?.trim());
+}
 
 function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
   const d = snapshot.data() as Partial<FirestorePost>;
   const created = d.createdAt?.toDate?.() ?? new Date();
-  const media = Array.isArray(d.mediaUrls) ? d.mediaUrls : [];
+  const slotCount = feedMediaSlotCount(d);
+  const media = Array.from({ length: slotCount }, (_, i) => resolveFeedMediaDisplayUrl(d, i));
   let kind: UiFeedPost["kind"];
-  if (media.length === 0) kind = "text";
-  else if (media.length === 1) kind = d.category === "weekend_recap" ? "event_recap" : "image";
+  if (slotCount === 0) kind = "text";
+  else if (slotCount === 1) kind = d.category === "weekend_recap" ? "event_recap" : "image";
   else kind = "album";
 
   const layout: UiFeedPost["layout"] =
-    kind === "image" && d.category === "wildlife" ? "hero" : kind === "album" && media.length >= 3 ? "tall" : "standard";
+    kind === "image" && d.category === "wildlife"
+      ? "hero"
+      : kind === "album" && slotCount >= 3
+        ? "tall"
+        : "standard";
 
-  const cover = kind === "image" || kind === "event_recap" ? media[0] : undefined;
+  const cover =
+    kind === "image" || kind === "event_recap"
+      ? media[0]?.trim()
+        ? media[0]
+        : undefined
+      : undefined;
   const reactionCounts = normalizeReactionCounts(d.reactionCounts);
 
   const mediaDimensions: UiFeedPost["mediaDimensions"] = media.map((_, i) => {
@@ -78,7 +120,7 @@ function mapDoc(snapshot: QueryDocumentSnapshot<DocumentData>): UiFeedPost {
     body: d.body ?? "",
     kind,
     cover,
-    album: kind === "album" ? media : undefined,
+    album: kind === "album" ? media.filter((u) => u.length > 0) : undefined,
     linkedEvent: d.linkedEvent ?? undefined,
     reactions: buildChipsFromCounts(reactionCounts, undefined).map((c) => ({
       emoji: c.emoji,
@@ -190,6 +232,7 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
 
   let mediaUrls: string[] = [];
   let mediaMeta: NonNullable<FirestorePost["mediaMeta"]> | undefined;
+  let uploadedSlots: UploadedObject[] = [];
 
   if (optimizedArtifacts.length > 0) {
     const optimized = optimizedArtifacts.map((a) => a.file);
@@ -203,7 +246,7 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
     actionDebug("feed", "upload begin");
     uploadStage("firestore sync — upload to Storage starting", { postId, fileCount: optimized.length });
     onProgress?.({ phase: "uploading", done: 0, total: optimized.length, percent: 0 });
-    const uploadedSlots = await uploadPostImages(
+    uploadedSlots = await uploadPostImages(
       input.authorId,
       postId,
       optimizedArtifacts,
@@ -211,7 +254,7 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
       signal,
       trace
     );
-    mediaUrls = uploadedSlots.map((u) => u.url);
+    mediaUrls = uploadedSlots.map((u) => u.url?.trim() || "");
     mediaMeta = optimizedArtifacts.map((a, i) => ({
       width: a.width,
       height: a.height,
@@ -258,10 +301,10 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
     if (signal?.aborted) throw new DOMException("Upload cancelled.", "AbortError");
     actionDebug("feed", "firestore write begin", { postId });
     trace?.("Firestore setDoc begins", { segment: "firestore", postId });
-    uploadFinalizeTrace("firestore write begin", { postId, hasMedia: optimizedArtifacts.length > 0 });
+    uploadFinalizeTrace("firestore persistence begin", { postId, hasMedia: optimizedArtifacts.length > 0 });
     uploadStage("firestore sync started", { postId });
     await setDoc(ref, payload);
-    uploadFinalizeTrace("firestore write success", {
+    uploadFinalizeTrace("firestore persistence success", {
       postId,
       durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - fsT0),
     });
@@ -299,6 +342,35 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
   if (shouldUseSimpleIOSWebKitUpload()) {
     safariUploadLog("finalize success", { postId, domain: "feed" });
   }
+
+  if (uploadedSlots.length > 0) {
+    scheduleFeedPostBackgroundUrlHydration(postId, uploadedSlots);
+  }
+}
+
+function scheduleFeedPostBackgroundUrlHydration(postId: string, uploadedSlots: UploadedObject[]) {
+  const rawSlots = uploadedSlots.filter((s) => s.path.startsWith("uploads/raw/"));
+  if (rawSlots.length === 0) return;
+
+  const db = tryGetFirestoreDb();
+  if (!db) return;
+
+  const ref = doc(db, POSTS, postId);
+  const resolvedByPath = new Map<string, string>();
+
+  scheduleBackgroundStorageUrlHydration(rawSlots, async (path, url) => {
+    resolvedByPath.set(path, url);
+    const ordered = uploadedSlots.map((s) => resolvedByPath.get(s.path) ?? s.url?.trim() ?? "");
+    if (!ordered.some((u) => u.length > 0)) return;
+    try {
+      await updateDoc(ref, {
+        mediaUrls: ordered,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      uploadFinalizeTrace("background URL hydration firestore patch failed", { postId, error: String(e) });
+    }
+  });
 }
 
 /**

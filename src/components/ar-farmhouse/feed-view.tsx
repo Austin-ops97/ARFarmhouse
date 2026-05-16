@@ -28,6 +28,7 @@ import { startUploadTrace } from "@/lib/upload-trace";
 import {
   allocateFeedPostDocId,
   finalizeFeedPostFromOptimizedArtifacts,
+  isFeedPostMediaDisplayReady,
   prepareFeedPostPublishingArtifacts,
   type CreateFeedPostInput,
   type FeedPublishProgress,
@@ -109,8 +110,18 @@ export function FeedView({ highlightPostId }: { highlightPostId?: string | null 
 
   const mergedPosts = useMemo(() => {
     const remoteIds = new Set(posts.map((p) => p.id));
-    const pending = optimisticFeed.filter((o) => !remoteIds.has(o.id));
-    return [...pending, ...posts];
+    const optimisticById = new Map(optimisticFeed.map((o) => [o.id, o]));
+    const displayRemote = posts.filter((p) => {
+      const optimistic = optimisticById.get(p.id);
+      if (!optimistic) return true;
+      return isFeedPostMediaDisplayReady(p);
+    });
+    const pending = optimisticFeed.filter((o) => {
+      if (!remoteIds.has(o.id)) return true;
+      const remote = posts.find((p) => p.id === o.id);
+      return remote ? !isFeedPostMediaDisplayReady(remote) : true;
+    });
+    return [...pending, ...displayRemote];
   }, [optimisticFeed, posts]);
 
   const canPublish = Boolean(configured && user && !authLoading);

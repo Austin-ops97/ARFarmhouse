@@ -6,6 +6,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   deleteDoc,
   limit,
   type DocumentData,
@@ -25,9 +26,19 @@ import type { UploadTrace } from "@/lib/upload-trace";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { FirestoreAlbumMedia } from "@/models/album-media";
 import type { UserRole } from "@/models/user";
-import { deleteAlbumMediaArtifacts, uploadAlbumImages } from "@/services/storage-upload";
+import {
+  deleteAlbumMediaArtifacts,
+  scheduleBackgroundStorageUrlHydration,
+  uploadAlbumImages,
+  type UploadedObject,
+} from "@/services/storage-upload";
 
 const COLLECTION = "albumMedia";
+
+/** Album tile is display-ready when a persisted CDN/raw URL exists. */
+export function isAlbumMediaDisplayReady(item: AlbumMediaItem): boolean {
+  return item.src.trim().length > 0;
+}
 
 function mapAlbumMediaDoc(snapshot: QueryDocumentSnapshot<DocumentData>): AlbumMediaItem {
   const d = snapshot.data() as Partial<FirestoreAlbumMedia>;
@@ -214,12 +225,12 @@ async function finalizeAlbumMediaDocuments(
 
     try {
       uploadStage("album: firestore sync started", { id, index: i });
-      uploadFinalizeTrace("firestore write begin", { domain: "album", id, index: i });
+      uploadFinalizeTrace("firestore persistence begin", { domain: "album", id, index: i });
       await setDoc(ref, {
         authorId: input.authorId,
         authorDisplayName: input.authorDisplayName,
         authorPhotoUrl: input.authorPhotoUrl ?? null,
-        storageUrl: slot.url,
+        storageUrl: slot.url?.trim() || "",
         storagePath: slot.path,
         caption: input.caption.trim() || "Family memory",
         albumKey: input.albumKey,
@@ -236,10 +247,11 @@ async function finalizeAlbumMediaDocuments(
         updatedAt: serverTimestamp(),
       });
 
-      uploadFinalizeTrace("firestore write success", { domain: "album", id, index: i });
+      uploadFinalizeTrace("firestore persistence success", { domain: "album", id, index: i });
       uploadStage("album: firestore sync complete", { id, index: i });
       uploadFinalizeTrace("optimistic replacement begin", { domain: "album", id });
       uploadFinalizeTrace("optimistic replacement success", { domain: "album", id });
+      scheduleAlbumMediaBackgroundUrlHydration(id, slot);
     } catch (e) {
       uploadFinalizeTrace("finalize failed", { domain: "album", id, index: i, error: String(e) });
       const stalled =
@@ -259,6 +271,28 @@ async function finalizeAlbumMediaDocuments(
     safariUploadLog("finalize success", { domain: "album", itemCount: total });
   }
   uploadFinalizeTrace("finalize success", { domain: "album", itemCount: total });
+}
+
+function scheduleAlbumMediaBackgroundUrlHydration(mediaId: string, slot: UploadedObject) {
+  if (!slot.path.startsWith("uploads/raw/")) return;
+  const db = tryGetFirestoreDb();
+  if (!db) return;
+
+  const ref = doc(db, COLLECTION, mediaId);
+  scheduleBackgroundStorageUrlHydration([{ path: slot.path }], async (_path, url) => {
+    try {
+      await updateDoc(ref, {
+        storageUrl: url,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      uploadFinalizeTrace("background URL hydration firestore patch failed", {
+        domain: "album",
+        mediaId,
+        error: String(e),
+      });
+    }
+  });
 }
 
 export async function createAlbumMediaItems(

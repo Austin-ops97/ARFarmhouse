@@ -203,7 +203,12 @@ function logResolvedStorageDestination(
   mobileUploadLog("storage destination", { domain, storageBucket, fullPath, ...meta });
 }
 
-export type UploadedObject = { url: string; path: string; processingStatus: MediaProcessingStatus };
+/** Storage bytes are complete; `url` may be null until background hydration resolves. */
+export type UploadedObject = {
+  url: string | null;
+  path: string;
+  processingStatus: MediaProcessingStatus;
+};
 
 const MAX_NORMALIZED_BYTES = Math.max(getUploadMaxBytes("feed"), getUploadMaxBytes("album"));
 
@@ -244,11 +249,10 @@ export async function uploadPostImages(
         trace,
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
-      uploadFinalizeTrace("storage transfer complete — requesting download URL next", { path: storagePath, index: i });
+      uploadFinalizeTrace("raw upload complete", { path: storagePath, index: i });
       onProgress?.(i, total, 100);
-      const url = await getDownloadURLWithTimeout(objectRef, storagePath);
       out.push({
-        url,
+        url: null,
         path: storagePath,
         processingStatus: artifactProcessingStatus(storagePath, file.type || ""),
       });
@@ -299,11 +303,10 @@ export async function uploadAlbumImages(
         trace,
         onFilePercent: (filePercent) => onProgress?.(i, total, filePercent),
       });
-      uploadFinalizeTrace("storage transfer complete — requesting download URL next", { path, index: i });
+      uploadFinalizeTrace("raw upload complete", { path, index: i });
       onProgress?.(i, total, 100);
-      const url = await getDownloadURLWithTimeout(objectRef, path);
       out.push({
-        url,
+        url: null,
         path,
         processingStatus: artifactProcessingStatus(path, file.type || ""),
       });
@@ -356,6 +359,33 @@ async function deleteStoragePathQuiet(storage: NonNullable<ReturnType<typeof try
   } catch {
     /* missing path ok */
   }
+}
+
+/**
+ * Resolves download URLs outside the upload finalize critical path.
+ * Failures are logged only — callers must not treat hydration as required for persistence.
+ */
+export function scheduleBackgroundStorageUrlHydration(
+  slots: ReadonlyArray<{ path: string }>,
+  onSlotResolved: (path: string, url: string) => void | Promise<void>
+): void {
+  const storage = tryGetFirebaseStorage();
+  if (!storage || slots.length === 0) return;
+
+  uploadFinalizeTrace("background URL hydration start", { paths: slots.map((s) => s.path) });
+
+  void (async () => {
+    for (const slot of slots) {
+      try {
+        const objectRef = ref(storage, slot.path);
+        const url = await getDownloadURLWithTimeout(objectRef, slot.path);
+        uploadFinalizeTrace("background URL hydration success", { path: slot.path });
+        await onSlotResolved(slot.path, url);
+      } catch (e) {
+        uploadFinalizeTrace("background URL hydration failed", { path: slot.path, error: String(e) });
+      }
+    }
+  })();
 }
 
 /** Best-effort delete by Storage object path */
