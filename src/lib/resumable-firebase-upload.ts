@@ -8,6 +8,14 @@ import {
   shouldBypassBrowserTransformsForSafariRawDiagnostic,
 } from "@/lib/safari-raw-diagnostic";
 import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
+import {
+  startStorageResumableHangWatch,
+  traceStorageResumableError,
+  traceStorageResumableState,
+  traceStorageResumableSuccess,
+  traceStorageResumableTaskCreated,
+  traceStorageUploadPromise,
+} from "@/lib/storage-upload-transport-diagnostic";
 import { uploadFinalizeTrace, uploadLog, uploadStage } from "@/lib/upload-log";
 import type { UploadTrace } from "@/lib/upload-trace";
 
@@ -136,7 +144,14 @@ async function runFirebaseUploadBytesSimple(
     uploadFinalizeTrace("upload promise created (uploadBytes)", { label, bytes: data.size });
     const uploadPromise = uploadBytes(objectRef, data, metadata);
     const wrapped = wrapUploadWithAbort(opts?.signal, uploadPromise);
-    await wrapUploadWithDeadline(label, wrapped);
+    const deadlineWrapped = wrapUploadWithDeadline(label, wrapped);
+    await traceStorageUploadPromise(
+      "uploadBytes",
+      label,
+      data.size,
+      opts?.contentType ?? data.type ?? "",
+      deadlineWrapped
+    );
     uploadFinalizeTrace("upload promise resolved", { label, transport: "uploadBytes" });
   } finally {
     stopSynthetic();
@@ -209,6 +224,12 @@ export async function runFirebaseResumableUpload(
   uploadStage("upload task created", { label });
   trace?.("storage: Firebase task created", { label });
   const task = uploadBytesResumable(objectRef, data, metadata);
+  traceStorageResumableTaskCreated(
+    label,
+    data.size,
+    opts?.contentType ?? data.type ?? "",
+    task
+  );
   const uploadStartedAt = Date.now();
 
   let lastBytes = -1;
@@ -221,6 +242,7 @@ export async function runFirebaseResumableUpload(
   let loggedUploadRunning = false;
   let seededPctZero = false;
   let indeterminateNudgeSent = false;
+  let lastTracedResumableState = "";
 
   const bumpProgressClock = () => {
     lastProgressAt = Date.now();
@@ -256,6 +278,9 @@ export async function runFirebaseResumableUpload(
   };
   opts?.signal?.addEventListener("abort", abortListener);
 
+  let resumableSettled = false;
+  const clearResumableHangWatch = startStorageResumableHangWatch(label, () => resumableSettled);
+
   try {
     await new Promise<void>((resolve, reject) => {
       let settled = false;
@@ -263,6 +288,7 @@ export async function runFirebaseResumableUpload(
       const settle = (fn: () => void) => {
         if (settled) return;
         settled = true;
+        resumableSettled = true;
         cleanupTimers();
         fn();
       };
@@ -338,6 +364,15 @@ export async function runFirebaseResumableUpload(
           const progressDenom =
             snap.totalBytes > 0 ? snap.totalBytes : data.size > 0 ? data.size : 0;
 
+          if (snap.state !== lastTracedResumableState) {
+            lastTracedResumableState = snap.state;
+            traceStorageResumableState(label, {
+              state: snap.state,
+              bytesTransferred: snap.bytesTransferred,
+              totalBytes: snap.totalBytes,
+            });
+          }
+
           if (snap.state === "running" && !loggedUploadRunning) {
             loggedUploadRunning = true;
             uploadStage("upload started (state_running)", {
@@ -388,6 +423,7 @@ export async function runFirebaseResumableUpload(
         },
         (err) => {
           settle(() => {
+            traceStorageResumableError(label, err);
             uploadLog("failed", { label, message: err instanceof Error ? err.message : String(err) });
             trace?.("storage: firebase error", {
               label,
@@ -398,6 +434,7 @@ export async function runFirebaseResumableUpload(
         },
         () => {
           settle(() => {
+            traceStorageResumableSuccess(label);
             uploadFinalizeTrace("upload bytes complete", { label, transport: "resumable" });
             opts?.onProgress?.(100);
             uploadFinalizeTrace("upload promise resolved", { label, transport: "resumable" });
@@ -411,6 +448,7 @@ export async function runFirebaseResumableUpload(
       );
     });
   } finally {
+    clearResumableHangWatch();
     cleanupTimers();
     try {
       unsubscribe?.();
