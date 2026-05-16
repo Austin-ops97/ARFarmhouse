@@ -10,6 +10,7 @@ import type { MediaProcessingStatus } from "@/models/media-processing";
 import { promiseWithTimeout } from "@/lib/promise-timeout";
 import type { UploadTrace } from "@/lib/upload-trace";
 import { uploadLog, uploadStage } from "@/lib/upload-log";
+import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
 import { runFirebaseResumableUpload } from "@/lib/resumable-firebase-upload";
 
 const DOWNLOAD_URL_TIMEOUT_MS = 90_000;
@@ -25,6 +26,9 @@ async function getDownloadURLWithTimeout(objectRef: ReturnType<typeof ref>, stor
       }
     );
     uploadStage("download URL resolved", { path: storagePath });
+    if (shouldUseSimpleIOSWebKitUpload()) {
+      safariUploadLog("download URL resolved", { path: storagePath });
+    }
     return url;
   } catch (e) {
     uploadStage("download URL failed", { path: storagePath, error: String(e) });

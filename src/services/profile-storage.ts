@@ -3,6 +3,7 @@ import { deleteObject, ref } from "firebase/storage";
 import { actionDebug } from "@/lib/action-debug";
 import { AVATAR_UPLOAD_MAX_BYTES } from "@/lib/image-avatar-process";
 import { getUploadMaxBytes } from "@/lib/image-process";
+import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
 import { validateRawImageFile } from "@/lib/image-input";
 import { isFirebaseStorageAvailable, tryGetFirebaseStorage } from "@/lib/firebase";
 import { uploadLog, uploadStage } from "@/lib/upload-log";
@@ -44,7 +45,8 @@ async function uploadPath(
   file: File,
   maxBytes: number,
   onProgress?: (percent: number) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  safariDomain: "profile" | "family" | "pet" = "profile"
 ): Promise<string> {
   const storage = tryGetFirebaseStorage();
   if (!storage) throw new Error(STORAGE_UNAVAILABLE_MESSAGE);
@@ -70,6 +72,9 @@ async function uploadPath(
     const url = await waitForStorageDownloadURL(objectRef, fullPath);
     actionDebug("profile-upload", "complete", { path: fullPath });
     uploadLog("profile_upload_complete", { path: fullPath });
+    if (shouldUseSimpleIOSWebKitUpload()) {
+      safariUploadLog("finalize success", { domain: safariDomain, path: fullPath });
+    }
     return url;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -91,7 +96,7 @@ export async function uploadProfilePhoto(
   onProgress?: (percent: number) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  return uploadPath(`uploads/raw/${uid}/avatars/profile`, file, AVATAR_MAX_BYTES, onProgress, signal);
+  return uploadPath(`uploads/raw/${uid}/avatars/profile`, file, AVATAR_MAX_BYTES, onProgress, signal, "profile");
 }
 
 export async function uploadFamilyMemberPhoto(
@@ -101,7 +106,14 @@ export async function uploadFamilyMemberPhoto(
   onProgress?: (percent: number) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  return uploadPath(`uploads/raw/${uid}/family/${memberId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress, signal);
+  return uploadPath(
+    `uploads/raw/${uid}/family/${memberId}/photo`,
+    file,
+    FAMILY_PET_MAX_BYTES,
+    onProgress,
+    signal,
+    "family"
+  );
 }
 
 export async function uploadPetPhoto(
@@ -111,7 +123,7 @@ export async function uploadPetPhoto(
   onProgress?: (percent: number) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  return uploadPath(`uploads/raw/${uid}/pets/${petId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress, signal);
+  return uploadPath(`uploads/raw/${uid}/pets/${petId}/photo`, file, FAMILY_PET_MAX_BYTES, onProgress, signal, "pet");
 }
 
 export async function removeStorageObject(pathPrefix: string): Promise<void> {

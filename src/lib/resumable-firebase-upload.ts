@@ -1,7 +1,8 @@
 import type { StorageReference } from "firebase/storage";
-import { uploadBytesResumable } from "firebase/storage";
+import { uploadBytes, uploadBytesResumable } from "firebase/storage";
 
 import type { BrowserIntervalId, BrowserTimeoutId } from "@/lib/browser-timer";
+import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
 import { isMobileUploadHost, mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadLog, uploadStage } from "@/lib/upload-log";
 import type { UploadTrace } from "@/lib/upload-trace";
@@ -31,9 +32,118 @@ function cancelUploadTask(task: { cancel?: () => boolean }) {
   }
 }
 
+/** `uploadBytes` has no snapshot API — creep progress so the UI never freezes mid-upload (e.g. ~52% on iOS). */
+function startSyntheticUploadProgress(onProgress?: (percent: number) => void): () => void {
+  if (!onProgress) return () => {};
+  let pct = 6;
+  onProgress(6);
+  const id = window.setInterval(() => {
+    if (pct >= 88) return;
+    const room = 88 - pct;
+    const step = Math.max(1, Math.min(room, Math.round(1 + Math.random() * 6)));
+    pct = Math.min(88, pct + step);
+    onProgress(pct);
+  }, 400);
+  return () => window.clearInterval(id);
+}
+
+function wrapUploadWithAbort<T>(signal: AbortSignal | undefined, promise: Promise<T>): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(new DOMException("Upload cancelled.", "AbortError"));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException("Upload cancelled.", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (v) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(e);
+      }
+    );
+  });
+}
+
+function wrapUploadWithDeadline<T>(label: string, promise: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = window.setTimeout(() => {
+      uploadLog("deadline_exceeded", { label, cause: "absolute_max_ms", maxMs: ABSOLUTE_MAX_MS });
+      reject(
+        new Error(
+          "Upload timed out. Try again when you have a stronger connection or fewer photos at once."
+        )
+      );
+    }, ABSOLUTE_MAX_MS);
+    promise.then(
+      (v) => {
+        window.clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        window.clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+
+/**
+ * Single-shot Storage upload for iOS WebKit — avoids resumable chunk streams that often stall mid-progress.
+ * Progress is synthetic; the real work is one `uploadBytes` promise.
+ */
+async function runFirebaseUploadBytesSimple(
+  objectRef: StorageReference,
+  data: Blob,
+  opts?: {
+    contentType?: string;
+    signal?: AbortSignal;
+    onProgress?: (percent: number) => void;
+    label?: string;
+    trace?: UploadTrace;
+  }
+): Promise<void> {
+  const label = opts?.label ?? objectRef.fullPath;
+  const metadata = opts?.contentType ? { contentType: opts.contentType } : undefined;
+
+  safariUploadLog("using uploadBytes fallback", { label, bytes: data.size });
+  mobileUploadLog("iOS WebKit — uploadBytes transport (non-resumable)", { label, bytes: data.size });
+  uploadStage("upload task — uploadBytes (iOS WebKit)", { label });
+  opts?.trace?.("storage: uploadBytes (iOS WebKit)", { label, bytes: data.size });
+
+  if (opts?.signal?.aborted) {
+    throw new DOMException("Upload cancelled.", "AbortError");
+  }
+
+  const stopSynthetic = startSyntheticUploadProgress(opts?.onProgress);
+
+  safariUploadLog("upload start", { label, bytes: data.size });
+  uploadStage("upload bytes in flight (uploadBytes)", { label });
+
+  try {
+    const uploadPromise = uploadBytes(objectRef, data, metadata);
+    const wrapped = wrapUploadWithAbort(opts?.signal, uploadPromise);
+    await wrapUploadWithDeadline(label, wrapped);
+  } finally {
+    stopSynthetic();
+  }
+
+  opts?.onProgress?.(96);
+  safariUploadLog("upload complete", { label });
+  uploadStage("finalize success — Storage bytes complete (uploadBytes)", { label });
+  uploadLog("complete", { label, transport: "uploadBytes" });
+  opts?.trace?.("storage: upload complete (uploadBytes)", { label });
+  mobileUploadLog("storage upload bytes complete — uploadBytes", { label });
+  opts?.onProgress?.(100);
+}
+
 /**
  * Firebase resumable upload with stall detection, abort support, listener teardown,
  * and conservative deadlines so promises never hang indefinitely.
+ *
+ * On iPhone / iPad / iOS WebKit browsers, uses {@link uploadBytes} instead of {@link uploadBytesResumable}
+ * for transport stability.
  */
 export async function runFirebaseResumableUpload(
   objectRef: StorageReference,
@@ -59,6 +169,11 @@ export async function runFirebaseResumableUpload(
 
   if (opts?.signal?.aborted) {
     throw new DOMException("Upload cancelled.", "AbortError");
+  }
+
+  if (shouldUseSimpleIOSWebKitUpload()) {
+    await runFirebaseUploadBytesSimple(objectRef, data, opts);
+    return;
   }
 
   uploadStage("upload blob ready", {

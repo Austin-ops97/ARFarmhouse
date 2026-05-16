@@ -19,6 +19,7 @@ import { buildChipsFromCounts, normalizeReactionCounts } from "@/lib/reaction-co
 import { validateFeedImageFiles, validateOptimizedFeedFiles } from "@/lib/feed-publish";
 import type { ProcessedImageFile } from "@/lib/image-process";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
+import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import { mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadStage } from "@/lib/upload-log";
@@ -276,6 +277,9 @@ export async function finalizeFeedPostFromOptimizedArtifacts(
   }
   uploadStage("finalize success — post published", { postId });
   trace?.("finalize success — post published", { segment: "meta", postId });
+  if (shouldUseSimpleIOSWebKitUpload()) {
+    safariUploadLog("finalize success", { postId, domain: "feed" });
+  }
 }
 
 /**

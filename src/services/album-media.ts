@@ -17,6 +17,7 @@ import { formatFeedTimeLabel } from "@/lib/datetime/relative";
 import { validateRawImageFile } from "@/lib/image-input";
 import { getUploadMaxBytes, type ProcessedImageFile } from "@/lib/image-process";
 import { prepareOptimizedArtifactsForFirebase } from "@/lib/image-upload-pipeline";
+import { safariUploadLog, shouldUseSimpleIOSWebKitUpload } from "@/lib/ios-webkit-upload-transport";
 import { mobileUploadLog } from "@/lib/mobile-upload-debug";
 import { uploadStage } from "@/lib/upload-log";
 import type { AlbumMediaItem } from "@/lib/photo-album-media";
@@ -236,6 +237,10 @@ async function finalizeAlbumMediaDocuments(
     uploadStage("album: firestore sync complete", { id, index: i });
     onProgress?.({ phase: "uploading", done: i + 1, total });
     actionDebug("album", "item saved", { id });
+  }
+
+  if (shouldUseSimpleIOSWebKitUpload()) {
+    safariUploadLog("finalize success", { domain: "album", itemCount: total });
   }
 }
 
