@@ -6,6 +6,7 @@ import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { readPublicFirebaseConfig } from "@/lib/firebase/env";
 
 let firebaseStorageBucketLogged = false;
+let cachedFirebaseApp: FirebaseApp | null | undefined;
 
 function logFirebaseActiveBucketOnce(bucketId: string) {
   if (firebaseStorageBucketLogged) return;
@@ -27,18 +28,26 @@ function connectFirebaseStorage(app: FirebaseApp, bucketIdFromConfig: string): F
 }
 
 /**
- * Lazy init (no module-level singleton). Avoids evaluating Firebase when
- * `NEXT_PUBLIC_*` is unavailable during SSR of client bundles, and keeps
- * server/client aligned with fresh `readPublicFirebaseConfig()` reads.
+ * Single client Firebase app instance. All Auth / Firestore / Storage accessors share this app.
  */
 function resolveFirebaseApp(): FirebaseApp | null {
+  if (cachedFirebaseApp !== undefined) {
+    return cachedFirebaseApp;
+  }
+
   const cfg = readPublicFirebaseConfig();
-  if (!cfg) return null;
-  try {
-    return getApps().length > 0 ? getApp() : initializeApp(cfg);
-  } catch {
+  if (!cfg) {
+    cachedFirebaseApp = null;
     return null;
   }
+
+  try {
+    cachedFirebaseApp = getApps().length > 0 ? getApp() : initializeApp(cfg);
+  } catch {
+    cachedFirebaseApp = null;
+  }
+
+  return cachedFirebaseApp;
 }
 
 export function getFirebaseApp(): FirebaseApp {

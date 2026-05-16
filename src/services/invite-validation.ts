@@ -1,5 +1,6 @@
 import { httpsCallable } from "firebase/functions";
 
+import { normalizeAuthEmail } from "@/lib/firebase/normalize-email";
 import { tryGetFirebaseFunctions } from "@/lib/firebase/functions";
 
 export const INVALID_INVITE_MESSAGE = "Invalid invite code";
@@ -67,7 +68,7 @@ export async function validateInviteCodeForSignup(
   );
 
   try {
-    const result = await callable({ code: inviteCode, email: email.trim() });
+    const result = await callable({ code: inviteCode, email: normalizeAuthEmail(email) });
     const data = result.data;
     if (data?.valid === true && typeof data.redemptionId === "string" && data.redemptionId.trim()) {
       return { valid: true, redemptionId: data.redemptionId.trim() };

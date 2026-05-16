@@ -1,3 +1,5 @@
+import { normalizeAuthEmail } from "@/lib/firebase/normalize-email";
+
 /**
  * Centralized registration policy for production-safe auth gating.
  *
@@ -51,10 +53,6 @@ export function readRegistrationPolicy(): RegistrationPolicy {
   };
 }
 
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
 function emailDomain(email: string): string | null {
   const at = email.lastIndexOf("@");
   if (at < 1) return null;
@@ -74,7 +72,7 @@ export function evaluateRegistrationGate(
     };
   }
 
-  const normalized = normalizeEmail(email);
+  const normalized = normalizeAuthEmail(email);
   const hasEmailList = policy.allowlistEmails.size > 0;
   const hasDomainList = policy.allowlistDomains.size > 0;
 

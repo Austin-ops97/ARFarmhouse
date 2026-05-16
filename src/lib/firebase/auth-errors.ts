@@ -1,6 +1,6 @@
 /**
  * Maps Firebase Auth error codes to user-facing copy.
- * Never surfaces raw Firebase messages or codes.
+ * Preserves original codes for developer diagnostics.
  */
 
 export function getFirebaseAuthErrorCode(e: unknown): string {
@@ -10,15 +10,27 @@ export function getFirebaseAuthErrorCode(e: unknown): string {
   return "";
 }
 
+/** Developer-oriented detail (console / debug). Never shown raw to end users. */
+export function getFirebaseAuthErrorDiagnostic(e: unknown): string {
+  const code = getFirebaseAuthErrorCode(e);
+  const message = e instanceof Error ? e.message : String(e);
+  if (code) return `[${code}] ${message}`;
+  return message;
+}
+
 export function getFirebaseAuthErrorMessage(e: unknown): string {
   const code = getFirebaseAuthErrorCode(e);
 
   switch (code) {
-    case "auth/invalid-credential":
     case "auth/wrong-password":
+      return "Incorrect password. Try again or use Forgot password.";
+
     case "auth/user-not-found":
+      return "No account exists for this email. Check the address or sign up with a family invite code.";
+
+    case "auth/invalid-credential":
     case "auth/invalid-login-credentials":
-      return "That email or password does not match our records. Try again or use Forgot password.";
+      return "That email or password is incorrect. Try again or use Forgot password.";
 
     case "auth/email-already-in-use":
       return "An account already uses this email. Sign in instead, or use Forgot password if you do not remember the password.";
@@ -36,8 +48,10 @@ export function getFirebaseAuthErrorMessage(e: unknown): string {
       return "Too many attempts from this device. Please wait a few minutes and try again.";
 
     case "auth/network-request-failed":
-    case "auth/internal-error":
       return "We could not reach the server. Check your connection and try again.";
+
+    case "auth/internal-error":
+      return "A temporary server error occurred. Please try again in a moment.";
 
     case "auth/user-disabled":
       return "This account is no longer active. Contact your family admin for help.";

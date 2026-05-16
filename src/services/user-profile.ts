@@ -3,13 +3,18 @@ import type { User } from "firebase/auth";
 
 import { DEFAULT_AVATAR_COLOR_ID, normalizeAvatarColorId } from "@/lib/avatar-colors";
 import { actionDebug } from "@/lib/action-debug";
-import { tryGetFirestoreDb } from "@/lib/firebase";
+import { logAuthDebug, logAuthDebugError } from "@/lib/firebase/auth-debug";
+import { normalizeAuthEmail } from "@/lib/firebase/normalize-email";
+import { tryGetFirebaseAuth, tryGetFirestoreDb } from "@/lib/firebase";
 import { handleFromDisplayName } from "@/lib/datetime/relative";
 import type { FamilyMember, FamilyPet } from "@/models/family-profile";
 import type { AppUser, FirestoreUserProfile, ThemePreference } from "@/models/user";
 import { normalizeUserRole } from "@/models/user";
 
 const USERS = "users";
+
+/** Backoff for transient Firestore / auth-token propagation after signup. */
+const PROFILE_BOOTSTRAP_RETRY_DELAYS_MS = [0, 400, 1000, 2000, 4000];
 
 export type ProfilePatch = Partial<
   Pick<
@@ -27,6 +32,12 @@ export type ProfilePatch = Partial<
     | "themePreference"
   >
 >;
+
+export type BootstrapSignupInput = {
+  displayName: string;
+  signupRedemptionId: string;
+  email: string;
+};
 
 function readBootstrapThemePreference(): ThemePreference {
   if (typeof window === "undefined") return "system";
@@ -109,6 +120,28 @@ function mapFirestoreUser(uid: string, d: Partial<FirestoreUserProfile>): AppUse
   };
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientProfileError(e: unknown): boolean {
+  const code =
+    e && typeof e === "object" && "code" in e ? String((e as { code?: string }).code ?? "") : "";
+  const msg = e instanceof Error ? e.message : String(e);
+  return (
+    code === "unavailable" ||
+    code === "deadline-exceeded" ||
+    code === "aborted" ||
+    msg.includes("permission") ||
+    msg.includes("PERMISSION_DENIED") ||
+    msg.includes("network")
+  );
+}
+
+function profileBootstrapDebugEmail(user: User, fallbackEmail: string): string {
+  return normalizeAuthEmail(user.email ?? fallbackEmail);
+}
+
 export function profileHandle(profile: Pick<AppUser, "username" | "displayName">): string {
   if (profile.username?.trim()) return profile.username.trim().replace(/^@/, "");
   return handleFromDisplayName(profile.displayName);
@@ -184,126 +217,169 @@ export async function saveUserProfile(uid: string, patch: ProfilePatch): Promise
   }
 }
 
-/** Creates a new Firestore profile on first sign-up (does not overwrite existing docs). */
+async function loadUserProfileWithRetry(uid: string, attempt: number): Promise<AppUser | null> {
+  const loaded = await loadUserProfile(uid);
+  if (loaded) return loaded;
+  if (attempt >= PROFILE_BOOTSTRAP_RETRY_DELAYS_MS.length - 1) return null;
+  await sleep(PROFILE_BOOTSTRAP_RETRY_DELAYS_MS[attempt + 1] ?? 500);
+  return loadUserProfileWithRetry(uid, attempt + 1);
+}
+
+/**
+ * Creates `users/{uid}` on first sign-up (idempotent). Retries transient failures.
+ * Requires a valid invite `signupRedemptionId` — never creates without one.
+ */
 export async function bootstrapUserProfileOnSignup(
   user: User,
-  input: { displayName: string; signupRedemptionId?: string }
+  input: BootstrapSignupInput
 ): Promise<AppUser> {
   const db = tryGetFirestoreDb();
   if (!db) {
     throw new Error("Your profile could not be created. Check your connection and try again.");
   }
 
-  const ref = doc(db, USERS, user.uid);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    const existing = await loadUserProfile(user.uid);
-    if (!existing) {
-      throw new Error("Profile exists but could not be loaded. Try signing in again.");
-    }
-    return existing;
-  }
-
   const displayName = input.displayName.trim() || user.email?.split("@")[0]?.trim() || "Member";
-  const email = user.email ?? null;
-  const redemptionId = input.signupRedemptionId?.trim();
+  const email = normalizeAuthEmail(input.email || user.email || "");
+  const redemptionId = input.signupRedemptionId.trim();
   if (!redemptionId) {
-    throw new Error("Invalid invite code");
+    throw new Error("Invite redemption is missing. Validate your invite code and try again.");
   }
 
-  actionDebug("profile", "bootstrap signup", { uid: user.uid });
-  try {
-    await setDoc(ref, {
-      uid: user.uid,
-      email,
-      displayName,
-      signupRedemptionId: redemptionId,
-      avatarUrl: null,
-      profilePhotoUrl: null,
-      avatarColor: DEFAULT_AVATAR_COLOR_ID,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      role: "user",
-      themePreference: readBootstrapThemePreference(),
-      favoriteWeekends: [],
-      bio: null,
-      hometown: null,
-      phone: null,
-      birthday: null,
-      username: null,
-      familyBranch: null,
-      familyMembers: [],
-      pets: [],
-    });
-  } catch (e) {
-    actionDebug("profile", "bootstrap signup failed", e);
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("permission") || msg.includes("PERMISSION_DENIED")) {
-      throw new Error("Could not create your profile. Check that you are signed in and Firestore rules allow it.");
+  const auth = tryGetFirebaseAuth();
+  const debugCtx = {
+    op: "profile-bootstrap" as const,
+    email,
+    passwordLength: 0,
+  };
+  logAuthDebug(auth, debugCtx, { uid: user.uid, redemptionId, step: "start" });
+
+  const ref = doc(db, USERS, user.uid);
+  const existing = await getDoc(ref);
+  if (existing.exists()) {
+    const loaded = await loadUserProfile(user.uid);
+    if (!loaded) {
+      throw new Error("Profile exists but could not be loaded. Try again in a moment.");
     }
-    throw new Error("Could not create your profile. Try again in a moment.");
+    logAuthDebug(auth, debugCtx, { uid: user.uid, step: "existing-profile" });
+    return loaded;
   }
 
-  const loaded = await loadUserProfile(user.uid);
-  if (!loaded) {
-    throw new Error("Account created but profile setup failed. Try signing in again.");
+  let lastError: unknown;
+  for (let attempt = 0; attempt < PROFILE_BOOTSTRAP_RETRY_DELAYS_MS.length; attempt++) {
+    const delay = PROFILE_BOOTSTRAP_RETRY_DELAYS_MS[attempt] ?? 0;
+    if (delay > 0) await sleep(delay);
+
+    try {
+      await user.getIdToken(true);
+    } catch {
+      /* continue — token refresh is best-effort */
+    }
+
+    actionDebug("profile", "bootstrap signup attempt", { uid: user.uid, attempt });
+    logAuthDebug(auth, debugCtx, { uid: user.uid, redemptionId, attempt, step: "write" });
+
+    try {
+      await setDoc(ref, {
+        uid: user.uid,
+        email,
+        displayName,
+        signupRedemptionId: redemptionId,
+        avatarUrl: null,
+        profilePhotoUrl: null,
+        avatarColor: DEFAULT_AVATAR_COLOR_ID,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        role: "user",
+        themePreference: readBootstrapThemePreference(),
+        favoriteWeekends: [],
+        bio: null,
+        hometown: null,
+        phone: null,
+        birthday: null,
+        username: null,
+        familyBranch: null,
+        familyMembers: [],
+        pets: [],
+      });
+    } catch (e) {
+      lastError = e;
+      logAuthDebugError(auth, debugCtx, e, { uid: user.uid, attempt, step: "write-failed" });
+      actionDebug("profile", "bootstrap signup write failed", { attempt, e });
+
+      const snap = await getDoc(ref);
+      if (snap.exists()) break;
+
+      if (attempt < PROFILE_BOOTSTRAP_RETRY_DELAYS_MS.length - 1 && isTransientProfileError(e)) {
+        continue;
+      }
+
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("permission") || msg.includes("PERMISSION_DENIED")) {
+        throw new Error(
+          "Could not create your profile yet. Your account is signed in — wait a moment and tap Retry profile setup."
+        );
+      }
+      throw new Error("Could not create your profile. Try again in a moment.");
+    }
+
+    const loaded = await loadUserProfileWithRetry(user.uid, 0);
+    if (loaded) {
+      logAuthDebug(auth, debugCtx, { uid: user.uid, attempt, step: "ok" });
+      return loaded;
+    }
+
+    lastError = new Error("Profile write succeeded but profile could not be loaded.");
   }
-  return loaded;
+
+  logAuthDebugError(auth, debugCtx, lastError, { uid: user.uid, step: "exhausted" });
+  throw new Error(
+    "Account created but profile setup is still finishing. Stay signed in and tap Retry profile setup."
+  );
 }
 
-/** One Firestore read; creates the profile doc when missing (startup-critical path). */
+/**
+ * Loads an existing profile and merges Auth display metadata. Never creates `users/{uid}` —
+ * creation requires invite redemption via {@link bootstrapUserProfileOnSignup}.
+ */
 export async function syncUserProfile(user: User): Promise<AppUser | null> {
   const db = tryGetFirestoreDb();
   if (!db) return null;
+
+  const auth = tryGetFirebaseAuth();
+  const email = profileBootstrapDebugEmail(user, "");
+  logAuthDebug(auth, { op: "profile-sync", email, passwordLength: 0 }, { uid: user.uid });
+
   const ref = doc(db, USERS, user.uid);
   const snap = await getDoc(ref);
-  const email = user.email ?? null;
-  const existing = snap.exists() ? (snap.data() as Partial<FirestoreUserProfile>) : undefined;
+  if (!snap.exists()) {
+    actionDebug("profile", "sync missing doc", { uid: user.uid });
+    return null;
+  }
+
+  const existing = snap.data() as Partial<FirestoreUserProfile>;
   const displayName =
     existing?.displayName?.trim() ||
     user.displayName?.trim() ||
-    email?.split("@")[0]?.trim() ||
+    user.email?.split("@")[0]?.trim() ||
     "Member";
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      uid: user.uid,
-      email,
-      displayName,
-      avatarUrl: null,
-      profilePhotoUrl: null,
-      avatarColor: normalizeAvatarColorId(existing?.avatarColor ?? DEFAULT_AVATAR_COLOR_ID),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      role: "user",
-      themePreference: readBootstrapThemePreference(),
-      favoriteWeekends: [],
-      bio: null,
-      hometown: null,
-      phone: null,
-      birthday: null,
-      username: null,
-      familyBranch: null,
-      familyMembers: [],
-      pets: [],
-    });
-  } else {
-    const patch: Record<string, unknown> = {
-      uid: user.uid,
-      email,
-      updatedAt: serverTimestamp(),
-    };
-    if (!existing?.displayName?.trim()) {
-      patch.displayName = displayName;
-    }
-    if (!existing?.avatarColor) {
-      patch.avatarColor = DEFAULT_AVATAR_COLOR_ID;
-    }
-    await setDoc(ref, patch, { merge: true });
+
+  const patch: Record<string, unknown> = {
+    uid: user.uid,
+    email: normalizeAuthEmail(user.email ?? existing?.email ?? ""),
+    updatedAt: serverTimestamp(),
+  };
+  if (!existing?.displayName?.trim()) {
+    patch.displayName = displayName;
+  }
+  if (!existing?.avatarColor) {
+    patch.avatarColor = DEFAULT_AVATAR_COLOR_ID;
   }
 
+  await setDoc(ref, patch, { merge: true });
   return loadUserProfile(user.uid);
 }
 
+/** @deprecated Use {@link syncUserProfile} — kept for call sites that only need a read/sync pass. */
 export async function ensureUserProfile(user: User): Promise<void> {
   await syncUserProfile(user);
 }
