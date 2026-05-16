@@ -28,6 +28,7 @@ function booking(partial: Partial<Booking> & Pick<Booking, "id" | "status">): Bo
     deletedAt: null,
     deletedBy: null,
     deletedReason: null,
+    policyAcknowledgment: null,
   };
 }
 

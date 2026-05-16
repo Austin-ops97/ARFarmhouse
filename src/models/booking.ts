@@ -40,6 +40,14 @@ export type FirestoreBooking = PropertyScoped & {
   deletedBy?: string | null;
   /** Optional admin reason when a booking is removed (soft delete). */
   deletedReason?: string | null;
+  /** Policy acknowledgments accepted at submission (bookings only). */
+  policyAcknowledgment?: FirestoreBookingPolicyAcknowledgment | null;
+};
+
+export type FirestoreBookingPolicyAcknowledgment = {
+  policyVersion: number;
+  acceptedAt: Timestamp;
+  acknowledgedIds: string[];
 };
 
 export type Booking = PropertyScoped & {
@@ -65,6 +73,13 @@ export type Booking = PropertyScoped & {
   deletedAt: Date | null;
   deletedBy: string | null;
   deletedReason: string | null;
+  policyAcknowledgment: BookingPolicyAcknowledgment | null;
+};
+
+export type BookingPolicyAcknowledgment = {
+  policyVersion: number;
+  acceptedAt: Date;
+  acknowledgedIds: string[];
 };
 
 export type FirestoreBlackoutDate = {

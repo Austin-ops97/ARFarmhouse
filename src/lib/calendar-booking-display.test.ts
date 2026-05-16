@@ -30,6 +30,7 @@ function sampleBooking(overrides: Partial<Booking> = {}): Booking {
     deletedAt: null,
     deletedBy: null,
     deletedReason: null,
+    policyAcknowledgment: null,
     ...overrides,
   };
 }

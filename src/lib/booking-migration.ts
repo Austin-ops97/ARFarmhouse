@@ -73,6 +73,7 @@ export function bookingFromLegacyCalendarEvent(
     deletedAt: null,
     deletedBy: null,
     deletedReason: null,
+    policyAcknowledgment: null,
   };
 }
 

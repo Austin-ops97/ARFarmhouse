@@ -16,11 +16,29 @@ import {
   BOOKINGS_COLLECTION,
   type BlackoutDate,
   type Booking,
+  type BookingPolicyAcknowledgment,
   type BookingStatus,
   type BookingType,
   type FirestoreBlackoutDate,
   type FirestoreBooking,
+  type FirestoreBookingPolicyAcknowledgment,
 } from "@/models/booking";
+
+function mapPolicyAcknowledgment(
+  raw: FirestoreBooking["policyAcknowledgment"]
+): BookingPolicyAcknowledgment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Partial<FirestoreBookingPolicyAcknowledgment>;
+  const acceptedAt = timestampToDate(row.acceptedAt);
+  if (!acceptedAt || typeof row.policyVersion !== "number") return null;
+  return {
+    policyVersion: row.policyVersion,
+    acceptedAt,
+    acknowledgedIds: Array.isArray(row.acknowledgedIds)
+      ? row.acknowledgedIds.filter((id): id is string => typeof id === "string")
+      : [],
+  };
+}
 
 function mapActivityLog(raw: unknown): BookingActivityEntryClient[] {
   if (!Array.isArray(raw)) return [];
@@ -78,6 +96,7 @@ export function mapBookingDoc(snap: QueryDocumentSnapshot<DocumentData>): Bookin
     deletedAt: timestampToDate(data.deletedAt),
     deletedBy: typeof data.deletedBy === "string" ? data.deletedBy : null,
     deletedReason: typeof data.deletedReason === "string" ? data.deletedReason : null,
+    policyAcknowledgment: mapPolicyAcknowledgment(data.policyAcknowledgment),
   };
 }
 

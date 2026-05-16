@@ -6,12 +6,17 @@ import {
   getDocs,
   query,
   serverTimestamp,
+  Timestamp,
   where,
   writeBatch,
   deleteDoc,
   type DocumentReference,
 } from "firebase/firestore";
 
+import {
+  assertBookingPolicyAcknowledgment,
+  type BookingPolicyAcknowledgment,
+} from "@/lib/booking-acknowledgments";
 import { buildActivityEntry } from "@/lib/booking-activity";
 import { calendarDayRangeToTimestamps, formatBookingDateRange, timestampToDate } from "@/lib/booking-dates";
 import { assertFirestoreWriteSafe } from "@/lib/datetime/firestore-write";
@@ -67,6 +72,7 @@ export type CreateBookingInput = {
   attendeeMemberIds?: string[];
   attendeePetIds?: string[];
   includeSelf?: boolean;
+  policyAcknowledgment?: BookingPolicyAcknowledgment;
 };
 
 export type CreateBookingResult = {
@@ -224,7 +230,19 @@ async function createBookingInner(input: CreateBookingInput): Promise<CreateBook
         : "Stay");
   if (!title) throw new Error("Add a title for this booking.");
 
+  if (input.type === "booking") {
+    assertBookingPolicyAcknowledgment(input.policyAcknowledgment);
+  }
+
   const description = input.description.trim() || input.notes?.trim() || input.tripPurpose?.trim() || "";
+  const policyAcknowledgment =
+    input.type === "booking" && input.policyAcknowledgment
+      ? {
+          policyVersion: input.policyAcknowledgment.policyVersion,
+          acceptedAt: Timestamp.fromDate(new Date(input.policyAcknowledgment.acceptedAt)),
+          acknowledgedIds: input.policyAcknowledgment.acknowledgedIds,
+        }
+      : null;
   const status = conflict.status;
   const conflictsWith = conflict.conflictsWith;
   const dateLabel = formatBookingDateRange(start, end);
@@ -272,6 +290,7 @@ async function createBookingInner(input: CreateBookingInput): Promise<CreateBook
       status: "pending",
       calendarEventId: eventRef.id,
       bookingId: bookingRef.id,
+      ...(policyAcknowledgment ? { policyAcknowledgment } : {}),
       createdAt: serverTimestamp(),
     });
     batch.set(eventRef, {
@@ -322,6 +341,7 @@ async function createBookingInner(input: CreateBookingInput): Promise<CreateBook
       legacyBookingRequestId: requestRef.id,
       activityLog: [createdActivity],
       deleted: false,
+      ...(policyAcknowledgment ? { policyAcknowledgment } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };

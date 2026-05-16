@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { dayOccupancyHeat } from "@/lib/calendar-event-merge";
 import { buildCalendarMonthMeta } from "@/lib/calendar-month-meta";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
+import { BookingAcknowledgmentModal } from "@/components/ar-farmhouse/booking-acknowledgment-modal";
 import { BookingAttendeePicker } from "@/components/ar-farmhouse/booking-attendee-picker";
 import { useAuth } from "@/contexts/auth-context";
 import { runMutation } from "@/lib/mutation-lifecycle";
@@ -23,6 +24,7 @@ import {
   resolveBookingCreateConflict,
 } from "@/lib/booking-conflict-engine";
 import { calendarDayRangeToDates } from "@/lib/booking-dates";
+import type { BookingPolicyAcknowledgment } from "@/lib/booking-acknowledgments";
 import type { BlackoutDate, Booking, BookingType } from "@/models/booking";
 import { createBooking } from "@/services/booking-mutations";
 import { ActionToastBanner } from "@/components/ui/action-toast";
@@ -91,6 +93,7 @@ export function CalendarBookingSheet({
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [ackModalOpen, setAckModalOpen] = useState(false);
 
   const close = useCallback(() => {
     if (submitting) return;
@@ -104,6 +107,7 @@ export function CalendarBookingSheet({
       setSubmitted(false);
       setSubmitting(false);
       setSubmitError(null);
+      setAckModalOpen(false);
     });
   }, [open]);
 
@@ -125,25 +129,20 @@ export function CalendarBookingSheet({
     setGuests(countBookingGuests(attendees));
   }, [attendees, profile]);
 
-  const handleSubmit = useCallback(async () => {
-    if (submitting) return;
+  const validateBeforeSubmit = useCallback((): string | null => {
     if (authLoading || !configured) {
-      setSubmitError("Wait until sign-in finishes, then try again.");
-      return;
+      return "Wait until sign-in finishes, then try again.";
     }
     if (!user) {
-      setSubmitError("Sign in to send a booking request.");
-      return;
+      return "Sign in to send a booking request.";
     }
     const lo = Math.min(startDay, endDay);
     const hi = Math.max(startDay, endDay);
     if (lo < 1 || hi > calendarMonth.daysInMonth) {
-      setSubmitError(`Choose dates within ${calendarMonth.label}.`);
-      return;
+      return `Choose dates within ${calendarMonth.label}.`;
     }
     if (profile && !attendees.includeSelf && attendees.memberIds.length === 0) {
-      setSubmitError("Select at least one person for this stay.");
-      return;
+      return "Select at least one person for this stay.";
     }
     const { startDate, endDate } = calendarDayRangeToDates(
       calendarMonth.year,
@@ -158,39 +157,70 @@ export function CalendarBookingSheet({
       endDate
     );
     if (conflictResult.blocked) {
-      setSubmitError(BLACKOUT_BLOCK_MESSAGE);
-      return;
+      return BLACKOUT_BLOCK_MESSAGE;
     }
+    return null;
+  }, [
+    authLoading,
+    attendees.includeSelf,
+    attendees.memberIds.length,
+    blackoutDates,
+    calendarMonth.daysInMonth,
+    calendarMonth.label,
+    calendarMonth.monthIndex,
+    calendarMonth.year,
+    configured,
+    endDay,
+    monthBookings,
+    profile,
+    startDay,
+    user,
+  ]);
 
-    const guestCount = profile ? countBookingGuests(attendees) : guests;
-    const attendeeLabels = profile ? buildAttendeeLabels(profile, attendees) : [];
+  const handleSubmit = useCallback(
+    async (policyAcknowledgment?: BookingPolicyAcknowledgment) => {
+      if (submitting) return;
+      const validationError = validateBeforeSubmit();
+      if (validationError) {
+        setSubmitError(validationError);
+        return;
+      }
+      if (!user) return;
 
-    const epoch = ++submitEpochRef.current;
-    await runMutation(
-      "booking",
-      "submit",
-      () =>
-        createBooking({
-          type: recordType,
-          title: tripTitle.trim() || tripPurpose.trim(),
-          description: notes.trim() || tripPurpose.trim(),
-          year: calendarMonth.year,
-          monthIndex: calendarMonth.monthIndex,
-          startDay: lo,
-          endDay: hi,
-          createdBy: user.uid,
-          createdByName: displayName,
-          actorAvatarUrl: null,
-          tripId: recordType === "booking" ? tripId : "event",
-          guests: guestCount,
-          roomId,
-          notes: notes.trim(),
-          tripPurpose: tripPurpose.trim(),
-          includeSelf: profile ? attendees.includeSelf : true,
-          attendeeMemberIds: profile ? attendees.memberIds : [],
-          attendeePetIds: profile ? attendees.petIds : [],
-          attendeeLabels,
-        }),
+      const lo = Math.min(startDay, endDay);
+      const hi = Math.max(startDay, endDay);
+      const guestCount = profile ? countBookingGuests(attendees) : guests;
+      const attendeeLabels = profile ? buildAttendeeLabels(profile, attendees) : [];
+
+      const epoch = ++submitEpochRef.current;
+      await runMutation(
+        "booking",
+        "submit",
+        () =>
+          createBooking({
+            type: recordType,
+            title: tripTitle.trim() || tripPurpose.trim(),
+            description: notes.trim() || tripPurpose.trim(),
+            year: calendarMonth.year,
+            monthIndex: calendarMonth.monthIndex,
+            startDay: lo,
+            endDay: hi,
+            createdBy: user.uid,
+            createdByName: displayName,
+            actorAvatarUrl: null,
+            tripId: recordType === "booking" ? tripId : "event",
+            guests: guestCount,
+            roomId,
+            notes: notes.trim(),
+            tripPurpose: tripPurpose.trim(),
+            includeSelf: profile ? attendees.includeSelf : true,
+            attendeeMemberIds: profile ? attendees.memberIds : [],
+            attendeePetIds: profile ? attendees.petIds : [],
+            attendeeLabels,
+            ...(recordType === "booking" && policyAcknowledgment
+              ? { policyAcknowledgment }
+              : {}),
+          }),
       {
         onStart: () => {
           setSubmitError(null);
@@ -203,7 +233,10 @@ export function CalendarBookingSheet({
           } else {
             showToast("Request submitted — pending approval.", "success");
           }
-          startTransition(() => setSubmitted(true));
+          startTransition(() => {
+            setAckModalOpen(false);
+            setSubmitted(true);
+          });
         },
         onError: (e) => {
           if (submitEpochRef.current !== epoch) return;
@@ -214,31 +247,50 @@ export function CalendarBookingSheet({
           startTransition(() => setSubmitting(false));
         },
       }
-    );
-  }, [
-    authLoading,
-    calendarMonth.daysInMonth,
-    calendarMonth.label,
-    calendarMonth.monthIndex,
-    calendarMonth.year,
-    configured,
-    displayName,
-    endDay,
-    attendees,
-    guests,
-    notes,
-    profile,
-    roomId,
-    startDay,
-    submitting,
-    tripId,
-    blackoutDates,
-    monthBookings,
-    recordType,
-    tripPurpose,
-    tripTitle,
-    user,
-  ]);
+      );
+    },
+    [
+      attendees,
+      calendarMonth.monthIndex,
+      calendarMonth.year,
+      displayName,
+      endDay,
+      guests,
+      notes,
+      profile,
+      recordType,
+      roomId,
+      startDay,
+      submitting,
+      tripId,
+      tripPurpose,
+      tripTitle,
+      user,
+      validateBeforeSubmit,
+    ]
+  );
+
+  const handlePrimarySubmitClick = useCallback(() => {
+    if (submitting) return;
+    const validationError = validateBeforeSubmit();
+    if (validationError) {
+      setSubmitError(validationError);
+      return;
+    }
+    setSubmitError(null);
+    if (recordType === "booking") {
+      setAckModalOpen(true);
+      return;
+    }
+    void handleSubmit();
+  }, [handleSubmit, recordType, submitting, validateBeforeSubmit]);
+
+  const handleAcknowledgmentConfirm = useCallback(
+    (policyAcknowledgment: BookingPolicyAcknowledgment) => {
+      void handleSubmit(policyAcknowledgment);
+    },
+    [handleSubmit]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -578,7 +630,7 @@ export function CalendarBookingSheet({
                     type="button"
                     className="h-12 w-full rounded-2xl text-[15px] font-medium"
                     disabled={submitting || !user || authLoading || !configured}
-                    onClick={() => void handleSubmit()}
+                    onClick={handlePrimarySubmitClick}
                   >
                     {submitting ? (
                       <>
@@ -593,6 +645,15 @@ export function CalendarBookingSheet({
               )}
             </div>
           </motion.div>
+          <BookingAcknowledgmentModal
+            open={ackModalOpen}
+            submitting={submitting}
+            onClose={() => {
+              if (submitting) return;
+              setAckModalOpen(false);
+            }}
+            onConfirm={handleAcknowledgmentConfirm}
+          />
           <ActionToastBanner toast={toast} />
         </motion.div>
       )}
