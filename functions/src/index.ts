@@ -164,6 +164,7 @@ async function markAlbumFailed(mediaId: string) {
 
 export { validateInviteCode } from "./invite/validate-invite-callable";
 export { onUserProfileCreatedMarkInvite } from "./invite/on-user-profile-created";
+export { generateDueRoutineTasks } from "./routines/generate-due-routines";
 export {
   onBookingCreatedNotify,
   onBookingUpdatedNotify,

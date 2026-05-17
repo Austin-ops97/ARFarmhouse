@@ -8,6 +8,7 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
+  Timestamp,
   updateDoc,
   where,
   writeBatch,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/booking-conflicts";
 import { tryGetFirestoreDb } from "@/lib/firebase";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
+import { TASK_DELETE_COOLDOWN_MS } from "@/lib/task-constants";
 import type {
   HouseTask,
   PropertyInventoryItem,
@@ -37,7 +39,14 @@ import type {
   TaskBoardColumn,
   TaskListSection,
   TaskPriority,
+  TaskSource,
 } from "@/lib/property-operations";
+
+function timestampToMs(value: unknown): number | null {
+  if (value instanceof Timestamp) return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  return null;
+}
 
 function subscribeCollection<T>(
   path: string,
@@ -90,6 +99,10 @@ export function subscribeHouseTasks(
         commentsPreview: Array.isArray(d.commentsPreview)
           ? (d.commentsPreview as { author: string; text: string }[])
           : [],
+        deleteScheduledAt: timestampToMs(d.deleteScheduledAt),
+        source: (d.source as TaskSource | undefined) ?? undefined,
+        routineId: (d.routineId as string | undefined) ?? undefined,
+        description: (d.description as string | undefined) ?? undefined,
       };
     },
     (rows) => onTasks([...rows].sort((a, b) => a.boardOrder - b.boardOrder)),
@@ -125,6 +138,8 @@ export async function createHouseTask(input: {
     assigneeAvatar: input.avatarUrl ?? "",
     commentsPreview: [],
     createdBy: input.uid,
+    createdByName: input.displayName,
+    source: "manual",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -149,15 +164,47 @@ export async function updateHouseTask(taskId: string, patch: Partial<HouseTask>)
   await updateDoc(doc(db, "houseTasks", taskId), data);
 }
 
-export async function deleteHouseTask(taskId: string, viewerUid: string) {
+export async function deleteHouseTask(taskId: string) {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable");
-  const ref = doc(db, "houseTasks", taskId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-  const createdBy = snap.data()?.createdBy as string | undefined;
-  if (createdBy !== viewerUid) throw new Error("Only the creator can delete this task.");
-  await deleteDoc(ref);
+  await deleteDoc(doc(db, "houseTasks", taskId));
+}
+
+/** Mark complete and schedule automatic deletion after cooldown. */
+export async function completeHouseTaskWithCooldown(taskId: string) {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  const deleteAt = Timestamp.fromMillis(Date.now() + TASK_DELETE_COOLDOWN_MS);
+  await updateDoc(doc(db, "houseTasks", taskId), {
+    done: true,
+    listSection: "completed",
+    boardColumn: "done",
+    deleteScheduledAt: deleteAt,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Undo completion during the deletion cooldown window. */
+export async function undoHouseTaskCompletion(taskId: string) {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  await updateDoc(doc(db, "houseTasks", taskId), {
+    done: false,
+    listSection: "active",
+    boardColumn: "todo",
+    deleteScheduledAt: null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Delete tasks whose cooldown has expired (safe to call on load and on interval). */
+export async function purgeExpiredPendingDeleteTasks(): Promise<void> {
+  const db = tryGetFirestoreDb();
+  if (!db) return;
+  const now = Timestamp.now();
+  const q = query(collection(db, "houseTasks"), where("deleteScheduledAt", "<=", now));
+  const snap = await getDocs(q);
+  await Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
 }
 
 export async function persistHouseTasksBatch(tasks: HouseTask[]) {

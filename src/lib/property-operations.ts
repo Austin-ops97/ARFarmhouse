@@ -18,6 +18,8 @@ export type TaskPriority = "low" | "medium" | "high" | "emergency";
 export type TaskListSection = "active" | "maintenance" | "completed" | "weekend" | "emergency";
 export type TaskBoardColumn = "todo" | "doing" | "done";
 
+export type TaskSource = "manual" | "routine";
+
 export type HouseTask = {
   id: string;
   title: string;
@@ -30,6 +32,30 @@ export type HouseTask = {
   assignee: { name: string; avatar: string };
   photoThumbs?: string[];
   commentsPreview: { author: string; text: string }[];
+  /** Unix ms — task will delete at this time after completion (30s cooldown). */
+  deleteScheduledAt?: number | null;
+  source?: TaskSource;
+  routineId?: string;
+  description?: string;
+};
+
+export type RoutineIntervalUnit = "days" | "weeks" | "months" | "years" | "quarterly";
+
+export type HouseRoutine = {
+  id: string;
+  title: string;
+  description: string;
+  intervalValue: number;
+  intervalUnit: RoutineIntervalUnit;
+  startDateMs: number;
+  nextRunAtMs: number;
+  lastGeneratedAtMs: number | null;
+  isActive: boolean;
+  createdBy: string;
+  assigneeName: string;
+  assigneeAvatar: string;
+  priority: TaskPriority;
+  category: string;
 };
 
 export const INITIAL_HOUSE_TASKS: HouseTask[] = [];

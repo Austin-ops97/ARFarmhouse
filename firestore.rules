@@ -237,14 +237,34 @@ service cloud.firestore {
     match /houseTasks/{taskId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
-        && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
-        && request.resource.data.title.size() <= 200;
+        && request.resource.data.title.size() <= 200
+        && (
+          request.resource.data.createdBy == request.auth.uid
+          || request.resource.data.get('source', '') == 'routine'
+        );
       allow update: if isSignedIn()
         && resource.data.createdBy == request.resource.data.createdBy
         && !request.resource.data.diff(resource.data).changedKeys().hasAny(['createdBy']);
-      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isSignedIn();
+    }
+
+    match /routines/{routineId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 200
+        && request.resource.data.intervalValue is int
+        && request.resource.data.intervalValue > 0
+        && request.resource.data.intervalUnit is string
+        && request.resource.data.isActive is bool;
+      allow update: if isSignedIn()
+        && resource.data.createdBy == request.resource.data.createdBy
+        && !request.resource.data.diff(resource.data).changedKeys().hasAny(['createdBy']);
+      allow delete: if isSignedIn();
     }
 
     function validChecklistPercent(field) {

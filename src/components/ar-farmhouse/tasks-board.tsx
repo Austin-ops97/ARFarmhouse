@@ -43,7 +43,17 @@ function normalizeBoardOrders(ts: HouseTask[]): HouseTask[] {
   return next;
 }
 
-function SortableRow({ task, onToggleDone }: { task: HouseTask; onToggleDone: (id: string) => void }) {
+function SortableRow({
+  task,
+  onToggleDone,
+  onDelete,
+  pendingDeleteSeconds,
+}: {
+  task: HouseTask;
+  onToggleDone: (id: string) => void;
+  onDelete?: (id: string) => void;
+  pendingDeleteSeconds?: number;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -59,6 +69,8 @@ function SortableRow({ task, onToggleDone }: { task: HouseTask; onToggleDone: (i
         dragAttributes={attributes}
         isDragging={isDragging}
         onToggleDone={onToggleDone}
+        onDelete={onDelete}
+        pendingDeleteSeconds={pendingDeleteSeconds}
       />
     </div>
   );
@@ -102,10 +114,14 @@ export function TasksBoard({
   tasks,
   onTasksChange,
   onToggleDone,
+  onDelete,
+  countdownById = {},
 }: {
   tasks: HouseTask[];
   onTasksChange: (next: HouseTask[]) => void;
   onToggleDone: (id: string) => void;
+  onDelete?: (id: string) => void;
+  countdownById?: Record<string, number>;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(
@@ -206,7 +222,13 @@ export function TasksBoard({
               <SortableContext id={col} items={ids} strategy={verticalListSortingStrategy}>
                 <div className="flex flex-col gap-2">
                   {list.map((task) => (
-                    <SortableRow key={task.id} task={task} onToggleDone={onToggleDone} />
+                    <SortableRow
+                      key={task.id}
+                      task={task}
+                      onToggleDone={onToggleDone}
+                      onDelete={onDelete}
+                      pendingDeleteSeconds={countdownById[task.id]}
+                    />
                   ))}
                 </div>
               </SortableContext>

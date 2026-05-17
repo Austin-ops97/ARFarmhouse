@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { Check, GripVertical, MessageSquare } from "lucide-react";
+import { Check, GripVertical, MessageSquare, Repeat, Trash2 } from "lucide-react";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -37,7 +37,9 @@ export type TaskCardProps = {
   dragListeners?: DraggableSyntheticListeners;
   dragAttributes?: DraggableAttributes;
   isDragging?: boolean;
+  pendingDeleteSeconds?: number;
   onToggleDone?: (id: string) => void;
+  onDelete?: (id: string) => void;
 };
 
 export function TaskCard({
@@ -46,28 +48,38 @@ export function TaskCard({
   dragListeners,
   dragAttributes,
   isDragging,
+  pendingDeleteSeconds,
   onToggleDone,
+  onDelete,
 }: TaskCardProps) {
   const reduceMotion = useReducedMotion();
+  const isPendingDelete = typeof pendingDeleteSeconds === "number" && pendingDeleteSeconds > 0;
 
   return (
     <motion.div
       layout
       initial={false}
-      animate={{ opacity: isDragging ? 0.92 : 1, scale: isDragging ? 1.02 : 1 }}
+      animate={{ opacity: isDragging ? 0.92 : isPendingDelete ? 0.55 : 1, scale: isDragging ? 1.02 : 1 }}
       transition={{ duration: reduceMotion ? 0.12 : 0.2 }}
       className={cn(
         "relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] shadow-[0_18px_50px_-32px_rgba(0,0,0,0.72)] backdrop-blur-xl",
         "ring-1 ring-inset ring-transparent",
         priorityRing[task.priority],
-        task.done && "opacity-75",
+        (task.done || isPendingDelete) && "opacity-75",
+        isPendingDelete && "border-amber-400/20 bg-amber-500/[0.04]",
         isDragging && "z-20 shadow-[0_28px_60px_-24px_rgba(0,0,0,0.85)]"
       )}
     >
       <span className={cn("absolute left-0 top-0 h-full w-1 rounded-l-2xl", priorityDot[task.priority])} aria-hidden />
 
+      {isPendingDelete ? (
+        <p className="border-b border-amber-400/15 bg-amber-500/[0.06] px-4 py-2 text-center text-[11px] text-amber-100/90">
+          Completed — deleting in {pendingDeleteSeconds}s · tap check to undo
+        </p>
+      ) : null}
+
       <div className="flex gap-3 pl-4 pr-3 pt-4 sm:gap-2 sm:pl-4 sm:pr-3.5 sm:pt-3">
-        {dragHandle && (
+        {dragHandle && !isPendingDelete ? (
           <button
             type="button"
             className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground sm:h-8 sm:w-6"
@@ -77,7 +89,7 @@ export function TaskCard({
           >
             <GripVertical className="size-4" />
           </button>
-        )}
+        ) : null}
         <div className="flex min-w-0 flex-1 flex-col gap-2 pb-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
@@ -89,25 +101,45 @@ export function TaskCard({
                 <p className={cn("text-sm font-semibold leading-snug text-foreground", task.done && "line-through")}>
                   {task.title}
                 </p>
-                <p className="text-sm text-muted-foreground sm:text-[11px]">{task.dueLabel}</p>
+                <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground sm:text-[11px]">
+                  <span>{task.dueLabel}</span>
+                  {task.source === "routine" ? (
+                    <span className="inline-flex items-center gap-0.5 rounded-full border border-white/10 px-1.5 py-0.5 text-[10px]">
+                      <Repeat className="size-2.5" aria-hidden />
+                      Routine
+                    </span>
+                  ) : null}
+                </p>
               </div>
             </div>
-            {onToggleDone && (
-              <motion.button
-                type="button"
-                onClick={() => onToggleDone(task.id)}
-                whileTap={reduceMotion ? undefined : { scale: 0.92 }}
-                className={cn(
-                  "ar-touch-press flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors sm:size-9",
-                  task.done
-                    ? "border-primary/40 bg-primary/20 text-primary"
-                    : "border-white/12 bg-white/[0.04] text-muted-foreground hover:border-white/20 hover:text-foreground"
-                )}
-                aria-label={task.done ? "Mark not done" : "Mark done"}
-              >
-                <Check className="size-4" strokeWidth={2.5} />
-              </motion.button>
-            )}
+            <div className="flex shrink-0 items-center gap-1">
+              {onDelete && !isPendingDelete ? (
+                <button
+                  type="button"
+                  onClick={() => onDelete(task.id)}
+                  className="ar-touch-press flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-muted-foreground hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-200 sm:size-9"
+                  aria-label="Delete task"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              ) : null}
+              {onToggleDone ? (
+                <motion.button
+                  type="button"
+                  onClick={() => onToggleDone(task.id)}
+                  whileTap={reduceMotion ? undefined : { scale: 0.92 }}
+                  className={cn(
+                    "ar-touch-press flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors sm:size-9",
+                    task.done || isPendingDelete
+                      ? "border-primary/40 bg-primary/20 text-primary"
+                      : "border-white/12 bg-white/[0.04] text-muted-foreground hover:border-white/20 hover:text-foreground"
+                  )}
+                  aria-label={isPendingDelete ? "Undo completion" : task.done ? "Mark not done" : "Mark done"}
+                >
+                  <Check className="size-4" strokeWidth={2.5} />
+                </motion.button>
+              ) : null}
+            </div>
           </div>
 
           {task.photoThumbs && task.photoThumbs.length > 0 && (

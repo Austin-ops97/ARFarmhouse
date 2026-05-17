@@ -146,9 +146,6 @@ function DashboardRoutes() {
             onMobileMenuOpenChange={setMobileMenuOpen}
           />
           <OfflineStatusBar />
-          <div className="px-1 pt-2 lg:px-4">
-            <PwaInstallBanner />
-          </div>
 
           <main className={cnDashboardMain(activeId === "home")}>
             <AnimatePresence mode="wait">
@@ -164,6 +161,7 @@ function DashboardRoutes() {
                 }
                 className={cnDashboardPageBody(activeId === "home")}
               >
+                <PwaInstallBanner className="mb-4 sm:mb-5" />
                 <ErrorBoundary title="This section needs a refresh">
                   <PropertyDataScope activeId={activeId}>{main}</PropertyDataScope>
                 </ErrorBoundary>

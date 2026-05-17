@@ -14,7 +14,11 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-export function PwaInstallBanner() {
+type PwaInstallBannerProps = {
+  className?: string;
+};
+
+export function PwaInstallBanner({ className }: PwaInstallBannerProps) {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(true);
   const [installed, setInstalled] = useState(true);
@@ -76,6 +80,7 @@ export function PwaInstallBanner() {
 
   return (
     <InstallBannerPanel
+      className={className}
       title={title}
       body={body}
       showIosHint={showIosHint}
@@ -87,6 +92,7 @@ export function PwaInstallBanner() {
 }
 
 function InstallBannerPanel({
+  className,
   title,
   body,
   showIosHint,
@@ -94,6 +100,7 @@ function InstallBannerPanel({
   onDismiss,
   onInstall,
 }: {
+  className?: string;
   title: string;
   body: string;
   showIosHint: boolean;
@@ -103,10 +110,7 @@ function InstallBannerPanel({
 }) {
   return (
     <div
-      className={cn(
-        "pointer-events-auto mx-3 mb-3 rounded-2xl border border-border/60 bg-card/95 p-4 shadow-lg backdrop-blur-md",
-        "dark:border-white/10 dark:bg-zinc-900/95"
-      )}
+      className={cn("ar-surface-raised w-full rounded-[1.3rem] p-4 sm:p-5", className)}
       role="region"
       aria-label="Install app"
     >
