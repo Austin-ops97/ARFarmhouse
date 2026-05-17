@@ -11,11 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskCard } from "@/components/ar-farmhouse/task-card";
 import { TasksBoard } from "@/components/ar-farmhouse/tasks-board";
-import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { useAuth } from "@/contexts/auth-context";
 import { usePropertyData } from "@/contexts/property-data-context";
 import { useTaskPendingDelete } from "@/hooks/use-task-pending-delete";
-import { resolveWeekendHubBundle } from "@/lib/weekend-hub-hydrate";
 import type { HouseRoutine, HouseTask, TaskListSection } from "@/lib/property-operations";
 import { SyncStatusBanner } from "@/components/ar-farmhouse/sync-status-banner";
 import {
@@ -46,13 +44,12 @@ const sectionLabel: Record<TaskListSection, string> = {
   emergency: "Needs attention",
 };
 
-const sectionOrder: TaskListSection[] = ["emergency", "active", "maintenance", "weekend", "completed"];
+const sectionOrder: TaskListSection[] = ["emergency", "active", "maintenance", "completed"];
 
 export function TasksView() {
   const reduceMotion = useReducedMotion();
-  const { openWeekendHub } = useEcosystem();
   const { user, displayName, configured } = useAuth();
-  const { tasks, tasksLoading, tasksError, calendarEvents, statusCards, inventory } = usePropertyData();
+  const { tasks, tasksLoading, tasksError } = usePropertyData();
   const [mainTab, setMainTab] = useState<"tasks" | "routines">("tasks");
   const [view, setView] = useState<"list" | "board">("list");
   const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -217,12 +214,6 @@ export function TasksView() {
     return g;
   }, [displayTasks]);
 
-  const hubBundle = useMemo(
-    () => resolveWeekendHubBundle("current", calendarEvents, new Date(), { statusCards, inventory }),
-    [calendarEvents, statusCards, inventory]
-  );
-  const weekendTasksPreview = useMemo(() => displayTasks.filter((t) => t.listSection === "weekend").slice(0, 4), [displayTasks]);
-
   const quickAddDisabled = !configured || !user;
 
   const handleRoutineSubmit = useCallback(
@@ -265,49 +256,6 @@ export function TasksView() {
 
   return (
     <motion.div className="space-y-6">
-      <motion.section
-        initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={cn(surface, "space-y-3 p-4 sm:p-5")}
-      >
-        <motion.div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-primary/90">Ecosystem</p>
-            <p className="font-heading text-lg font-semibold tracking-tight text-foreground">Before arrivals · {hubBundle.title}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Prep tasks are mirrored from the weekend hub — same story as Calendar and Feed.
-            </p>
-          </div>
-          <Button type="button" variant="outline" size="sm" className="shrink-0 rounded-xl" onClick={() => openWeekendHub("current")}>
-            Weekend hub
-          </Button>
-        </motion.div>
-        <ul className="space-y-2">
-          {weekendTasksPreview.length === 0 && hubBundle.tasksBeforeArrival.length === 0 ? (
-            <li className="ar-nested-well rounded-xl px-3 py-3 text-sm text-muted-foreground">
-              No weekend prep tasks yet. They will mirror the hub when stays are on the calendar.
-            </li>
-          ) : (
-            <>
-              {weekendTasksPreview.map((t) => (
-                <li key={t.id} className="ar-nested-well flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm">
-                  <span className="text-foreground/90">{t.title}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{t.dueLabel}</span>
-                </li>
-              ))}
-              {hubBundle.tasksBeforeArrival.slice(0, 2).map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-primary/15 bg-primary/[0.06] px-3 py-2 text-sm"
-                >
-                  <span className="text-foreground/90">{t.title}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{t.dueLabel}</span>
-                </li>
-              ))}
-            </>
-          )}
-        </ul>
-      </motion.section>
 
       <SyncStatusBanner error={mutationError ?? tasksError ?? routinesError} />
 

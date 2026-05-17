@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useAuth } from "@/contexts/auth-context";
 import { subscribeBookingsForMonth, subscribePendingBookings } from "@/services/bookings";
+import { purgeStaleDeniedBookings } from "@/services/booking-mutations";
 import {
   computeAdminDashboardStats,
   type AdminDashboardStats,
@@ -47,10 +50,13 @@ function mergeUniqueBookings(...lists: readonly Booking[][]): Booking[] {
 }
 
 export function AdminOverviewView({ embedded }: { embedded?: boolean }) {
+  const { user, displayName } = useAuth();
   const now = useMemo(() => new Date(), []);
   const [monthBookings, setMonthBookings] = useState<Booking[]>([]);
   const [pending, setPending] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const year = now.getFullYear();
@@ -70,6 +76,32 @@ export function AdminOverviewView({ embedded }: { embedded?: boolean }) {
     () => computeAdminDashboardStats(mergeUniqueBookings(monthBookings, pending)),
     [monthBookings, pending]
   );
+
+  const runDeniedCleanup = useCallback(async () => {
+    if (!user || cleanupBusy) return;
+    setCleanupBusy(true);
+    setCleanupMessage(null);
+    try {
+      const result = await purgeStaleDeniedBookings({
+        uid: user.uid,
+        displayName: displayName || "Admin",
+        avatarUrl: null,
+      });
+      if (result.removed === 0 && result.errors.length === 0) {
+        setCleanupMessage("No stale denied bookings found.");
+      } else if (result.errors.length > 0) {
+        setCleanupMessage(
+          `Removed ${result.removed} of ${result.scanned}. ${result.errors.length} error(s) — check console.`
+        );
+      } else {
+        setCleanupMessage(`Removed ${result.removed} stale denied booking${result.removed === 1 ? "" : "s"}.`);
+      }
+    } catch (e) {
+      setCleanupMessage(e instanceof Error ? e.message : "Cleanup failed.");
+    } finally {
+      setCleanupBusy(false);
+    }
+  }, [cleanupBusy, displayName, user]);
 
   if (loading) {
     return (
@@ -96,11 +128,44 @@ export function AdminOverviewView({ embedded }: { embedded?: boolean }) {
           emphasis={stats.moderation.queueDepth > 0}
         />
         <StatCard label="Upcoming stays" value={stats.bookings.upcomingApproved} />
-        <StatCard label="Total bookings" value={stats.bookings.total} />
+        <StatCard label="Active bookings" value={stats.bookings.total} hint="Pending + approved" />
         <StatCard label="Approved" value={stats.bookings.approved} />
-        <StatCard label="Denied" value={stats.bookings.denied} />
+        {stats.bookings.staleDenied > 0 ? (
+          <StatCard
+            label="Stale denied"
+            value={stats.bookings.staleDenied}
+            hint="Needs cleanup"
+            emphasis
+          />
+        ) : null}
         <StatCard label="Cancelled" value={stats.bookings.cancelled} />
       </div>
+
+      {stats.bookings.staleDenied > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/5 px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+            {stats.bookings.staleDenied} denied booking
+            {stats.bookings.staleDenied === 1 ? "" : "s"} still in active data — remove them so calendar and hub stay accurate.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 rounded-xl"
+            disabled={cleanupBusy}
+            onClick={() => void runDeniedCleanup()}
+          >
+            {cleanupBusy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+            Clean up denied
+          </Button>
+        </div>
+      ) : null}
+
+      {cleanupMessage ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {cleanupMessage}
+        </p>
+      ) : null}
 
       {stats.conflicts.bookingsWithConflicts > 0 ? (
         <div className="ar-surface-float rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">

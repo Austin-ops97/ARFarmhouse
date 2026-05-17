@@ -5,6 +5,8 @@ import {
   onDocumentUpdated,
 } from "firebase-functions/v2/firestore";
 
+import { getFirestore } from "firebase-admin/firestore";
+
 import { BOOKINGS_COLLECTION } from "../constants";
 import { dispatchToUser, dispatchToUsers } from "../dispatch";
 import { listAdminUids } from "../tokens";
@@ -162,6 +164,10 @@ export const onBookingDeletedNotify = onDocumentDeleted(
     if (!creatorId) return;
 
     const bookingId = event.params.bookingId;
+
+    // Denial flow writes `bookingDenials/{bookingId}` then deletes — skip "removed" ping.
+    const denialSnap = await getFirestore().collection("bookingDenials").doc(bookingId).get();
+    if (denialSnap.exists) return;
     await dispatchToUser({
       recipientId: creatorId,
       type: "booking_removed",

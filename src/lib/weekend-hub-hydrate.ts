@@ -1,3 +1,4 @@
+import { calendarEventIsUserVisible } from "@/lib/booking-active";
 import { PROPERTY_HERO_IMAGE_URL } from "@/lib/brand";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import { buildPropertyPulseLines } from "@/lib/property-pulse";
@@ -10,18 +11,19 @@ function isoForDay(year: number, monthIndex: number, day: number, hour: number) 
 }
 
 function pickPrimaryEvent(events: PropertyCalendarEvent[], view: Date): PropertyCalendarEvent | null {
-  if (events.length === 0) return null;
+  const visible = events.filter(calendarEventIsUserVisible);
+  if (visible.length === 0) return null;
   const y = view.getFullYear();
   const m = view.getMonth();
   const today = view.getDate();
 
-  const inMonth = events.filter((e) => e.year === y && e.monthIndex === m);
+  const inMonth = visible.filter((e) => e.year === y && e.monthIndex === m);
   const upcoming = inMonth
     .filter((e) => (e.endDay ?? e.startDay) >= today)
     .sort((a, b) => a.startDay - b.startDay);
   if (upcoming[0]) return upcoming[0];
 
-  return [...inMonth].sort((a, b) => b.startDay - a.startDay)[0] ?? events[0] ?? null;
+  return [...inMonth].sort((a, b) => b.startDay - a.startDay)[0] ?? visible[0] ?? null;
 }
 
 /** Hydrate weekend hub from live calendar when a stay exists; otherwise empty bundle. */

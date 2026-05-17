@@ -12,6 +12,7 @@ import {
 
 import type { BrowserTimeoutId } from "@/lib/browser-timer";
 import { buildCalendarMonthMeta } from "@/lib/calendar-month-meta";
+import { calendarEventIsUserVisible } from "@/lib/booking-active";
 import { mergeBookingsAndBlackoutsForMonth } from "@/lib/calendar-booking-display";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import type { BlackoutDate, Booking } from "@/models/booking";
@@ -96,6 +97,7 @@ export function PropertyDataProvider({ children }: { children: ReactNode }) {
       linkedIds.add(b.id);
     }
     const legacyOnly = legacyCalendarEvents.filter((e) => {
+      if (!calendarEventIsUserVisible(e)) return false;
       const bid = (e as PropertyCalendarEvent & { bookingId?: string }).bookingId;
       if (bid && linkedIds.has(bid)) return false;
       if (linkedIds.has(e.id)) return false;

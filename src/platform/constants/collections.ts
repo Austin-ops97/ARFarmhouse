@@ -6,6 +6,7 @@ export const COLLECTIONS = {
   users: "users",
   posts: "posts",
   bookings: "bookings",
+  bookingDenials: "bookingDenials",
   blackoutDates: "blackoutDates",
   calendarEvents: "calendarEvents",
   bookingRequests: "bookingRequests",

@@ -1,10 +1,11 @@
+import { calendarEventIsUserVisible } from "@/lib/booking-active";
 import type { BusyWeekendSummary, CalendarGridDay, CalendarMonthMeta } from "@/lib/calendar-month-meta";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 
 export type DayOccupancyHeat = 0 | 1 | 2 | 3;
 
 export function eventIsActive(event: PropertyCalendarEvent): boolean {
-  return event.status !== "cancelled";
+  return calendarEventIsUserVisible(event);
 }
 
 /** Confirmed stays only — pending requests are not treated as occupying the property. */

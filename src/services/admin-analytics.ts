@@ -1,12 +1,15 @@
+import { isActiveBookingStatus } from "@/lib/booking-active";
 import type { Booking, BookingStatus } from "@/models/booking";
 
 export type AdminDashboardStats = {
   bookings: {
+    /** Active pipeline only — excludes denied/cancelled terminal rows. */
     total: number;
     pending: number;
     pendingConflict: number;
     approved: number;
-    denied: number;
+    /** Stale denied rows still in `bookings` (should be 0 after cleanup). */
+    staleDenied: number;
     cancelled: number;
     upcomingApproved: number;
   };
@@ -42,6 +45,7 @@ export function computeAdminDashboardStats(
   const now = opts?.now ?? new Date();
   const active = bookings.filter((b) => !b.deleted);
   const byStatus = countByStatus(active);
+  const pipeline = active.filter((b) => isActiveBookingStatus(b.status));
 
   const upcomingApproved = active.filter(
     (b) =>
@@ -62,11 +66,11 @@ export function computeAdminDashboardStats(
 
   return {
     bookings: {
-      total: active.length,
+      total: pipeline.length,
       pending: byStatus.pending,
       pendingConflict: byStatus.pending_conflict,
       approved: byStatus.approved,
-      denied: byStatus.denied,
+      staleDenied: byStatus.denied,
       cancelled: byStatus.cancelled,
       upcomingApproved,
     },

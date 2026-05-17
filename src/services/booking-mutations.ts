@@ -18,6 +18,11 @@ import {
   type BookingPolicyAcknowledgment,
 } from "@/lib/booking-acknowledgments";
 import { buildActivityEntry } from "@/lib/booking-activity";
+import {
+  BOOKING_DENIALS_COLLECTION,
+  buildBookingDenialAudit,
+} from "@/lib/booking-denial-audit";
+import { notifyBookingDenied } from "@/lib/notification-fanout-bookings";
 import { calendarDayRangeToTimestamps, formatBookingDateRange, timestampToDate } from "@/lib/booking-dates";
 import { assertFirestoreWriteSafe } from "@/lib/datetime/firestore-write";
 import {
@@ -405,6 +410,27 @@ export async function approveBooking(
   });
 }
 
+async function removeBookingCalendarArtifacts(
+  db: NonNullable<ReturnType<typeof tryGetFirestoreDb>>,
+  booking: Booking
+): Promise<void> {
+  if (booking.calendarEventId) {
+    try {
+      await deleteDoc(doc(db, "calendarEvents", booking.calendarEventId));
+    } catch {
+      /* optional linked event */
+    }
+  }
+  if (booking.legacyBookingRequestId) {
+    try {
+      await deleteDoc(doc(db, "bookingRequests", booking.legacyBookingRequestId));
+    } catch {
+      /* optional legacy request */
+    }
+  }
+}
+
+/** Notify requester, archive denial, then remove active booking + calendar rows. */
 export async function denyBooking(
   bookingId: string,
   actor: BookingMutationActor,
@@ -417,33 +443,87 @@ export async function denyBooking(
     const booking = await loadBooking(bookingId);
     const reason = deniedReason.trim();
     const bookingRef = doc(db, BOOKINGS_COLLECTION, bookingId);
-    const calendarEventId = booking.calendarEventId ?? undefined;
 
-    const deniedEntry = buildActivityEntry(
-      "denied",
-      actor.uid,
-      actor.displayName,
-      reason || undefined
-    );
-    assertFirestoreWriteSafe({ activityLog: [deniedEntry] }, "bookings deny activityLog");
-    const batch = writeBatch(db);
-    batch.update(bookingRef, {
-      status: "denied",
-      deniedReason: reason || null,
-      approvedBy: actor.uid,
-      approvedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      activityLog: arrayUnion(deniedEntry),
-    });
-    if (calendarEventId) {
-      batch.update(doc(db, "calendarEvents", calendarEventId), {
-        status: "cancelled",
-        unifiedStatus: "denied",
-        updatedAt: serverTimestamp(),
+    let notificationQueued = false;
+    try {
+      await notifyBookingDenied({
+        actorId: actor.uid,
+        actorName: actor.displayName,
+        actorAvatarUrl: actor.avatarUrl ?? null,
+        bookingId: booking.id,
+        calendarEventId: booking.calendarEventId,
+        creatorId: booking.createdBy,
+        title: booking.title,
+        reason: reason || undefined,
       });
+      notificationQueued = true;
+    } catch (e) {
+      actionDebug("booking", "deny notification failed", e);
     }
-    await batch.commit();
+
+    const audit = buildBookingDenialAudit(booking, actor.uid, reason, notificationQueued);
+    const denialRef = doc(db, BOOKING_DENIALS_COLLECTION, booking.id);
+    const denialBatch = writeBatch(db);
+    denialBatch.set(denialRef, {
+      ...audit,
+      deniedAt: serverTimestamp(),
+      startDate: Timestamp.fromDate(audit.startDate),
+      endDate: Timestamp.fromDate(audit.endDate),
+    });
+    await denialBatch.commit();
+
+    await removeBookingCalendarArtifacts(db, booking);
+    await deleteDoc(bookingRef);
   });
+}
+
+export type PurgeDeniedBookingsResult = {
+  scanned: number;
+  removed: number;
+  errors: string[];
+};
+
+/** One-time admin cleanup for denied bookings left in the active collection. */
+export async function purgeStaleDeniedBookings(
+  actor: BookingMutationActor
+): Promise<PurgeDeniedBookingsResult> {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+
+  const snap = await getDocs(
+    query(collection(db, BOOKINGS_COLLECTION), where("status", "==", "denied"))
+  );
+  const result: PurgeDeniedBookingsResult = {
+    scanned: snap.size,
+    removed: 0,
+    errors: [],
+  };
+
+  for (const row of snap.docs) {
+    const booking = mapBookingDoc(row);
+    if (booking.deleted) continue;
+    try {
+      const reason = booking.deniedReason ?? "";
+      const audit = buildBookingDenialAudit(booking, actor.uid, reason, false);
+      const purgeBatch = writeBatch(db);
+      purgeBatch.set(doc(db, BOOKING_DENIALS_COLLECTION, booking.id), {
+        ...audit,
+        deniedAt: serverTimestamp(),
+        startDate: Timestamp.fromDate(audit.startDate),
+        endDate: Timestamp.fromDate(audit.endDate),
+      });
+      await purgeBatch.commit();
+      await removeBookingCalendarArtifacts(db, booking);
+      await deleteDoc(doc(db, BOOKINGS_COLLECTION, booking.id));
+      result.removed += 1;
+    } catch (e) {
+      result.errors.push(
+        `${booking.id}: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
+  }
+
+  return result;
 }
 
 export async function cancelBooking(

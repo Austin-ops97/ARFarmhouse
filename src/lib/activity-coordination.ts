@@ -1,3 +1,4 @@
+import { calendarEventIsUserVisible } from "@/lib/booking-active";
 import type { PropertyCalendarEvent } from "@/lib/property-calendar-events";
 import type { FamilyNotification } from "@/models/notification";
 
@@ -21,7 +22,13 @@ export function buildCoordinationHighlights(input: {
   const today = view.getDate();
 
   const upcoming = input.calendarEvents
-    .filter((e) => e.year === y && e.monthIndex === m && (e.endDay ?? e.startDay) >= today)
+    .filter(
+      (e) =>
+        calendarEventIsUserVisible(e) &&
+        e.year === y &&
+        e.monthIndex === m &&
+        (e.endDay ?? e.startDay) >= today
+    )
     .sort((a, b) => a.startDay - b.startDay)[0];
 
   if (upcoming) {

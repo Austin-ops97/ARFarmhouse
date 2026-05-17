@@ -228,8 +228,11 @@ function mapCalendarEventDoc(snap: QueryDocumentSnapshot<DocumentData>): Propert
   const startDay = (data.startDay as number) ?? 1;
   const endDay = (data.endDay as number) ?? startDay;
   const status = data.status === "confirmed" || data.status === "cancelled" ? data.status : "pending";
+  const unifiedStatus =
+    typeof data.unifiedStatus === "string" ? (data.unifiedStatus as PropertyCalendarEvent["unifiedStatus"]) : undefined;
   return {
     id: snap.id,
+    bookingId: typeof data.bookingId === "string" ? data.bookingId : null,
     title: (data.title as string) ?? "",
     startDay,
     endDay,
@@ -237,6 +240,7 @@ function mapCalendarEventDoc(snap: QueryDocumentSnapshot<DocumentData>): Propert
     kind: (data.kind as PropertyCalendarEvent["kind"]) ?? "family_booking",
     accent: (data.accent as PropertyCalendarEvent["accent"]) ?? "mint",
     status,
+    unifiedStatus,
     guests: typeof data.guests === "number" ? data.guests : 0,
     tripId: (data.tripId as string) ?? "family",
     tripPurpose: (data.tripPurpose as string) ?? "",

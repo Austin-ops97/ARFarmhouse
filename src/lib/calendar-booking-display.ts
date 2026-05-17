@@ -1,16 +1,11 @@
+import { bookingIsCalendarVisible } from "@/lib/booking-active";
 import { clipRangeToMonthDays } from "@/lib/booking-date-ranges";
 import { bookingStatusToCalendarStatus } from "@/lib/booking-migration";
 import type { CalendarMonthMeta } from "@/lib/calendar-month-meta";
 import type { PropertyCalendarEvent, PropertyCalendarEventAccent } from "@/lib/property-calendar-events";
 import type { BlackoutDate, Booking, BookingType } from "@/models/booking";
 
-/** Active calendar rows — excludes moderation-terminal and soft-deleted bookings. */
-export function bookingIsCalendarVisible(
-  booking: Pick<Booking, "status" | "deleted">
-): boolean {
-  if (booking.deleted) return false;
-  return booking.status !== "denied" && booking.status !== "cancelled";
-}
+export { bookingIsCalendarVisible };
 
 const EVENT_ACCENT: PropertyCalendarEventAccent = "violet";
 const BOOKING_ACCENT: PropertyCalendarEventAccent = "mint";
