@@ -3,13 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
-import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
+import { useEcosystemOptional } from "@/components/ar-farmhouse/ecosystem-context";
 import { navigationTargetFromNotification } from "@/lib/notification-routes";
 import type { FamilyNotification } from "@/models/notification";
+import { useAppStore } from "@/platform/state/app-store";
 
 export function useNotificationNavigation() {
   const router = useRouter();
-  const { goTo } = useEcosystem();
+  const setActiveNavId = useAppStore((s) => s.setActiveNavId);
+  const ecosystemGoTo = useEcosystemOptional()?.goTo;
+  const goTo = ecosystemGoTo ?? setActiveNavId;
 
   return useCallback(
     (notification: FamilyNotification) => {

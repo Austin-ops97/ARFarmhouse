@@ -15,8 +15,13 @@ export type EcosystemContextValue = {
 
 const EcosystemContext = createContext<EcosystemContextValue | null>(null);
 
+/** Returns ecosystem context when mounted under `EcosystemProvider`, else `null`. */
+export function useEcosystemOptional(): EcosystemContextValue | null {
+  return useContext(EcosystemContext);
+}
+
 export function useEcosystem(): EcosystemContextValue {
-  const v = useContext(EcosystemContext);
+  const v = useEcosystemOptional();
   if (!v) throw new Error("useEcosystem must be used within EcosystemProvider");
   return v;
 }

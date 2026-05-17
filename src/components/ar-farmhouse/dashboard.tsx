@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import dynamic from "next/dynamic";
-import { Suspense, startTransition, useEffect, useMemo } from "react";
+import { Suspense, startTransition, useEffect, useMemo, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { DashboardAppHeader } from "@/components/ar-farmhouse/dashboard-app-header";
@@ -135,7 +135,7 @@ function DashboardRoutes() {
   }, [activeId, highlightPostId]);
 
   return (
-    <EcosystemProvider goTo={setActiveId}>
+    <>
       <div className="ar-app-shell relative min-h-dvh overflow-x-hidden bg-background">
         <DashboardSidebar activeId={activeId} onSelect={setActiveId} liveData={configured} />
 
@@ -181,6 +181,19 @@ function DashboardRoutes() {
       />
       <RouteWeekendHubPortal />
       <PhotoAlbumLightboxHost />
+    </>
+  );
+}
+
+/** Wraps authenticated shell + push bootstrap under a single ecosystem navigation scope. */
+function DashboardEcosystemShell({ children }: { children: ReactNode }) {
+  const setActiveId = useAppStore((s) => s.setActiveNavId);
+  return (
+    <EcosystemProvider goTo={setActiveId}>
+      <ErrorBoundary title="Push notifications unavailable">
+        <PushNotificationBootstrap />
+      </ErrorBoundary>
+      {children}
     </EcosystemProvider>
   );
 }
@@ -191,7 +204,7 @@ export function Dashboard() {
       <SavedPostsProvider>
         <NotificationsProvider>
         <PushNotificationsProvider>
-        <PushNotificationBootstrap />
+        <DashboardEcosystemShell>
         <PhotoAlbumProvider>
           <Suspense
         fallback={
@@ -206,6 +219,7 @@ export function Dashboard() {
           <DashboardRoutes />
         </Suspense>
         </PhotoAlbumProvider>
+        </DashboardEcosystemShell>
         </PushNotificationsProvider>
         </NotificationsProvider>
       </SavedPostsProvider>
