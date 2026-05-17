@@ -71,7 +71,7 @@ Used for post deep links (`src/lib/app-url.ts`) and notification deep links. Wit
 |----------|-------------|
 | `SITE_ORIGIN` | Canonical HTTPS origin (no trailing slash), e.g. `https://arfarmhouse.example.com` — used when building push `deepLink` URLs in `functions/src/notifications/dispatch.ts` |
 
-Set in production via Firebase Console → **Functions** → your deployment → **Environment variables**, or `firebase functions:secrets` / `.env` for local emulator (`functions/.env.example`).
+Set via `functions/.env` (copy from `functions/.env.example`; gitignored — loaded by Firebase CLI on deploy/emulator), or Firebase Console → **Functions** → **Environment variables** for CI deploys without a local `.env`.
 
 ## Local development
 
