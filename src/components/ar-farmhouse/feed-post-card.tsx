@@ -410,22 +410,28 @@ export function FeedPostCard({
           isHighlighted && "rounded-[1.5rem] ring-2 ring-primary/35 ring-offset-2 ring-offset-background sm:rounded-[1.75rem]"
         )}
       >
-        <header className="flex items-start gap-3 px-0.5 pb-3 sm:gap-2.5 sm:px-0 sm:pb-2.5">
+        <header className="flex items-start gap-3 px-0.5 pb-3 sm:gap-2.5 sm:px-0 sm:pb-3">
           <UserAvatar
             name={post.author.name}
             colorId={post.author.avatarColor}
             uid={post.authorId}
-            className="size-11 ring-2 ring-border/55 dark:ring-white/10 sm:size-12"
+            className="size-11 shrink-0 ring-2 ring-border/55 dark:ring-white/10 sm:size-12"
             fallbackClassName="text-sm"
           />
           <div className="min-w-0 flex-1 pt-0.5">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="text-base font-semibold tracking-tight text-foreground sm:text-[15px]">{post.author.name}</span>
-              <span className="text-sm text-muted-foreground sm:text-[13px]">{post.timeLabel}</span>
-              <span className="text-xs font-medium text-primary/90 sm:text-[11px]">· {categoryLabel[post.category]}</span>
-            </div>
+            <p className="text-[16px] font-bold leading-tight tracking-tight text-foreground sm:text-[15px]">
+              {post.author.name}
+            </p>
+            <p className="mt-0.5 text-[13px] font-semibold leading-snug text-muted-foreground sm:text-[12px]">
+              <span>{post.timeLabel}</span>
+              <span aria-hidden className="text-muted-foreground/65">
+                {" "}
+                ·{" "}
+              </span>
+              <span className="text-primary/90">{categoryLabel[post.category]}</span>
+            </p>
             {post.location && (
-              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground sm:text-[12px]">
+              <p className="mt-1 flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground sm:text-[12px]">
                 <MapPin className="size-3 shrink-0 opacity-70" aria-hidden />
                 <span>{post.location}</span>
               </p>
@@ -448,6 +454,19 @@ export function FeedPostCard({
             </button>
           </div>
         </header>
+
+        {post.kind !== "poll" && (post.title || post.body) && (
+          <div className="mb-4 space-y-1 px-0.5 sm:mb-3.5 sm:space-y-0.5 sm:px-0">
+            {post.title && (
+              <p className="text-[16px] font-semibold leading-snug text-foreground sm:text-[15px]">{post.title}</p>
+            )}
+            {post.body && (
+              <p className="text-[16px] font-normal leading-[1.45] text-foreground/90 [overflow-wrap:anywhere] whitespace-normal break-words sm:text-[15px]">
+                {post.body}
+              </p>
+            )}
+          </div>
+        )}
 
         {post.optimistic && post.optimisticUpload?.phase === "failed" && (
           <div
@@ -672,12 +691,6 @@ export function FeedPostCard({
           />
         )}
 
-        {post.kind === "text" && !hasMedia && (
-          <motion.div className="ar-surface-inset rounded-2xl px-4 py-5 sm:px-5 sm:py-6">
-            <p className="text-[15px] leading-relaxed text-foreground/95 sm:text-base">{post.body}</p>
-          </motion.div>
-        )}
-
         {/* Actions */}
         <div className="flex items-center gap-0.5 px-0.5 pt-3 sm:gap-px sm:px-0 sm:pt-3.5">
           <motion.button
@@ -775,16 +788,6 @@ export function FeedPostCard({
           </p>
         )}
 
-        {post.kind !== "text" && post.kind !== "poll" && (
-          <div className="space-y-2 px-0.5 pt-3 sm:space-y-1.5 sm:px-0 sm:pt-3">
-            {post.title && <p className="text-base font-semibold leading-snug text-foreground sm:text-[15px]">{post.title}</p>}
-            <p className="text-base leading-relaxed text-foreground/90 sm:text-[15px] md:text-base">
-              <span className="font-semibold text-foreground">{post.author.name.split(" ")[0]} </span>
-              {post.body}
-            </p>
-          </div>
-        )}
-
         {post.linkedEvent && (
           <button
             type="button"
@@ -828,7 +831,7 @@ export function FeedPostCard({
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
               className="overflow-hidden"
             >
-              <div className="border-l border-primary/25 py-2 pl-3 sm:pl-4">
+              <div className="pt-2 pb-1">
                 <FeedCommentList
                   comments={social.commentRows}
                   currentUid={user?.uid}

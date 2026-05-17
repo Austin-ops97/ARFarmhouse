@@ -20,6 +20,9 @@ type FeedCommentListProps = {
   error?: string | null;
 };
 
+const commentBubbleClass =
+  "rounded-2xl bg-muted/55 px-3 py-2.5 ring-1 ring-inset ring-border/35 dark:bg-white/[0.06] dark:ring-white/[0.08] sm:rounded-[15px] sm:px-3 sm:py-2";
+
 function CommentRow({
   comment,
   currentUid,
@@ -37,6 +40,7 @@ function CommentRow({
 }) {
   const isOwn = currentUid === comment.authorId;
   const isPending = comment.id.startsWith("pending_");
+  const isReply = depth > 0;
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(comment.text);
@@ -63,54 +67,68 @@ function CommentRow({
     .join(" · ");
 
   return (
-    <div className={cn("flex gap-2.5", depth > 0 && "ml-5 border-l border-border/50 pl-3 dark:border-white/10")}>
+    <div className="flex min-w-0 items-start gap-3 sm:gap-2.5">
       <UserAvatar
         name={comment.author}
         colorId={comment.authorAvatarColor}
         uid={comment.authorId}
-        className={cn("shrink-0", depth > 0 ? "size-7" : "size-8")}
-        fallbackClassName="rounded-full text-[9px]"
+        className={cn("shrink-0", isReply ? "size-7 sm:size-6" : "size-9 sm:size-8")}
+        fallbackClassName={cn("rounded-full", isReply ? "text-[8px]" : "text-[10px]")}
       />
-      <div className="min-w-0 flex-1 pt-0.5">
+      <div className="min-w-0 flex-1">
         {editing ? (
           <div className="space-y-2">
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              className="h-8 rounded-lg text-[13px]"
+              className="h-9 rounded-xl text-[15px] sm:h-8 sm:text-[13px]"
               disabled={rowBusy}
             />
             <div className="flex gap-2">
-              <Button type="button" size="sm" variant="ghost" className="h-7 rounded-lg px-2 text-xs" onClick={() => setEditing(false)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 rounded-lg px-2.5 text-[13px] font-semibold"
+                onClick={() => setEditing(false)}
+              >
                 Cancel
               </Button>
-              <Button type="button" size="sm" className="h-7 rounded-lg px-3 text-xs" disabled={rowBusy} onClick={() => void saveEdit()}>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 rounded-lg px-3 text-[13px] font-semibold"
+                disabled={rowBusy}
+                onClick={() => void saveEdit()}
+              >
                 Save
               </Button>
             </div>
           </div>
         ) : (
           <>
-            <div className="flex items-start gap-1">
-              <p className="min-w-0 flex-1 text-base leading-relaxed text-foreground/90 sm:text-[13px] sm:leading-snug">
-                <span className="font-semibold text-foreground">{comment.author}</span>{" "}
-                <span className="whitespace-pre-wrap break-words">{comment.text}</span>
-              </p>
+            <div className="flex min-w-0 items-start gap-1">
+              <div className={cn("min-w-0 flex-1", commentBubbleClass)}>
+                <p className="text-[15px] font-bold leading-tight text-foreground sm:text-[14px]">{comment.author}</p>
+                <p className="mt-1 text-[15px] font-normal leading-[1.4] text-foreground/90 [overflow-wrap:anywhere] whitespace-normal break-words sm:text-[14px]">
+                  {comment.text}
+                </p>
+              </div>
               {isOwn && !isPending && (
-                <div className="relative -mt-0.5 shrink-0">
+                <div className="relative shrink-0 self-start">
                   <button
                     type="button"
-                    className="flex size-9 items-center justify-center rounded-full text-muted-foreground/80 hover:bg-muted/60 hover:text-muted-foreground sm:size-auto sm:p-0.5"
+                    className="flex size-9 items-center justify-center rounded-full text-muted-foreground/80 hover:bg-muted/60 hover:text-muted-foreground sm:size-8"
                     aria-label="Comment options"
                     onClick={() => setMenuOpen((o) => !o)}
                   >
-                    <MoreHorizontal className="size-3.5" />
+                    <MoreHorizontal className="size-4" />
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 z-10 mt-1 w-36 overflow-hidden rounded-xl border border-border/60 bg-popover py-1 shadow-lg dark:border-white/12">
                       <button
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/60"
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-muted/60"
                         onClick={() => {
                           setEditing(true);
                           setMenuOpen(false);
@@ -121,7 +139,7 @@ function CommentRow({
                       </button>
                       <button
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-500 hover:bg-red-500/10"
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-red-500 hover:bg-red-500/10"
                         onClick={() => {
                           setMenuOpen(false);
                           void onDelete(comment.id);
@@ -135,9 +153,9 @@ function CommentRow({
                 </div>
               )}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0 text-xs font-medium text-muted-foreground sm:mt-0.5 sm:text-[11px]">
+            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 pl-1 text-[13px] font-semibold text-muted-foreground sm:mt-1 sm:text-[12px]">
               <span>{timeMeta}</span>
-              {!isPending && depth === 0 && (
+              {!isPending && !isReply && (
                 <button type="button" className="hover:text-foreground" onClick={() => onReply(comment.id)}>
                   Reply
                 </button>
@@ -170,39 +188,46 @@ export function FeedCommentList({
   }, {});
 
   return (
-    <div className="space-y-3 sm:space-y-2.5">
+    <div className="space-y-4 sm:space-y-3">
       {topLevel.length === 0 && (
-        <p className="rounded-xl border border-dashed border-border/50 bg-muted/15 px-4 py-6 text-center text-base leading-relaxed text-muted-foreground sm:text-[13px] dark:border-white/10">
+        <p className="rounded-2xl border border-dashed border-border/50 bg-muted/15 px-4 py-6 text-center text-[15px] leading-relaxed text-muted-foreground sm:text-[13px] dark:border-white/10">
           No comments yet — share a warm note for the family.
         </p>
       )}
-      {topLevel.map((c) => (
-        <div key={c.id} className="space-y-1.5">
-          <CommentRow
-            comment={c}
-            currentUid={currentUid}
-            depth={0}
-            onReply={setReplyToId}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-          {(repliesByParent[c.id] ?? []).map((reply) => (
+      {topLevel.map((c) => {
+        const replies = repliesByParent[c.id] ?? [];
+        return (
+          <div key={c.id} className="space-y-0">
             <CommentRow
-              key={reply.id}
-              comment={reply}
+              comment={c}
               currentUid={currentUid}
-              depth={1}
+              depth={0}
               onReply={setReplyToId}
               onEdit={onEdit}
               onDelete={onDelete}
             />
-          ))}
-        </div>
-      ))}
+            {replies.length > 0 && (
+              <div className="ml-11 mt-2.5 space-y-3 border-l-2 border-border/45 pl-3.5 dark:border-white/10 sm:ml-10 sm:mt-2 sm:space-y-2.5 sm:pl-3">
+                {replies.map((reply) => (
+                  <CommentRow
+                    key={reply.id}
+                    comment={reply}
+                    currentUid={currentUid}
+                    depth={1}
+                    onReply={setReplyToId}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {currentUid && (
         <form
-          className="flex flex-col gap-3 border-t border-border/40 pt-3 dark:border-white/[0.06] sm:gap-2 sm:pt-2.5"
+          className="flex flex-col gap-3 border-t border-border/40 pt-4 dark:border-white/[0.06] sm:gap-2.5 sm:pt-3"
           onSubmit={(e) => {
             e.preventDefault();
             if (!draft.trim() || busy) return;
@@ -218,26 +243,26 @@ export function FeedCommentList({
           }}
         >
           {replyToId && (
-            <p className="text-xs text-muted-foreground sm:text-[11px]">
+            <p className="text-[13px] font-semibold text-muted-foreground sm:text-[12px]">
               Replying ·{" "}
-              <button type="button" className="font-medium text-foreground hover:underline" onClick={() => setReplyToId(null)}>
+              <button type="button" className="font-semibold text-foreground hover:underline" onClick={() => setReplyToId(null)}>
                 Cancel
               </button>
             </p>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={replyToId ? "Write a reply…" : "Write a comment…"}
-              className="h-11 flex-1 rounded-full border-border/60 bg-muted/50 px-4 text-base sm:h-9 sm:text-[13px] dark:border-white/10 dark:bg-white/[0.04]"
+              className="h-11 min-w-0 flex-1 rounded-full border-border/60 bg-muted/50 px-4 text-[15px] sm:h-9 sm:text-[13px] dark:border-white/10 dark:bg-white/[0.04]"
               disabled={busy}
             />
             <Button
               type="submit"
               size="sm"
               variant="ghost"
-              className="h-11 min-w-11 shrink-0 px-3 text-base font-semibold text-primary hover:bg-transparent hover:text-primary/80 disabled:opacity-40 sm:h-9 sm:min-w-0 sm:px-2 sm:text-[13px]"
+              className="h-11 min-w-11 shrink-0 px-3 text-[15px] font-bold text-primary hover:bg-transparent hover:text-primary/80 disabled:opacity-40 sm:h-9 sm:min-w-0 sm:px-2 sm:text-[13px]"
               disabled={busy || !draft.trim()}
             >
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : "Post"}
@@ -245,7 +270,7 @@ export function FeedCommentList({
           </div>
         </form>
       )}
-      {error ? <p className="text-[12px] text-red-400/95">{error}</p> : null}
+      {error ? <p className="text-[13px] font-medium text-red-400/95">{error}</p> : null}
     </div>
   );
 }
