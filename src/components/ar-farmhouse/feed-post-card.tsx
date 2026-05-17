@@ -260,7 +260,7 @@ export function FeedPostCard({
 
   const commentCountLabel = useMemo(() => {
     if (interactionsLive && commentsOpen) {
-      return Math.max(post.commentCount, social.commentRows.length);
+      return social.commentRows.length;
     }
     return post.commentCount;
   }, [commentsOpen, interactionsLive, post.commentCount, social.commentRows.length]);

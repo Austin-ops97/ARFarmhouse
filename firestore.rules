@@ -26,6 +26,18 @@ service cloud.firestore {
       return resource.data.commentCount is int ? resource.data.commentCount : 0;
     }
 
+    /** Comment create (+1) or delete (-1 … -50 when removing a thread). */
+    function validEngagementCommentCountUpdate() {
+      let delta = request.resource.data.commentCount - priorCommentCount();
+      return request.resource.data.commentCount is int
+        && request.resource.data.commentCount >= 0
+        && (
+          delta == 1
+          || delta == -1
+          || (delta < 0 && delta >= -50)
+        );
+    }
+
     /** App admins (`admin`) and legacy family owners (`owner`). */
     function isAppAdmin() {
       return isSignedIn()
@@ -98,6 +110,14 @@ service cloud.firestore {
       return isSignedIn()
         && post.authorId is string
         && (post.authorId == request.auth.uid || isAppAdmin());
+    }
+
+    /** Parent comment author may delete replies when removing their thread. */
+    function canDeleteCommentAsParentAuthor(postId, parentId) {
+      return parentId is string
+        && parentId.size() > 0
+        && get(/databases/$(database)/documents/posts/$(postId)/comments/$(parentId)).data.authorId
+          == request.auth.uid;
     }
 
     function canDeleteFeedPost() {
@@ -186,10 +206,14 @@ service cloud.firestore {
         || (
           request.resource.data.diff(resource.data).changedKeys()
             .hasOnly(['commentCount', 'updatedAt'])
-          && (
-            request.resource.data.commentCount == priorCommentCount() + 1
-            || request.resource.data.commentCount == priorCommentCount() - 1
-          )
+          && validEngagementCommentCountUpdate()
+        )
+        || (
+          isAppAdmin()
+          && request.resource.data.diff(resource.data).changedKeys()
+            .hasOnly(['commentCount', 'updatedAt'])
+          && request.resource.data.commentCount is int
+          && request.resource.data.commentCount >= 0
         )
         || (
           request.resource.data.diff(resource.data).changedKeys()
@@ -222,6 +246,8 @@ service cloud.firestore {
         allow update, delete: if isSignedIn() && (
           resource.data.authorId == request.auth.uid
           || canCascadeDeletePostEngagement(postId)
+          || canDeleteCommentAsParentAuthor(postId, resource.data.parentId)
+          || isAppAdmin()
         );
       }
 

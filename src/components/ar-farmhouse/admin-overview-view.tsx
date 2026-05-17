@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useAuth } from "@/contexts/auth-context";
 import { subscribeBookingsForMonth, subscribePendingBookings } from "@/services/bookings";
 import { purgeStaleDeniedBookings } from "@/services/booking-mutations";
+import { repairAllFeedCommentIntegrity } from "@/services/post-engagement";
 import {
   computeAdminDashboardStats,
   type AdminDashboardStats,
@@ -57,6 +58,8 @@ export function AdminOverviewView({ embedded }: { embedded?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
+  const [commentRepairBusy, setCommentRepairBusy] = useState(false);
+  const [commentRepairMessage, setCommentRepairMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const year = now.getFullYear();
@@ -102,6 +105,30 @@ export function AdminOverviewView({ embedded }: { embedded?: boolean }) {
       setCleanupBusy(false);
     }
   }, [cleanupBusy, displayName, user]);
+
+  const runCommentRepair = useCallback(async () => {
+    if (!user || commentRepairBusy) return;
+    setCommentRepairBusy(true);
+    setCommentRepairMessage(null);
+    try {
+      const result = await repairAllFeedCommentIntegrity();
+      if (result.errors.length > 0) {
+        setCommentRepairMessage(
+          `Repaired ${result.postsRepaired} post(s); removed ${result.orphansRemoved} orphaned reply/replies; fixed ${result.countsAdjusted} count(s). ${result.errors.length} error(s) — check console.`
+        );
+      } else if (result.postsRepaired === 0) {
+        setCommentRepairMessage("No orphaned feed comments or mismatched counts found.");
+      } else {
+        setCommentRepairMessage(
+          `Repaired ${result.postsRepaired} post(s): removed ${result.orphansRemoved} orphaned reply/replies and corrected ${result.countsAdjusted} comment count(s).`
+        );
+      }
+    } catch (e) {
+      setCommentRepairMessage(e instanceof Error ? e.message : "Comment repair failed.");
+    } finally {
+      setCommentRepairBusy(false);
+    }
+  }, [commentRepairBusy, user]);
 
   if (loading) {
     return (
@@ -164,6 +191,29 @@ export function AdminOverviewView({ embedded }: { embedded?: boolean }) {
       {cleanupMessage ? (
         <p className="text-sm text-muted-foreground" role="status">
           {cleanupMessage}
+        </p>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/50 bg-muted/15 px-4 py-3 dark:border-white/[0.06]">
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+          Repair feed posts with orphaned replies or comment counts that no longer match visible threads.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="shrink-0 rounded-xl"
+          disabled={commentRepairBusy}
+          onClick={() => void runCommentRepair()}
+        >
+          {commentRepairBusy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+          Repair comment counts
+        </Button>
+      </div>
+
+      {commentRepairMessage ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {commentRepairMessage}
         </p>
       ) : null}
 

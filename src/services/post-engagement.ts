@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   increment,
   limit,
   onSnapshot,
@@ -11,6 +12,8 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
+  updateDoc,
+  where,
   writeBatch,
 } from "firebase/firestore";
 
@@ -162,20 +165,163 @@ export async function updateFeedComment(input: {
   );
 }
 
-export async function deleteFeedComment(postId: string, commentId: string, uid: string) {
+/** How many post.commentCount units one delete removes (parent thread includes replies). */
+export function feedCommentDeleteCount(parentId: string | null, replyCount: number): number {
+  if (parentId) return 1;
+  return 1 + replyCount;
+}
+
+/** Optimistic UI: drop a reply, or a top-level comment and all of its replies. */
+export function filterCommentsAfterDelete(rows: FeedComment[], commentId: string): FeedComment[] {
+  const target = rows.find((r) => r.id === commentId);
+  if (!target) return rows.filter((r) => r.id !== commentId);
+  if (target.parentId) return rows.filter((r) => r.id !== commentId);
+  return rows.filter((r) => r.id !== commentId && r.parentId !== commentId);
+}
+
+const MAX_COMMENTS_PER_DELETE_BATCH = 499;
+
+async function queryCommentReplies(postId: string, parentCommentId: string) {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+  const snap = await getDocs(
+    query(
+      collection(db, "posts", postId, "comments"),
+      where("parentId", "==", parentCommentId)
+    )
+  );
+  return snap.docs;
+}
+
+export async function deleteFeedComment(
+  postId: string,
+  commentId: string,
+  uid: string
+): Promise<number> {
   const db = tryGetFirestoreDb();
   if (!db) throw new Error("Firestore unavailable");
   const ref = doc(db, "posts", postId, "comments", commentId);
-  const batch = writeBatch(db);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-  if (snap.data()?.authorId !== uid) throw new Error("You can only delete your own comments.");
-  batch.delete(ref);
-  batch.update(doc(db, "posts", postId), {
-    commentCount: increment(-1),
-    updatedAt: serverTimestamp(),
+  if (!snap.exists()) return 0;
+  const data = snap.data() ?? {};
+  if (data.authorId !== uid) throw new Error("You can only delete your own comments.");
+
+  const parentId = (data.parentId as string | null) ?? null;
+  const replyDocs = parentId ? [] : await queryCommentReplies(postId, commentId);
+  const deleteCount = feedCommentDeleteCount(parentId, replyDocs.length);
+  const toDelete = [ref, ...replyDocs.map((d) => d.ref)];
+  const postRef = doc(db, "posts", postId);
+  const postSnap = await getDoc(postRef);
+  const currentCount =
+    typeof postSnap.data()?.commentCount === "number" ? postSnap.data()!.commentCount : 0;
+  const nextCount = Math.max(0, currentCount - deleteCount);
+
+  for (let i = 0; i < toDelete.length; i += MAX_COMMENTS_PER_DELETE_BATCH) {
+    const chunk = toDelete.slice(i, i + MAX_COMMENTS_PER_DELETE_BATCH);
+    const batch = writeBatch(db);
+    for (const commentRef of chunk) batch.delete(commentRef);
+    if (i + chunk.length >= toDelete.length && nextCount !== currentCount) {
+      batch.update(postRef, {
+        commentCount: nextCount,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+
+  return deleteCount;
+}
+
+export type RepairPostCommentsResult = {
+  postId: string;
+  scanned: number;
+  orphansRemoved: number;
+  previousCount: number;
+  correctedCount: number;
+  countAdjusted: boolean;
+};
+
+export type RepairFeedCommentsResult = {
+  postsScanned: number;
+  postsRepaired: number;
+  orphansRemoved: number;
+  countsAdjusted: number;
+  errors: string[];
+};
+
+/** Developer/admin repair: remove orphaned replies and sync post.commentCount. */
+export async function repairPostCommentIntegrity(postId: string): Promise<RepairPostCommentsResult> {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+
+  const commentsRef = collection(db, "posts", postId, "comments");
+  const snap = await getDocs(commentsRef);
+  const docs = snap.docs;
+  const idSet = new Set(docs.map((d) => d.id));
+  const orphanDocs = docs.filter((d) => {
+    const pid = d.data().parentId as string | null | undefined;
+    return Boolean(pid) && !idSet.has(pid);
   });
-  await batch.commit();
+  const correctedCount = docs.length - orphanDocs.length;
+
+  const postRef = doc(db, "posts", postId);
+  const postSnap = await getDoc(postRef);
+  const previousCount =
+    typeof postSnap.data()?.commentCount === "number" ? postSnap.data()!.commentCount : 0;
+
+  for (let i = 0; i < orphanDocs.length; i += MAX_COMMENTS_PER_DELETE_BATCH) {
+    const chunk = orphanDocs.slice(i, i + MAX_COMMENTS_PER_DELETE_BATCH);
+    const batch = writeBatch(db);
+    for (const orphan of chunk) batch.delete(orphan.ref);
+    await batch.commit();
+  }
+
+  const countAdjusted = previousCount !== correctedCount;
+  if (countAdjusted) {
+    await updateDoc(postRef, {
+      commentCount: Math.max(0, correctedCount),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  return {
+    postId,
+    scanned: docs.length,
+    orphansRemoved: orphanDocs.length,
+    previousCount,
+    correctedCount,
+    countAdjusted,
+  };
+}
+
+/** Scan every feed post and repair comment threads (admin-only; gated in Firestore rules). */
+export async function repairAllFeedCommentIntegrity(): Promise<RepairFeedCommentsResult> {
+  const db = tryGetFirestoreDb();
+  if (!db) throw new Error("Firestore unavailable");
+
+  const postsSnap = await getDocs(collection(db, "posts"));
+  const result: RepairFeedCommentsResult = {
+    postsScanned: postsSnap.size,
+    postsRepaired: 0,
+    orphansRemoved: 0,
+    countsAdjusted: 0,
+    errors: [],
+  };
+
+  for (const postDoc of postsSnap.docs) {
+    try {
+      const row = await repairPostCommentIntegrity(postDoc.id);
+      if (row.orphansRemoved > 0 || row.countAdjusted) result.postsRepaired += 1;
+      result.orphansRemoved += row.orphansRemoved;
+      if (row.countAdjusted) result.countsAdjusted += 1;
+    } catch (e) {
+      result.errors.push(
+        `${postDoc.id}: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
+  }
+
+  return result;
 }
 
 export function subscribePostComments(

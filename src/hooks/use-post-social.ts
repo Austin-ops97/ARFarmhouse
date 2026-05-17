@@ -7,6 +7,7 @@ import {
   addFeedComment,
   deleteFeedComment,
   fetchMyReactionEmoji,
+  filterCommentsAfterDelete,
   type FeedComment,
   previewReactionAfterToggle,
   type ReactionChip,
@@ -207,11 +208,16 @@ export function usePostSocial({
   const removeComment = useCallback(
     async (commentId: string) => {
       if (!remoteEnabled || !uid) return;
-      setComments((rows) => rows.filter((r) => r.id !== commentId));
+      let previousRows: FeedComment[] = [];
+      setComments((rows) => {
+        previousRows = rows;
+        return filterCommentsAfterDelete(rows, commentId);
+      });
       try {
         await deleteFeedComment(postId, commentId, uid);
         setSocialError(null);
       } catch (e) {
+        setComments(previousRows);
         setSocialError(e instanceof Error ? e.message : "Could not delete comment.");
         throw e;
       }
