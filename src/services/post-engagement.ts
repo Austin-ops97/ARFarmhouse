@@ -260,9 +260,14 @@ export async function repairPostCommentIntegrity(postId: string): Promise<Repair
   const idSet = new Set(docs.map((d) => d.id));
   const orphanDocs = docs.filter((d) => {
     const pid = d.data().parentId as string | null | undefined;
-    return Boolean(pid) && !idSet.has(pid);
+
+    if (typeof pid !== "string" || pid.trim().length === 0) {
+      return false;
+    }
+
+    return !idSet.has(pid);
   });
-  const correctedCount = docs.length - orphanDocs.length;
+  const correctedCount = Math.max(0, docs.length - orphanDocs.length);
 
   const postRef = doc(db, "posts", postId);
   const postSnap = await getDoc(postRef);
