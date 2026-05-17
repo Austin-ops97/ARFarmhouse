@@ -39,7 +39,7 @@ export const LOCAL_SETTINGS_REGISTRY = {
     key: SETTING_KEYS.notifyPush,
     scope: "local" as const,
     defaultValue: true,
-    description: "Push notification preference (future)",
+    description: "Push notification preference",
   },
   [SETTING_KEYS.notifyEmailDigest]: {
     key: SETTING_KEYS.notifyEmailDigest,

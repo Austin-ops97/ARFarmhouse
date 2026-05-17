@@ -10,10 +10,11 @@ All client variables must be prefixed with `NEXT_PUBLIC_` so Next.js inlines the
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `project-id.firebaseapp.com` |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
 | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | **Must match** Firebase Console → Storage → bucket id (typically `<project-id>.firebasestorage.app`). Legacy `<project-id>.appspot.com` env values are **auto-normalized** to `.firebasestorage.app` when they match `NEXT_PUBLIC_FIREBASE_PROJECT_ID`. Cloud Functions triggers may still report `*.appspot.com` — that is the same default bucket resource as the `.firebasestorage.app` id. |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | FCM sender ID (future push) |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | FCM sender ID |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Web app ID |
+| `NEXT_PUBLIC_FIREBASE_VAPID_KEY` | Web Push VAPID key (Firebase Console → Project settings → Cloud Messaging → **Web Push certificates**) — required for device token registration |
 
-Read logic: `src/lib/firebase/env.ts` → `readPublicFirebaseConfig()`.
+Read logic: `src/lib/firebase/env.ts` → `readPublicFirebaseConfig()`. VAPID: `src/lib/firebase/messaging.ts` → `readVapidKey()`.
 
 ## Auth registration gate
 
@@ -62,7 +63,15 @@ Optional local emulator: set `NEXT_PUBLIC_FIREBASE_FUNCTIONS_EMULATOR=true` and 
 |----------|-------------|
 | `NEXT_PUBLIC_SITE_URL` | Canonical HTTPS origin, e.g. `https://arfarmhouse.example.com` — no trailing slash |
 
-Used for post deep links (`src/lib/app-url.ts`). Without it, share UI shows a setup hint.
+Used for post deep links (`src/lib/app-url.ts`) and notification deep links. Without it, share UI shows a setup hint.
+
+## Cloud Functions (push deep links)
+
+| Variable | Description |
+|----------|-------------|
+| `SITE_ORIGIN` | Canonical HTTPS origin (no trailing slash), e.g. `https://arfarmhouse.example.com` — used when building push `deepLink` URLs in `functions/src/notifications/dispatch.ts` |
+
+Set in production via Firebase Console → **Functions** → your deployment → **Environment variables**, or `firebase functions:secrets` / `.env` for local emulator (`functions/.env.example`).
 
 ## Local development
 

@@ -130,7 +130,15 @@ service cloud.firestore {
         && validSignupRedemption()
         && (!('role' in request.resource.data) || request.resource.data.role == 'user');
       allow update: if isSelf(userId)
-        && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
+        && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)
+        && (
+          !('notificationsEnabled' in request.resource.data)
+          || request.resource.data.notificationsEnabled is bool
+        )
+        && (
+          !('notificationPreferences' in request.resource.data)
+          || request.resource.data.notificationPreferences is map
+        );
       allow delete: if false;
 
       match /savedPosts/{postId} {
@@ -141,10 +149,25 @@ service cloud.firestore {
 
       match /notifications/{notificationId} {
         allow read: if isSelf(userId);
-        allow create: if isSignedIn()
-          && request.resource.data.actorId == request.auth.uid;
+        /** Inbox writes are server-only (Cloud Functions Admin SDK). */
+        allow create: if false;
         allow update: if isSelf(userId)
           && request.resource.data.diff(resource.data).changedKeys().hasOnly(['readAt']);
+        allow delete: if isSelf(userId);
+      }
+
+      match /notificationTokens/{tokenId} {
+        allow read: if isSelf(userId);
+        allow create: if isSelf(userId)
+          && request.resource.data.token is string
+          && request.resource.data.token.size() > 0
+          && request.resource.data.token.size() <= 4096
+          && request.resource.data.platform is string
+          && request.resource.data.browser is string;
+        allow update: if isSelf(userId)
+          && request.resource.data.token == resource.data.token
+          && request.resource.data.diff(resource.data).changedKeys()
+            .hasOnly(['updatedAt', 'platform', 'browser']);
         allow delete: if isSelf(userId);
       }
     }

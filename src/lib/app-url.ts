@@ -15,3 +15,12 @@ export function buildPostDeepLink(postId: string): string {
   url.searchParams.set("post", postId);
   return url.toString();
 }
+
+export function buildBookingDeepLink(bookingId: string): string {
+  const origin = getPublicSiteOrigin();
+  if (!origin) return "";
+  const path = typeof window !== "undefined" ? window.location.pathname || "/" : "/";
+  const url = new URL(path, origin);
+  url.searchParams.set("booking", bookingId);
+  return url.toString();
+}

@@ -15,6 +15,12 @@ export function normalizeUserRole(raw: unknown): UserRole {
 
 export type ThemePreference = "system" | "light" | "dark";
 
+export type NotificationPreferences = {
+  push?: boolean;
+  emailDigest?: boolean;
+  weekendReminders?: boolean;
+};
+
 export type FirestoreUserProfile = {
   uid: string;
   displayName: string;
@@ -32,6 +38,8 @@ export type FirestoreUserProfile = {
   createdAt: unknown;
   updatedAt?: unknown;
   role: UserRole;
+  notificationsEnabled?: boolean;
+  notificationPreferences?: NotificationPreferences;
   themePreference: ThemePreference;
   favoriteWeekends: string[];
   familyBranch: string | null;

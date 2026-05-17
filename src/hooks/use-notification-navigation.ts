@@ -13,6 +13,23 @@ export function useNotificationNavigation() {
 
   return useCallback(
     (notification: FamilyNotification) => {
+      if (notification.deepLink) {
+        try {
+          const parsed = new URL(notification.deepLink, window.location.origin);
+          if (parsed.origin === window.location.origin) {
+            router.replace(parsed.pathname + parsed.search);
+            const postId = parsed.searchParams.get("post");
+            const bookingId = parsed.searchParams.get("booking");
+            if (postId) goTo("feed");
+            else if (bookingId) goTo("calendar");
+            else goTo(notification.route.nav);
+            return;
+          }
+        } catch {
+          /* fall through to route-based navigation */
+        }
+      }
+
       const target = navigationTargetFromNotification(notification);
       goTo(target.nav);
       const url = new URL(window.location.href);

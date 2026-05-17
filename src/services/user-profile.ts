@@ -290,6 +290,8 @@ export async function bootstrapUserProfileOnSignup(
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         role: "user",
+        notificationsEnabled: true,
+        notificationPreferences: { push: true },
         themePreference: readBootstrapThemePreference(),
         favoriteWeekends: [],
         bio: null,

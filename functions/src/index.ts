@@ -164,6 +164,17 @@ async function markAlbumFailed(mediaId: string) {
 
 export { validateInviteCode } from "./invite/validate-invite-callable";
 export { onUserProfileCreatedMarkInvite } from "./invite/on-user-profile-created";
+export {
+  onBookingCreatedNotify,
+  onBookingUpdatedNotify,
+  onBookingDeletedNotify,
+  onFeedPostCreatedNotify,
+  onHouseTaskCreatedNotify,
+  onNotificationTokenCreated,
+  onNotificationTokenDeleted,
+  onFeedCommentCreatedNotify,
+  onFeedReactionCreatedNotify,
+} from "./notifications";
 
 export const processUploadedRawMedia = onObjectFinalized(
   {

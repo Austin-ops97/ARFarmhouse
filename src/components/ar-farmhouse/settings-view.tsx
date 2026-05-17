@@ -8,7 +8,9 @@ import { useEcosystem } from "@/components/ar-farmhouse/ecosystem-context";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/ar-farmhouse/user-avatar";
 import { useAuth } from "@/contexts/auth-context";
+import { NotificationPermissionPrompt } from "@/components/push/notification-permission-prompt";
 import { useSettingsPrefs } from "@/contexts/settings-prefs-context";
+import { syncUserNotificationPrefs } from "@/services/push-tokens";
 import { useTheme } from "@/contexts/theme-context";
 import { cn } from "@/lib/utils";
 
@@ -128,7 +130,21 @@ export function SettingsView() {
         </SettingsGroup>
 
         <SettingsGroup title="Notifications">
-          <ToggleRow label="Push notifications" checked={prefs.notifyPush} onCheckedChange={(v) => patch({ notifyPush: v })} />
+          <ToggleRow
+            label="Push notifications"
+            checked={prefs.notifyPush}
+            onCheckedChange={(v) => {
+              patch({ notifyPush: v });
+              if (user?.uid) {
+                void syncUserNotificationPrefs(user.uid, { notificationsEnabled: v, push: v });
+              }
+            }}
+          />
+          {prefs.notifyPush ? (
+            <div className="pb-3">
+              <NotificationPermissionPrompt />
+            </div>
+          ) : null}
           <ToggleRow
             label="Email digest"
             checked={prefs.notifyEmailDigest}

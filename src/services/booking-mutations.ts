@@ -28,13 +28,6 @@ import { validateBookingLimits } from "@/lib/booking-limits";
 import { bookingStatusToCalendarStatus } from "@/lib/booking-migration";
 import { bookingEventTitle, TRIP_CALENDAR_META } from "@/lib/booking-calendar";
 import { BOOKING_CONFLICT_MESSAGE } from "@/lib/booking-conflicts";
-import {
-  notifyBookingApproved,
-  notifyBookingCancelled,
-  notifyBookingDenied,
-  notifyBookingRemoved,
-  notifyBookingSubmitted,
-} from "@/lib/notification-fanout-bookings";
 import { guardedMutation, mutationKey } from "@/lib/request-guard";
 import { actionDebug } from "@/lib/action-debug";
 import { tryGetFirestoreDb } from "@/lib/firebase";
@@ -354,17 +347,6 @@ async function createBookingInner(input: CreateBookingInput): Promise<CreateBook
 
     actionDebug("booking", "create complete", { bookingId: bookingRef.id, status });
 
-    void notifyBookingSubmitted({
-      actorId: input.createdBy,
-      actorName: input.createdByName,
-      actorAvatarUrl: input.actorAvatarUrl ?? null,
-      bookingId: bookingRef.id,
-      calendarEventId: eventRef.id,
-      title,
-      dateLabel,
-      status: status === "pending_conflict" ? "pending_conflict" : "pending",
-    }).catch(() => {});
-
     return {
       bookingId: bookingRef.id,
       calendarEventId: eventRef.id,
@@ -420,17 +402,6 @@ export async function approveBooking(
       });
     }
     await batch.commit();
-
-    void notifyBookingApproved({
-      actorId: actor.uid,
-      actorName: actor.displayName,
-      actorAvatarUrl: actor.avatarUrl ?? null,
-      bookingId,
-      calendarEventId,
-      creatorId: booking.createdBy,
-      title: booking.title,
-      dateLabel,
-    }).catch(() => {});
   });
 }
 
@@ -472,17 +443,6 @@ export async function denyBooking(
       });
     }
     await batch.commit();
-
-    void notifyBookingDenied({
-      actorId: actor.uid,
-      actorName: actor.displayName,
-      actorAvatarUrl: actor.avatarUrl ?? null,
-      bookingId,
-      calendarEventId,
-      creatorId: booking.createdBy,
-      title: booking.title,
-      reason: reason || undefined,
-    }).catch(() => {});
   });
 }
 
@@ -515,17 +475,6 @@ export async function cancelBooking(
       });
     }
     await batch.commit();
-
-    void notifyBookingCancelled({
-      actorId: actor.uid,
-      actorName: actor.displayName,
-      actorAvatarUrl: actor.avatarUrl ?? null,
-      bookingId,
-      calendarEventId,
-      title: booking.title,
-      dateLabel,
-      notifyUserIds: [booking.createdBy],
-    }).catch(() => {});
   });
 }
 
@@ -568,17 +517,6 @@ export async function softDeleteBooking(
       });
     }
     await batch.commit();
-
-    void notifyBookingRemoved({
-      actorId: actor.uid,
-      actorName: actor.displayName,
-      actorAvatarUrl: actor.avatarUrl ?? null,
-      bookingId,
-      calendarEventId,
-      creatorId: booking.createdBy,
-      title: booking.title,
-      reason: reason || undefined,
-    }).catch(() => {});
   });
 }
 

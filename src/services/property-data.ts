@@ -17,7 +17,6 @@ import {
 } from "firebase/firestore";
 
 import { calendarDayRangeToTimestamps } from "@/lib/booking-dates";
-import { notifyBookingCreated, notifyTaskCreated } from "@/lib/notification-fanout";
 import { BOOKINGS_COLLECTION } from "@/models/booking";
 import { actionDebug } from "@/lib/action-debug";
 import { bookingEventTitle, TRIP_CALENDAR_META } from "@/lib/booking-calendar";
@@ -128,13 +127,6 @@ export async function createHouseTask(input: {
     createdBy: input.uid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
-  void notifyTaskCreated({
-    taskId: ref.id,
-    actorId: input.uid,
-    actorName: input.displayName,
-    actorAvatarUrl: input.avatarUrl,
-    taskTitle,
   });
   return ref.id;
 }
@@ -414,18 +406,6 @@ export async function createBookingRequest(input: BookingRequestPayload): Promis
     const monthWord = new Date(input.year, input.monthIndex, 1).toLocaleString("en-US", {
       month: "long",
     });
-    const dateLabel =
-      endDay !== startDay ? `${monthWord} ${startDay}–${endDay}` : `${monthWord} ${startDay}`;
-    void notifyBookingCreated({
-      actorId: input.requestedBy,
-      actorName: input.requestedByName,
-      actorAvatarUrl: input.requestedByAvatarUrl ?? null,
-      tripTitle: title,
-      dateLabel,
-      calendarEventId: eventRef.id,
-      bookingRequestId: bookingRef.id,
-    });
-
     return {
       bookingId,
       bookingRequestId: bookingRef.id,

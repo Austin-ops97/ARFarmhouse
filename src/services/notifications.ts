@@ -70,6 +70,8 @@ function mapNotificationDoc(snapshot: QueryDocumentSnapshot<DocumentData>): Fami
       bookingId: d.routeBookingId ?? undefined,
     },
     groupKey: d.groupKey ?? undefined,
+    deepLink: d.deepLink ?? undefined,
+    metadata: d.metadata ?? undefined,
   };
 }
 
@@ -98,6 +100,9 @@ export function subscribeNotifications(
   );
 }
 
+/**
+ * @deprecated Client writes are blocked by Firestore rules. Notifications are created by Cloud Functions.
+ */
 export async function writeNotification(recipientId: string, input: WriteNotificationInput) {
   const db = tryGetFirestoreDb();
   if (!db) return;

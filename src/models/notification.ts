@@ -43,6 +43,9 @@ export type FamilyNotification = {
   actorAvatarUrl: string | null;
   readAt: number | null;
   createdAt: number;
+  /** Absolute or relative deep link for push / external open. */
+  deepLink?: string;
+  metadata?: Record<string, unknown> | null;
   entity: {
     kind: NotificationEntityKind;
     id: string;
@@ -69,4 +72,6 @@ export type FirestoreNotification = {
   routeEventId?: string | null;
   routeBookingId?: string | null;
   groupKey?: string | null;
+  deepLink?: string | null;
+  metadata?: Record<string, unknown> | null;
 };

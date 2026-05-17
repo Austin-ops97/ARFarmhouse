@@ -19,9 +19,11 @@ Copy `.env.example` → set all values in Vercel **Project → Settings → Envi
 
 Required for the app to function:
 
-- All `NEXT_PUBLIC_FIREBASE_*` keys
+- All `NEXT_PUBLIC_FIREBASE_*` keys (including `NEXT_PUBLIC_FIREBASE_VAPID_KEY` from Cloud Messaging → Web Push certificates)
 - `NEXT_PUBLIC_REGISTRATION_OPEN` (recommend `false` in production)
-- `NEXT_PUBLIC_SITE_URL` (your canonical URL, no trailing slash — used for post share links)
+- `NEXT_PUBLIC_SITE_URL` (your canonical URL, no trailing slash — share links and deep links)
+
+**Firebase Functions** (separate from Vercel): set `SITE_ORIGIN` to the same canonical origin (no trailing slash). See [ENVIRONMENT.md](./ENVIRONMENT.md).
 
 See [ENVIRONMENT.md](./ENVIRONMENT.md) for details.
 
@@ -70,6 +72,23 @@ Single-field queries (`createdBy ==`, `status in`, `orderBy(createdAt)`) use aut
 5. Add environment variables (see above).
 6. Deploy `main` (or your production branch).
 
+## Deploy commands (notifications)
+
+From the repo root (after `firebase use <project-id>`):
+
+```bash
+# Firestore rules (inbox + notificationTokens)
+npm run firebase:deploy
+
+# Cloud Functions (FCM dispatch, topic subscribe, booking/feed triggers)
+npm run firebase:deploy:functions
+
+# Or rules + storage + functions together
+npm run firebase:deploy:with-functions
+```
+
+**Frontend (Vercel):** push to `main` or trigger a production deploy after env vars are set.
+
 ## Post-deploy checklist
 
 - [ ] Sign in with a family account on production URL
@@ -77,8 +96,18 @@ Single-field queries (`createdBy ==`, `status in`, `orderBy(createdAt)`) use aut
 - [ ] Upload a feed image and album photo; confirm Storage rules allow only images
 - [ ] Open notification bell after another user comments
 - [ ] Confirm `NEXT_PUBLIC_SITE_URL` share links copy correctly
+- [ ] Enable push in Settings → confirm `users/{uid}/notificationTokens/{tokenId}` in Firestore
+- [ ] Submit a booking as user A → admin B receives push + inbox
+- [ ] Approve booking → creator receives push + inbox
+- [ ] New feed post → topic broadcast push + inbox fan-out
 - [ ] Lock registration in Firebase Console if not using open signup
 - [ ] Assign `role: owner` on one `users/{uid}` doc for property map/resource edits
+
+## Firebase Console (FCM — one-time)
+
+1. **Project settings → Cloud Messaging → Web Push certificates** — generate a key pair if none exists; copy the **Key pair** public key.
+2. Paste into Vercel and `.env.local` as `NEXT_PUBLIC_FIREBASE_VAPID_KEY` (same value; not the private key).
+3. Ensure the web app is registered under **Project settings → Your apps** (same `appId` as `NEXT_PUBLIC_FIREBASE_APP_ID`).
 
 ## Rollback
 

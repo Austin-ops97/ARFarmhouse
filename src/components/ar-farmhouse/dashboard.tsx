@@ -22,6 +22,9 @@ import { FeedPostsProvider } from "@/contexts/feed-posts-context";
 import { PhotoAlbumLightboxHost } from "@/components/ar-farmhouse/photo-album-lightbox-host";
 import { PhotoAlbumProvider } from "@/contexts/photo-album-context";
 import { NotificationsProvider } from "@/contexts/notifications-context";
+import { PushNotificationsProvider } from "@/contexts/push-notifications-context";
+import { PushNotificationBootstrap } from "@/components/push/push-notification-bootstrap";
+import { PwaInstallBanner } from "@/components/push/pwa-install-banner";
 import { SavedPostsProvider } from "@/contexts/saved-posts-context";
 import { useAuth } from "@/contexts/auth-context";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -143,6 +146,9 @@ function DashboardRoutes() {
             onMobileMenuOpenChange={setMobileMenuOpen}
           />
           <OfflineStatusBar />
+          <div className="px-1 pt-2 lg:px-4">
+            <PwaInstallBanner />
+          </div>
 
           <main className={cnDashboardMain(activeId === "home")}>
             <AnimatePresence mode="wait">
@@ -184,6 +190,8 @@ export function Dashboard() {
     <FeedPostsProvider>
       <SavedPostsProvider>
         <NotificationsProvider>
+        <PushNotificationsProvider>
+        <PushNotificationBootstrap />
         <PhotoAlbumProvider>
           <Suspense
         fallback={
@@ -198,6 +206,7 @@ export function Dashboard() {
           <DashboardRoutes />
         </Suspense>
         </PhotoAlbumProvider>
+        </PushNotificationsProvider>
         </NotificationsProvider>
       </SavedPostsProvider>
     </FeedPostsProvider>

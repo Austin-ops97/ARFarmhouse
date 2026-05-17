@@ -24,12 +24,26 @@ const display = Newsreader({
 export const metadata: Metadata = {
   title: "AR Farmhouse",
   description: "Private family property network",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "AR Farmhouse",
+  },
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f1ea" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0f14" },
+  ],
 };
 
 export default function RootLayout({
@@ -45,6 +59,10 @@ export default function RootLayout({
     >
       <head>
         <link rel="preload" as="image" href={PROPERTY_HERO_IMAGE_URL} fetchPriority="high" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <Script src="/ar-theme-boot.js" strategy="beforeInteractive" />
       </head>
       <body className="min-h-full overflow-x-hidden bg-background text-foreground antialiased">

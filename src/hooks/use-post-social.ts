@@ -2,7 +2,6 @@
 
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { notifyFeedComment, notifyFeedReaction } from "@/lib/notification-fanout";
 import { buildChipsFromCounts, computeReactionCountsUpdate } from "@/lib/reaction-counts";
 import {
   addFeedComment,
@@ -127,15 +126,6 @@ export function usePostSocial({
       setMineEmoji(nextUserEmoji);
       try {
         await setPostReaction(postId, uid, emoji, countsFromFeed);
-        if (nextUserEmoji) {
-          void notifyFeedReaction({
-            postId,
-            actorId: uid,
-            actorName: displayName,
-            actorAvatarUrl: null,
-            emoji: nextUserEmoji,
-          });
-        }
         setSocialError(null);
       } catch (e) {
         setOptimisticChips(null);
@@ -176,20 +166,12 @@ export function usePostSocial({
       };
       setPendingComments((rows) => [...rows, optimistic]);
       try {
-        const commentId = await addFeedComment({
+        await addFeedComment({
           postId,
           uid,
           authorName: displayName,
           authorAvatarColor: avatarColor,
           text,
-          parentId,
-        });
-        void notifyFeedComment({
-          postId,
-          commentId,
-          actorId: uid,
-          actorName: displayName,
-          actorAvatarUrl: null,
           parentId,
         });
         setPendingComments((rows) => rows.filter((r) => r.id !== tempId));
